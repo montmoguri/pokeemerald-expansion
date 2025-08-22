@@ -137,7 +137,7 @@ static void BuyMenuCollectObjectEventData(void);
 static void BuyMenuDrawObjectEvents(void);
 static void BuyMenuDrawMapBg(void);
 static bool8 BuyMenuCheckForOverlapWithMenuBg(int, int);
-static bool8 IsMetatileLayerEmpty(const u16 *src)
+static bool8 IsMetatileLayerEmpty(const u16 *src);
 static void BuyMenuDrawMapMetatile(s16, s16, const u16 *, u8);
 static void BuyMenuDrawMapMetatileLayer(u16 *dest, s16 offset1, s16 offset2, const u16 *src);
 static bool8 BuyMenuCheckIfObjectEventOverlapsMenuBg(s16 *);
@@ -838,30 +838,29 @@ static void BuyMenuDrawMapMetatile(s16 x, s16 y, const u16 *src, u8 metatileLaye
     u16 offset1 = x * 2;
     u16 offset2 = y * 64;
 
-    switch (metatileLayerType)
     if (metatileLayerType == METATILE_LAYER_TYPE_NORMAL)
     {
         BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[2], offset1, offset2, src + 0);
         BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[3], offset1, offset2, src + 4);
         BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[1], offset1, offset2, src + 8);
-+    }
-+    else
-+    {
-+        if (IsMetatileLayerEmpty(src))
-+        {
-+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[2], offset1, offset2, src + 4);
-+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[3], offset1, offset2, src + 8);
-+        }
-+        else if (IsMetatileLayerEmpty(src + 4))
-+        {
-+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[2], offset1, offset2, src);
-+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[3], offset1, offset2, src + 8);
-+        }
-+        else if (IsMetatileLayerEmpty(src + 8))
-+        {
-+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[2], offset1, offset2, src);
-+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[3], offset1, offset2, src + 4);
-+        }
+    }
+    else
+    {
+        if (IsMetatileLayerEmpty(src))
+        {
+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[2], offset1, offset2, src + 4);
+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[3], offset1, offset2, src + 8);
+        }
+        else if (IsMetatileLayerEmpty(src + 4))
+        {
+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[2], offset1, offset2, src);
+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[3], offset1, offset2, src + 8);
+        }
+        else if (IsMetatileLayerEmpty(src + 8))
+        {
+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[2], offset1, offset2, src);
+            BuyMenuDrawMapMetatileLayer(sShopData->tilemapBuffers[3], offset1, offset2, src + 4);
+        }
     }
 }
 
