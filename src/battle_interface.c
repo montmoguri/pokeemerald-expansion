@@ -2545,7 +2545,8 @@ static void PrintBattlerOnAbilityPopUp(u8 battler, u8 spriteId1, u8 spriteId2)
     int i;
     u8 lastChar;
     u8* textPtr;
-    u8 monName[POKEMON_NAME_LENGTH + 3] = {0};
+    u8 monName[18 + 1] = {0};
+    // u8 monName[POKEMON_NAME_LENGTH + 3] = {0};
     struct Pokemon *illusionMon = GetIllusionMonPtr(battler);
     u8 nick[POKEMON_NAME_LENGTH + 1] = {0};
 
@@ -2564,23 +2565,49 @@ static void PrintBattlerOnAbilityPopUp(u8 battler, u8 spriteId1, u8 spriteId2)
 
     textPtr = monName + i;
 
-    lastChar = *(textPtr - 1);
+    // lastChar = *(textPtr - 1);
 
-    // Make the string say "[NAME]'s" instead of "[NAME]"
-    textPtr[0] = CHAR_SGL_QUOTE_RIGHT; // apostraphe
-    textPtr++;
-    if (lastChar != CHAR_S && lastChar != CHAR_s)
+    // // Make the string say "[NAME]'s" instead of "[NAME]"
+    // textPtr[0] = CHAR_SGL_QUOTE_RIGHT; // apostraphe
+    // textPtr++;
+    // if (lastChar != CHAR_S && lastChar != CHAR_s)
+    // {
+    //     textPtr[0] = CHAR_s;
+    //     textPtr++;
+    // }
+
+    // Add apostrophe
+    if (i < 18)
     {
-        textPtr[0] = CHAR_s;
+        *textPtr = CHAR_SGL_QUOTE_RIGHT;
         textPtr++;
+        i++;
     }
+
+    // Add 's' if nickname doesn't end in 's'
+    lastChar = (i > 1) ? monName[i - 2] : 0;
+    if (i < 18 && lastChar != CHAR_S && lastChar != CHAR_s)
+    {
+        *textPtr = CHAR_s;
+        textPtr++;
+        i++;
+    }
+
+    // Pad with spaces until length is 18
+    while (i < 18)
+    {
+        *textPtr = CHAR_SPACE;
+        textPtr++;
+        i++;
+    }
+
 
     textPtr[0] = EOS;
 
     PrintOnAbilityPopUp((const u8 *)monName,
                         (void*)(OBJ_VRAM0) + (gSprites[spriteId1].oam.tileNum * 32),
                         (void*)(OBJ_VRAM0) + (gSprites[spriteId2].oam.tileNum * 32),
-                        5, 12,
+                        14, 12,
                         0,
                         2, 7, 1);
 }
@@ -2591,7 +2618,7 @@ static void PrintAbilityOnAbilityPopUp(u32 ability, u8 spriteId1, u8 spriteId2)
     PrintOnAbilityPopUp(gAbilitiesInfo[ability].name,
                         (void*)(OBJ_VRAM0) + (gSprites[spriteId1].oam.tileNum * 32) + 256,
                         (void*)(OBJ_VRAM0) + (gSprites[spriteId2].oam.tileNum * 32) + 256,
-                        5, 12,
+                        10, 12,
                         4,
                         7, 9, 1);
 }
