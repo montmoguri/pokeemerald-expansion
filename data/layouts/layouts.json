@@ -4410,6 +4410,46 @@
       "secondary_tileset": "gTileset_MysteryEventsHouse",
       "border_filepath": "data/layouts/SootopolisCity_MysteryEventsHouse_1F_StairsUnblocked/border.bin",
       "blockdata_filepath": "data/layouts/SootopolisCity_MysteryEventsHouse_1F_StairsUnblocked/map.bin"
+    },
+    {
+      "id": "LAYOUT_POSTWICK",
+      "name": "Postwick_Layout",
+      "width": 36,
+      "height": 24,
+      "primary_tileset": "gTileset_General_Testing",
+      "secondary_tileset": "gTileset_Postwick",
+      "border_filepath": "data/layouts/Postwick/border.bin",
+      "blockdata_filepath": "data/layouts/Postwick/map.bin"
+    },
+    {
+      "id": "LAYOUT_POSTWICK_COLISEUM",
+      "name": "Postwick_Coliseum_Layout",
+      "width": 20,
+      "height": 26,
+      "primary_tileset": "gTileset_General_Testing",
+      "secondary_tileset": "gTileset_Coliseum",
+      "border_filepath": "data/layouts/Postwick_Coliseum/border.bin",
+      "blockdata_filepath": "data/layouts/Postwick_Coliseum/map.bin"
+    },
+    {
+      "id": "LAYOUT_POSTWICK_COLISEUM_LOBBY",
+      "name": "Postwick_Coliseum_Lobby_Layout",
+      "width": 23,
+      "height": 17,
+      "primary_tileset": "gTileset_Building",
+      "secondary_tileset": "gTileset_BattleDome",
+      "border_filepath": "data/layouts/Postwick_Coliseum_Lobby/border.bin",
+      "blockdata_filepath": "data/layouts/Postwick_Coliseum_Lobby/map.bin"
+    },
+    {
+      "id": "LAYOUT_POSTWICK_POKEMON_CENTER",
+      "name": "Postwick_PokemonCenter_Layout",
+      "width": 14,
+      "height": 9,
+      "primary_tileset": "gTileset_Building",
+      "secondary_tileset": "gTileset_PokemonCenter",
+      "border_filepath": "data/layouts/Postwick_PokemonCenter/border.bin",
+      "blockdata_filepath": "data/layouts/Postwick_PokemonCenter/map.bin"
     }
   ]
 }

@@ -1157,3 +1157,11 @@ EventScript_VsSeekerChargingDone::
 	.include "data/text/save.inc"
 	.include "data/text/birch_speech.inc"
 	.include "data/scripts/dexnav.inc"
+
+	.include "data/maps/Postwick/scripts.inc"
+
+	.include "data/maps/Postwick_Coliseum/scripts.inc"
+
+	.include "data/maps/Postwick_Coliseum_Lobby/scripts.inc"
+
+	.include "data/maps/Postwick_PokemonCenter/scripts.inc"
