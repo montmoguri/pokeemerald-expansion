@@ -2440,13 +2440,15 @@ THESE ARE USEFUL FOR TESTING, BATTLER 2-7-1 + ABILITY 7-9-1 ARE DEFAULT
 // #define ABILITY_POP_UP_ABILITY_FG_TXTCLR 7
 // #define ABILITY_POP_UP_ABILITY_SH_TXTCLR 1
 
+// For idx 15 see comment below re: ability_pop_up.gbapal
+
 #define ABILITY_POP_UP_BATTLER_BG_TXTCLR 7
 #define ABILITY_POP_UP_BATTLER_FG_TXTCLR 9
-#define ABILITY_POP_UP_BATTLER_SH_TXTCLR 1
+#define ABILITY_POP_UP_BATTLER_SH_TXTCLR 15
 
 #define ABILITY_POP_UP_ABILITY_BG_TXTCLR 7
 #define ABILITY_POP_UP_ABILITY_FG_TXTCLR 9
-#define ABILITY_POP_UP_ABILITY_SH_TXTCLR 1
+#define ABILITY_POP_UP_ABILITY_SH_TXTCLR 15
 
 #define sState          data[0]
 #define sAutoDestroy    data[1]
@@ -2475,6 +2477,8 @@ enum
 
 static const u32 sAbilityPopUpGfx[] = INCBIN_U32("graphics/battle_interface/ability_pop_up.4bpp");
 static const u16 sAbilityPopUpPalette[] = INCBIN_U16("graphics/battle_interface/ability_pop_up.gbapal");
+// in ability_pop_up.pal: Changed palette idx-16 from 0 0 0 to 222 214 181 to be able to set 
+// ABILITY_POP_UP_BATTLER_SH_TXTCLR and ABILITY_POP_UP_ABILITY_SH_TXTCLR have lighter shadow matching name in healthbox
 
 static const struct SpriteSheet sSpriteSheet_AbilityPopUp =
 {

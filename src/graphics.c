@@ -2,6 +2,10 @@
 #include "graphics.h"
 
 const u32 gBattleTextboxTiles[] = INCBIN_U32("graphics/battle_interface/textbox.4bpp.smol");
+// Battle msg box mod required 2 changes in textbox_0.pal
+// Changed Idx-5 from 255 255 255 to 0 0 0
+// Changed Idx-15 from 106 164 164 to 48 48 48 
+
 const u16 gBattleTextboxPalette[] = INCBIN_U16("graphics/battle_interface/textbox.gbapal");
 const u32 gBattleTextboxTilemap[] = INCBIN_U32("graphics/battle_interface/textbox_map.bin.smolTM");
 
