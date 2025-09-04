@@ -1,0 +1,55 @@
+JASC-PAL
+0100
+48
+0 0 0
+230 40 41     // FIRE FG
+145 14 13     // FIRE SH
+255 128 0     // FIGHT FG
+198 79 0      // FIGHT SH
+250 192 0     // ELECTRIC FG
+167 119 0     // SH
+66 161 41     // GRASS FG
+30 86 18      // SH
+41 128 239    // WATER FG
+16 54 123     // SH
+144 64 204    // POISON FG
+87 36 134     // SH
+159 161 159   // NORMAL FG
+86 86 83      // SH
+255 255 255
+
+0 0 0
+80 65 63      // DARK FG
+36 27 27      // SH
+80 97 225     // DRAGON FG
+39 47 129     // SH
+241 112 241   // FAIRY FG
+153 58 150    // SH
+129 185 239   // FLYING FG
+76 127 174    // SH
+112 65 112    // GHOST FG
+74 39 70      // SH
+145 81 33     // GROUND FG
+69 35 14      // SH
+63 216 255    // ICE FG
+38 159 193    // SH
+255 255 255
+
+0 0 0
+241 65 121    // PSYCHIC FG
+177 36 63     // SH
+175 169 129   // ROCK
+105 98 66     // SH
+96 161 184    // STEEL FG
+50 94 110     // SH
+145 161 25    // BUG FG
+84 99 13      // SH
+106 164 148   // MYSTERY NONE FG
+32 106 98     // SH
+0 0 0
+0 0 0
+0 0 0
+0 0 0
+255 255 255
+
+ball status bar Idx-7 203900
