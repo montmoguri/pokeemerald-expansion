@@ -252,7 +252,7 @@ static void ChangePage(u8, s8);
 static void PssScroll(u8);
 static void PssScrollEnd(u8);
 static void TryDrawExperienceProgressBar(void);
-static void TryDrawHPBar(void);
+// static void TryDrawHPBar(void);
 static void SwitchToMoveSelection(u8);
 static void Task_HandleInput_MoveSelect(u8);
 static bool8 HasMoreThanOneMove(void);
@@ -270,8 +270,8 @@ static void ShowCantForgetHMsWindow(u8);
 static void Task_HandleInputCantForgetHMsMoves(u8);
 static void HandleAppealJamTilemap(u16);
 static void DrawExperienceProgressBar(struct Pokemon *);
-static void DrawHPBar(struct Pokemon *);
-static void OverrideHPBarPalette(void);
+// static void DrawHPBar(struct Pokemon *);
+// static void OverrideHPBarPalette(void);
 static void LimitEggSummaryPageDisplay(void);
 static void ResetWindows(void);
 static void PrintMonPortraitInfo(void);
@@ -387,10 +387,11 @@ static const u8 sMovesPPLayout[]                            = _("{PP}{CLEAR_TO 3
 #if BW_SUMMARY_DECAP == TRUE
 static const u8 sText_Cancel[]                              = _("Cancel");
 static const u8 sText_Switch[]                              = _("Switch");
-static const u8 sText_PkmnInfo[]                            = _("Pokémon Info");
-static const u8 sText_PkmnSkills[]                          = _("Pokémon Skills");
-static const u8 sText_BattleMoves[]                         = _("Battle Moves");
-static const u8 sText_ContestMoves[]                        = _("Contest Moves");
+static const u8 sText_PkmnInfo[]                            = _("Info");
+static const u8 sText_PkmnSkills[]                          = _("Skills");
+static const u8 sText_BattleMoves[]                         = _("Moves");
+static const u8 sText_ContestMoves[]                        = _("Moves");
+static const u8 sText_Rename[]                              = _("Rename");
 static const u8 sText_Info[]                                = _("Info");
 static const u8 sText_ViewIVs[]                             = _("View IV");
 static const u8 sText_ViewEVs[]                             = _("View EV");
@@ -403,10 +404,11 @@ static const u8 sText_None[]                                = _("None");
 #else
 static const u8 sText_Cancel[]                              = _("CANCEL");
 static const u8 sText_Switch[]                              = _("SWITCH");
-static const u8 sText_PkmnInfo[]                            = _("POKéMON INFO");
-static const u8 sText_PkmnSkills[]                          = _("POKéMON SKILLS");
-static const u8 sText_BattleMoves[]                         = _("BATTLE MOVES");
-static const u8 sText_ContestMoves[]                        = _("CONTEST MOVES");
+static const u8 sText_PkmnInfo[]                            = _("INFO");
+static const u8 sText_PkmnSkills[]                          = _("SKILLS");
+static const u8 sText_BattleMoves[]                         = _("MOVES");
+static const u8 sText_ContestMoves[]                        = _("MOVES");
+static const u8 sText_Rename[]                              = _("RENAME");
 static const u8 sText_Info[]                                = _("INFO");
 static const u8 sText_ViewIVs[]                             = _("VIEW IV");
 static const u8 sText_ViewEVs[]                             = _("VIEW EV");
@@ -573,7 +575,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
     },
     [PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP] = {
         .bg = 0,
-        .tilemapLeft = 12,
+        .tilemapLeft = 9,
         .tilemapTop = 13,
         .width = 11,
         .height = 4,
@@ -671,9 +673,9 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
     [PSS_DATA_WINDOW_SKILLS_STATS_HP] = {
         .bg = 0,
         .tilemapLeft = 8,
-        .tilemapTop = 2,
+        .tilemapTop = 3,   // Moved down 1
         .width = 8,
-        .height = 2,
+        .height = 9,       // Expanded to also print non-HP stats
         .paletteNum = 6,
         .baseBlock = 355,
     },
@@ -690,14 +692,14 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
         .bg = 0,
         .tilemapLeft = 0,
         .tilemapTop = 13,
-        .width = 11,
+        .width = 8,
         .height = 2,
         .paletteNum = 6,
         .baseBlock = 451,
     },
     [PSS_DATA_WINDOW_EXP_NEXT_LEVEL] = {
         .bg = 0,
-        .tilemapLeft = 18,
+        .tilemapLeft = 15,
         .tilemapTop = 13,
         .width = 9,
         .height = 2,
@@ -2626,7 +2628,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
             gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sIsShadow = TRUE;
         }
 
-        TryDrawHPBar();
+        // TryDrawHPBar();
         TryDrawExperienceProgressBar();
         data[1] = 0;
         break;
@@ -2825,7 +2827,7 @@ static void PssScrollEnd(u8 taskId)
 
     SetTypeIcons();
     TrySetInfoPageIcons();
-    TryDrawHPBar();
+    // TryDrawHPBar();
     TryDrawExperienceProgressBar();
 
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS && BW_SUMMARY_IV_EV_DISPLAY == BW_IV_EV_GRADED)
@@ -2849,12 +2851,12 @@ static void TryDrawExperienceProgressBar(void)
         DrawExperienceProgressBar(&sMonSummaryScreen->currentMon);
 }
 
-static void TryDrawHPBar(void)
-{
-    OverrideHPBarPalette();
-    if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
-        DrawHPBar(&sMonSummaryScreen->currentMon);
-}
+// static void TryDrawHPBar(void)
+// {
+//     OverrideHPBarPalette();
+//     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
+//         DrawHPBar(&sMonSummaryScreen->currentMon);
+// }
 
 static void SwitchToMoveSelection(u8 taskId)
 {
@@ -3417,48 +3419,48 @@ static void HandleAppealJamTilemap(u16 move)
 #define HP_BAR_TILE_EMPTY_ROW_2    0x5120
 #define HP_BAR_TILE_FULL_ROW_2     0x5128
 
-static void DrawHPBar(struct Pokemon *unused)
-{
-    s64 numHPBarTicks;
-    u16 *dst1, *dst2;
-    u8 i;
+// static void DrawHPBar(struct Pokemon *unused)
+// {
+//     s64 numHPBarTicks;
+//     u16 *dst1, *dst2;
+//     u8 i;
 
-    if (sMonSummaryScreen->summary.currentHP > 0)
-    {
-        // Calculate the number of 1-pixel "ticks" to illuminate in the HP bar.
-        // There are 8 tiles that make up the bar, and each tile has 8 "ticks". Hence, the numerator
-        // is multiplied by 64.
-        numHPBarTicks = sMonSummaryScreen->summary.currentHP * 64 / sMonSummaryScreen->summary.maxHP;
-        if (numHPBarTicks == 0 && sMonSummaryScreen->summary.currentHP != 0)
-            numHPBarTicks = 1;
-    }
-    else
-    {
-        numHPBarTicks = 0;
-    }
+//     if (sMonSummaryScreen->summary.currentHP > 0)
+//     {
+//         // Calculate the number of 1-pixel "ticks" to illuminate in the HP bar.
+//         // There are 8 tiles that make up the bar, and each tile has 8 "ticks". Hence, the numerator
+//         // is multiplied by 64.
+//         numHPBarTicks = sMonSummaryScreen->summary.currentHP * 64 / sMonSummaryScreen->summary.maxHP;
+//         if (numHPBarTicks == 0 && sMonSummaryScreen->summary.currentHP != 0)
+//             numHPBarTicks = 1;
+//     }
+//     else
+//     {
+//         numHPBarTicks = 0;
+//     }
 
-    dst1 = &sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_SKILLS][HP_BAR_TILEMAP_START_ROW_1];
-    dst2 = &sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_SKILLS][HP_BAR_TILEMAP_START_ROW_2];
-    for (i = 0; i < 8; i++)
-    {
-        if (numHPBarTicks > 7)
-        {
-            dst1[i] = HP_BAR_TILE_FULL_ROW_1;
-            dst2[i] = HP_BAR_TILE_FULL_ROW_2;
-        }
-        else
-        {
-            dst1[i] = HP_BAR_TILE_EMPTY_ROW_1 + (numHPBarTicks % 8);
-            dst2[i] = HP_BAR_TILE_EMPTY_ROW_2 + (numHPBarTicks % 8);
-        }
+//     dst1 = &sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_SKILLS][HP_BAR_TILEMAP_START_ROW_1];
+//     dst2 = &sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_SKILLS][HP_BAR_TILEMAP_START_ROW_2];
+//     for (i = 0; i < 8; i++)
+//     {
+//         if (numHPBarTicks > 7)
+//         {
+//             dst1[i] = HP_BAR_TILE_FULL_ROW_1;
+//             dst2[i] = HP_BAR_TILE_FULL_ROW_2;
+//         }
+//         else
+//         {
+//             dst1[i] = HP_BAR_TILE_EMPTY_ROW_1 + (numHPBarTicks % 8);
+//             dst2[i] = HP_BAR_TILE_EMPTY_ROW_2 + (numHPBarTicks % 8);
+//         }
 
-        numHPBarTicks -= 8;
-        if (numHPBarTicks < 0)
-            numHPBarTicks = 0;
-    }
+//         numHPBarTicks -= 8;
+//         if (numHPBarTicks < 0)
+//             numHPBarTicks = 0;
+//     }
 
-    ScheduleBgCopyTilemapToVram(2);
-}
+//     ScheduleBgCopyTilemapToVram(2);
+// }
 
 #define HP_BAR_TILE_PAL                 5
 #define HP_BAR_PAL_SLOT_LIGHT_COLOR     3
@@ -3470,33 +3472,36 @@ static void DrawHPBar(struct Pokemon *unused)
 #define HP_BAR_LIGHT_RED                RGB(31, 11,  7)
 #define HP_BAR_DARK_RED                 RGB(21,  8,  9)
 
-static void OverrideHPBarPalette(void)
-{
-    u16 palColor;
-    u16 hpRatio = (sMonSummaryScreen->summary.currentHP * 100) / (sMonSummaryScreen->summary.maxHP);
+// static void OverrideHPBarPalette(void)
+// {
+//     u16 palColor;
+//     u16 hpRatio = (sMonSummaryScreen->summary.currentHP * 100) / (sMonSummaryScreen->summary.maxHP);
 
-    if (hpRatio <= 20)
-    {
-        palColor = HP_BAR_LIGHT_RED;
-        LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_LIGHT_COLOR, PLTT_SIZEOF(1));
-        palColor = HP_BAR_DARK_RED;
-        LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_DARK_COLOR, PLTT_SIZEOF(1));
-    }
-    else if (hpRatio <= 50)
-    {
-        palColor = HP_BAR_LIGHT_YELLOW;
-        LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_LIGHT_COLOR, PLTT_SIZEOF(1));
-        palColor = HP_BAR_DARK_YELLOW;
-        LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_DARK_COLOR, PLTT_SIZEOF(1));
-    } else {
-        palColor = HP_BAR_LIGHT_GREEN;
-        LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_LIGHT_COLOR, PLTT_SIZEOF(1));
-        palColor = HP_BAR_DARK_GREEN;
-        LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_DARK_COLOR, PLTT_SIZEOF(1));
-    }
-}
+//     if (hpRatio <= 20)
+//     {
+//         palColor = HP_BAR_LIGHT_RED;
+//         LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_LIGHT_COLOR, PLTT_SIZEOF(1));
+//         palColor = HP_BAR_DARK_RED;
+//         LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_DARK_COLOR, PLTT_SIZEOF(1));
+//     }
+//     else if (hpRatio <= 50)
+//     {
+//         palColor = HP_BAR_LIGHT_YELLOW;
+//         LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_LIGHT_COLOR, PLTT_SIZEOF(1));
+//         palColor = HP_BAR_DARK_YELLOW;
+//         LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_DARK_COLOR, PLTT_SIZEOF(1));
+//     } else {
+//         palColor = HP_BAR_LIGHT_GREEN;
+//         LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_LIGHT_COLOR, PLTT_SIZEOF(1));
+//         palColor = HP_BAR_DARK_GREEN;
+//         LoadPalette(&palColor, BG_PLTT_ID(HP_BAR_TILE_PAL) + HP_BAR_PAL_SLOT_DARK_COLOR, PLTT_SIZEOF(1));
+//     }
+// }
 
-#define EXP_BAR_TILEMAP_START 0x1F4
+// Move up by 3 tiles (24 pixels) AND left by 8 tiles (64 pixels)
+#define EXP_BAR_VERTICAL_OFFSET_TILES -3
+#define EXP_BAR_HORIZONTAL_OFFSET_TILES -11  // Negative = left, positive = right
+#define EXP_BAR_TILEMAP_START (0x1F4 + (EXP_BAR_VERTICAL_OFFSET_TILES * 32) + EXP_BAR_HORIZONTAL_OFFSET_TILES)
 #define EXP_BAR_TILE_EMPTY    0x2100
 #define EXP_BAR_TILE_FULL     0x2108
 
@@ -4427,12 +4432,14 @@ static void BufferNonHPStats(void)
 
 static void PrintNonHPStats(void)
 {
-    u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS_NON_HP);
-    PrintTextOnWindow(windowId, gStringVar1, 30, 4, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 30, 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 30, 28, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 30, 40, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 30, 52, 0, 0);
+    u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS_HP);
+    // Changed from PSS_DATA_WINDOW_SKILLS_STATS_NON_HP
+    // Added offsets of 12 (height of text)
+    PrintTextOnWindow(windowId, gStringVar1, 30, 12, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar2, 30, 24, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar3, 30, 36, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 30, 48, 0, 0);
+    PrintTextOnWindow(windowId, sStringVar5, 30, 60, 0, 0);
 }
 
 static void PrintExpPointsNextLevel(void)
@@ -4444,7 +4451,8 @@ static void PrintExpPointsNextLevel(void)
 
     // print exp
     ConvertIntToDecimalStringN(gStringVar1, sum->exp, STR_CONV_MODE_RIGHT_ALIGN, 7);
-    PrintTextOnWindow(windowIdExp, gStringVar1, 45, 4, 0, 0);
+    PrintTextOnWindow(windowIdExp, gStringVar1, 20, 4, 0, 0);
+    // PrintTextOnWindowWithFont(windowIdExp, gStringVar1, 30, 4, 0, 0, FONT_NARROW);
 
     // print exp to next level
     if (sum->level < MAX_LEVEL)
@@ -4455,6 +4463,7 @@ static void PrintExpPointsNextLevel(void)
     ConvertIntToDecimalStringN(gStringVar1, expToNextLevel, STR_CONV_MODE_RIGHT_ALIGN, 6);
 
     PrintTextOnWindow(windowIdNextLvl, gStringVar1, 1, 4, 0, 0);
+    // PrintTextOnWindowWithFont(windowIdNextLvl, gStringVar1, 1, 4, 0, 0, FONT_NARROW);
 }
 
 static void PrintBattleMoves(void)
@@ -4951,7 +4960,7 @@ static void SetTypeSpritePosAndPal(u8 typeId, u8 x, u8 y, u8 spriteArrayId)
     else
         sprite->oam.paletteNum = sContestCategoryToOamPaletteNum[typeId - NUMBER_OF_MON_TYPES];
     sprite->x = x + 16;
-    sprite->y = y + 8;
+    sprite->y = y + 7; // shift up by 1 to accomodate gen 8 type badges
     SetSpriteInvisibility(spriteArrayId, FALSE);
 }
 
@@ -4979,7 +4988,7 @@ static void SetMonTypeIcons(void)
         }
         if (BW_SUMMARY_SHOW_TERA_TYPE)
         {
-            SetTypeSpritePosAndPal(summary->teraType, 36, 47, SPRITE_ARR_ID_TERA_TYPE);
+            SetTypeSpritePosAndPal(summary->teraType, 0, 47, SPRITE_ARR_ID_TERA_TYPE);
         }
     }
 }
@@ -5269,7 +5278,7 @@ static void SetFriendshipSprite(void)
 static void CreateMonShinySprite(struct Pokemon *mon)
 {
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] == SPRITE_NONE)
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 166, 48, 6);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 158, 38, 6);
 
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY]].invisible = !IsMonShiny(mon);
 }
@@ -5496,7 +5505,7 @@ static inline bool32 ShouldShowRename(void)
 
 static void ShowCancelOrRenamePrompt(void)
 {
-    const u8 *promptText = ShouldShowRename() ? gText_Rename : gText_Cancel2;
+    const u8 *promptText = ShouldShowRename() ? sText_Rename : gText_Cancel2;
 
     int stringXPos = GetStringRightAlignXOffset(FONT_NORMAL, promptText, 62);
     int iconXPos = stringXPos - 16;
