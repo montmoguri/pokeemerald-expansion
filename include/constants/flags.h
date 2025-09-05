@@ -658,11 +658,11 @@
 
 #define FLAG_DYNAMAX_ENABLED  0x264 // Unused Flag
 #define FLAG_FREE_TERA  0x265 // Unused Flag
-#define FLAG_UNUSED_0x266  0x266 // Unused Flag
-#define FLAG_UNUSED_0x267  0x267 // Unused Flag
-#define FLAG_UNUSED_0x268  0x268 // Unused Flag
-#define FLAG_UNUSED_0x269  0x269 // Unused Flag
-#define FLAG_UNUSED_0x26A  0x26A // Unused Flag
+#define FLAG_DEXNAV_SEARCHING  0x266 // Unused Flag
+#define FLAG_DEXNAV_GET  0x267 // Unused Flag
+#define FLAG_DEXNAV_DETECTOR_MODE  0x268 // Unused Flag
+#define FLAG_DEXNAV_VAR_SPECIES  0x269 // Unused Flag
+#define FLAG_DEXNAV_VAR_STEP_COUNTER  0x26A // Unused Flag
 #define FLAG_UNUSED_0x26B  0x26B // Unused Flag
 #define FLAG_UNUSED_0x26C  0x26C // Unused Flag
 #define FLAG_UNUSED_0x26D  0x26D // Unused Flag
