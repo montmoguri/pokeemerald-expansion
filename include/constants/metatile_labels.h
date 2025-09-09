@@ -1,6 +1,12 @@
 #ifndef GUARD_METATILE_LABELS_H
 #define GUARD_METATILE_LABELS_H
 
+// gTileset_General_Testing
+#define METATILE_General_Testing_Door_Pardis 0x037
+
+// gTileset_Postwick
+#define METATILE_Postwick_Door_Green 0x222
+
 // gTileset_BattleArena
 #define METATILE_BattleArena_Door  0x21B
 
