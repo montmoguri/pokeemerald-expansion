@@ -1,0 +1,6 @@
+mapscripts Postwick_MapScripts {}
+
+
+script Postwick_EventScript_ColiseumSign {
+  msgbox("{UP_ARROW} Postwick Coliseum$", MSGBOX_SIGN)
+}
