@@ -705,6 +705,10 @@ Common_EventScript_ShowPokemonCenterSign::
 	msgbox gText_PokemonCenterSign, MSGBOX_SIGN
 	end
 
+Common_EventScript_ShowPARDISSign::
+	msgbox gText_PARDISSign, MSGBOX_SIGN
+	end
+
 Common_ShowEasyChatScreen::
 	fadescreen FADE_TO_BLACK
 	special ShowEasyChatScreen
@@ -889,6 +893,15 @@ gText_PokemartSign::
 gText_PokemonCenterSign::
 	.string "“Rejuvenate your tired partners!”\n"
 	.string "POKéMON CENTER$"
+
+gText_PARDISSign::
+	.string "Police Telephone\p"
+	.string "Free for Use of Public\n"
+	.string "Advice and Assistance Obtainable\l"
+	.string "Immediately\l"
+	.string "Officers and Cars Respond to\l"
+	.string "Urgent Calls\p"
+	.string "Pull to Open$"
 
 gText_MomOrDadMightLikeThisProgram::
 	.string "{STR_VAR_1} might like this program.\n"
