@@ -1,8 +1,8 @@
 #ifndef GUARD_METATILE_LABELS_H
 #define GUARD_METATILE_LABELS_H
 
-// gTileset_General_Testing
-#define METATILE_General_Testing_Door_Pardis 0x037
+// gTileset_General_Galar
+#define METATILE_General_Galar_Door_Pardis 0x037
 
 // gTileset_Postwick
 #define METATILE_Postwick_Door_Green 0x222

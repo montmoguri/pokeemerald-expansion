@@ -4416,7 +4416,7 @@
       "name": "Postwick_Layout",
       "width": 36,
       "height": 24,
-      "primary_tileset": "gTileset_General_Testing",
+      "primary_tileset": "gTileset_General_Galar",
       "secondary_tileset": "gTileset_Postwick",
       "border_filepath": "data/layouts/Postwick/border.bin",
       "blockdata_filepath": "data/layouts/Postwick/map.bin"
@@ -4426,7 +4426,7 @@
       "name": "Postwick_Coliseum_Layout",
       "width": 20,
       "height": 26,
-      "primary_tileset": "gTileset_General_Testing",
+      "primary_tileset": "gTileset_General_Galar",
       "secondary_tileset": "gTileset_Coliseum",
       "border_filepath": "data/layouts/Postwick_Coliseum/border.bin",
       "blockdata_filepath": "data/layouts/Postwick_Coliseum/map.bin"

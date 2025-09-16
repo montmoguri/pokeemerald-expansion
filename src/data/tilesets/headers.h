@@ -831,17 +831,6 @@ const struct Tileset gTileset_UnionRoom =
     .callback = NULL,
 };
 
-const struct Tileset gTileset_General_Testing =
-{
-    .isCompressed = TRUE,
-    .isSecondary = FALSE,
-    .tiles = gTilesetTiles_General_Testing,
-    .palettes = gTilesetPalettes_General_Testing,
-    .metatiles = gMetatiles_General_Testing,
-    .metatileAttributes = gMetatileAttributes_General_Testing,
-    .callback = NULL,
-};
-
 const struct Tileset gTileset_Postwick =
 {
     .isCompressed = TRUE,
@@ -861,5 +850,16 @@ const struct Tileset gTileset_Coliseum =
     .palettes = gTilesetPalettes_Coliseum,
     .metatiles = gMetatiles_Coliseum,
     .metatileAttributes = gMetatileAttributes_Coliseum,
+    .callback = NULL,
+};
+
+const struct Tileset gTileset_General_Galar =
+{
+    .isCompressed = TRUE,
+    .isSecondary = FALSE,
+    .tiles = gTilesetTiles_General_Galar,
+    .palettes = gTilesetPalettes_General_Galar,
+    .metatiles = gMetatiles_General_Galar,
+    .metatileAttributes = gMetatileAttributes_General_Galar,
     .callback = NULL,
 };

@@ -208,11 +208,11 @@ const u16 gMetatileAttributes_MysteryEventsHouse[] = INCBIN_U16("data/tilesets/s
 const u16 gMetatiles_UnionRoom[] = INCBIN_U16("data/tilesets/secondary/union_room/metatiles.bin");
 const u16 gMetatileAttributes_UnionRoom[] = INCBIN_U16("data/tilesets/secondary/union_room/metatile_attributes.bin");
 
-const u16 gMetatiles_General_Testing[] = INCBIN_U16("data/tilesets/primary/general_testing/metatiles.bin");
-const u16 gMetatileAttributes_General_Testing[] = INCBIN_U16("data/tilesets/primary/general_testing/metatile_attributes.bin");
-
 const u16 gMetatiles_Postwick[] = INCBIN_U16("data/tilesets/secondary/postwick/metatiles.bin");
 const u16 gMetatileAttributes_Postwick[] = INCBIN_U16("data/tilesets/secondary/postwick/metatile_attributes.bin");
 
 const u16 gMetatiles_Coliseum[] = INCBIN_U16("data/tilesets/secondary/coliseum/metatiles.bin");
 const u16 gMetatileAttributes_Coliseum[] = INCBIN_U16("data/tilesets/secondary/coliseum/metatile_attributes.bin");
+
+const u16 gMetatiles_General_Galar[] = INCBIN_U16("data/tilesets/primary/general_galar/metatiles.bin");
+const u16 gMetatileAttributes_General_Galar[] = INCBIN_U16("data/tilesets/primary/general_galar/metatile_attributes.bin");
