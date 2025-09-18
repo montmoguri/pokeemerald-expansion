@@ -236,13 +236,13 @@ $(FONTGFXDIR)/normal.latfont: $(FONTGFXDIR)/latin_frlg_nums.png
 $(FONTGFXDIR)/short.latfont: $(FONTGFXDIR)/latin_frlg_nums.png
 	$(GFX) $< $@
 
-$(FONTGFXDIR)/narrow.latfont: $(FONTGFXDIR)/latin_narrow.png
+$(FONTGFXDIR)/narrow.latfont: $(FONTGFXDIR)/latin_frlg_nums_narrow.png
 	$(GFX) $< $@
 
 $(FONTGFXDIR)/small_narrow.latfont: $(FONTGFXDIR)/latin_small_narrow.png
 	$(GFX) $< $@
 
-$(FONTGFXDIR)/narrower.latfont: $(FONTGFXDIR)/latin_narrower.png
+$(FONTGFXDIR)/narrower.latfont: $(FONTGFXDIR)/latin_frlg_nums_narrower.png
 	$(GFX) $< $@
 
 $(FONTGFXDIR)/small_narrower.latfont: $(FONTGFXDIR)/latin_small_narrower.png
