@@ -347,15 +347,15 @@ static void KeepMoveSelectorVisible(u8);
 static void SummaryScreen_DestroyAnimDelayTask(void);
 static void CreateMonShinySprite(struct Pokemon *);
 static void SetPokerusCuredSprite(void);
-static void HandleMonShinyIcon(bool8);
+// static void HandleMonShinyIcon(bool8); // no longer print Pokedex number
 static void HandleStatusSprite(struct Pokemon *);
 static u8 AddWindowFromTemplateList(const struct WindowTemplate*, u8);
 static void ClearCancelText(void);
 static void FormatTextByWidth(u8*, s32, u8, const u8*, s16);
 static void Task_ShowEffectTilemap(u8);
 static void Task_HideEffectTilemap(u8);
-static void HideInactivePageDots(void);
-static void HideContestPageDots(void);
+// static void HideInactivePageDots(void); // not using contest pages
+// static void HideContestPageDots(void);  // not using contest pages
 static void RestoreSummaryPageDisplay(void);
 static void ShowCategoryIcon(u16);
 static void DestroyCategoryIcon(void);
@@ -1591,9 +1591,16 @@ static const u32 sStatusGfx_Icons[] = INCBIN_U32("graphics/summary_screen/bw/sta
 static const u16 sStatusPal_Icons[] = INCBIN_U16("graphics/summary_screen/bw/status_icons.gbapal");
 #endif
 
+#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
+static const u32 sStatusGfx_Icons_Gen8[] = INCBIN_U32("graphics/summary_screen/gen8/status_icons.4bpp.lz");
+static const u16 sStatusPal_Icons_Gen8[] = INCBIN_U16("graphics/summary_screen/gen8/status_icons.gbapal");
+#endif
+
 static const struct CompressedSpriteSheet sStatusIconsSpriteSheet =
 {
-#if BW_SUMMARY_BW_STATUS_ICONS == TRUE
+#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
+    .data = sStatusGfx_Icons_Gen8,
+#elif BW_SUMMARY_BW_STATUS_ICONS == TRUE
     .data = sStatusGfx_Icons,
 #else
     .data = gStatusGfx_Icons,
@@ -1604,7 +1611,9 @@ static const struct CompressedSpriteSheet sStatusIconsSpriteSheet =
 
 static const struct SpritePalette sStatusIconsSpritePalette =
 {
-#if BW_SUMMARY_BW_STATUS_ICONS == TRUE
+#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
+    .data = sStatusPal_Icons_Gen8,
+#elif BW_SUMMARY_BW_STATUS_ICONS == TRUE
     .data = sStatusPal_Icons,
 #else
     .data = gStatusPal_Icons,
@@ -1908,9 +1917,10 @@ static bool8 LoadGraphics(void)
             SetBgTilemapBuffer(2, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES]);
         else if (sMonSummaryScreen->mode == SUMMARY_MODE_RELEARNER_CONTEST)
             SetBgTilemapBuffer(2, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES]);
-
-        if (!BW_SUMMARY_SHOW_CONTEST_MOVES)
-            HideContestPageDots();
+        
+        // // Not using / handling contest page
+        // if (!BW_SUMMARY_SHOW_CONTEST_MOVES)
+        //     HideContestPageDots();
         gMain.state++;
         break;
     case 14:
@@ -2261,7 +2271,7 @@ static void SetSelectMoveTilemaps(void)
 {
     SetBgTilemapBuffer(2, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES]);
     SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_BATTLE]);
-    HideInactivePageDots();
+    // HideInactivePageDots(); // Not using/handling contest page
     ShowBg(1);
 }
 
@@ -2278,29 +2288,31 @@ static void SetSelectMoveTilemaps(void)
 #define TILE_INACTIVE_SQUARE_TOP    0x0002
 #define TILE_INACTIVE_SQUARE_BOTTOM BG_TILE_V_FLIP(TILE_INACTIVE_SQUARE_TOP)
 
-static void HideInactivePageDots(void)
-{
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_1_TILE_1] = TILE_BLACK_SQUARE;
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_1_TILE_2] = TILE_BLACK_SQUARE;
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_2_TILE_1] = TILE_BLACK_SQUARE;
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_2_TILE_2] = TILE_BLACK_SQUARE;
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_1_TILE_1] = TILE_BLACK_SQUARE;
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_1_TILE_2] = TILE_BLACK_SQUARE;
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_2_TILE_1] = TILE_BLACK_SQUARE;
-    sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_2_TILE_2] = TILE_BLACK_SQUARE;
-    if (!BW_SUMMARY_SHOW_CONTEST_MOVES)
-        HideContestPageDots();
-}
+// // NOT USING / HANDLING CONTEST PAGE
+// static void HideInactivePageDots(void)
+// {
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_1_TILE_1] = TILE_BLACK_SQUARE;
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_1_TILE_2] = TILE_BLACK_SQUARE;
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_2_TILE_1] = TILE_BLACK_SQUARE;
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES][TILEMAP_PAGE_DOT_2_TILE_2] = TILE_BLACK_SQUARE;
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_1_TILE_1] = TILE_BLACK_SQUARE;
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_1_TILE_2] = TILE_BLACK_SQUARE;
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_2_TILE_1] = TILE_BLACK_SQUARE;
+//     sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES][TILEMAP_PAGE_DOT_2_TILE_2] = TILE_BLACK_SQUARE;
+//     if (!BW_SUMMARY_SHOW_CONTEST_MOVES)
+//         HideContestPageDots();
+// }
 
-static void HideContestPageDots(void)
-{
-    u32 page;
-    for (page = 0; page < PSS_PAGE_COUNT; page++)
-    {
-        sMonSummaryScreen->bg2TilemapBuffers[page][TILEMAP_PAGE_DOT_4_TILE_1] = TILE_BLACK_SQUARE;
-        sMonSummaryScreen->bg2TilemapBuffers[page][TILEMAP_PAGE_DOT_4_TILE_2] = TILE_BLACK_SQUARE;
-    }
-}
+// // NOT USING / HANDLING CONTEST PAGE
+// static void HideContestPageDots(void)
+// {
+//     u32 page;
+//     for (page = 0; page < PSS_PAGE_COUNT; page++)
+//     {
+//         sMonSummaryScreen->bg2TilemapBuffers[page][TILEMAP_PAGE_DOT_4_TILE_1] = TILE_BLACK_SQUARE;
+//         sMonSummaryScreen->bg2TilemapBuffers[page][TILEMAP_PAGE_DOT_4_TILE_2] = TILE_BLACK_SQUARE;
+//     }
+// }
 
 static void LimitEggSummaryPageDisplay(void)
 {
@@ -2608,7 +2620,8 @@ static void Task_ChangeSummaryMon(u8 taskId)
         CreateCaughtBallSprite(&sMonSummaryScreen->currentMon);
         break;
     case 7:
-        HandleStatusSprite(&sMonSummaryScreen->currentMon);
+        // Moved to case 10 to avoid printing status before prior mon level clears (~5 frames overlap)
+        // HandleStatusSprite(&sMonSummaryScreen->currentMon);
         data[1] = 0;
         break;
     case 8:
@@ -2639,6 +2652,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
         break;
     case 10:
         PrintMonPortraitInfo();
+        HandleStatusSprite(&sMonSummaryScreen->currentMon); // Moved here from case 7
         break;
     case 11:
         PrintPageSpecificText(sMonSummaryScreen->currPageIndex);
@@ -3605,20 +3619,26 @@ static void PrintNotEggInfo(void)
 {
     struct Pokemon *mon = &sMonSummaryScreen->currentMon;
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
+    u8 statusAnim = GetMonAilment(&sMonSummaryScreen->currentMon);
 
     // print nickname
     GetMonNickname(mon, gStringVar1);
-    PrintTextOnWindowToFitPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 5, 1, 0, 0, WindowWidthPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL) - 9);
+    PrintTextOnWindowToFitPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 5, 1, 0, 0, WindowWidthPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL) - 15);
+    // increased from - 9 to - 15 to force narrow font for long names so they don't overlap with gender symbol
 
     //print gender
     PrintGenderSymbol(mon, summary->species2);
 
-    // print level
-    StringCopy(gStringVar1, gText_LevelSymbol);
-    ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
-    StringAppend(gStringVar1, gStringVar2);
+    // print level only if no status condition
+    if (statusAnim == 0)
+    {
+        StringCopy(gStringVar1, gText_LevelSymbol);
+        ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
+        StringAppend(gStringVar1, gStringVar2);
 
-    PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 5, 12, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 5, 12, 0, 0);
+    }
+    
     PutWindowTilemap(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL);
 }
 
@@ -3922,50 +3942,52 @@ static void Task_PrintInfoPage(u8 taskId)
 static void PrintMonDexNumberSpecies(void)
 {
     int windowId;
-    struct Pokemon *mon = &sMonSummaryScreen->currentMon;
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
+    // struct Pokemon *mon = &sMonSummaryScreen->currentMon; // not printing pokedex number
 
-    u16 dexNum = SpeciesToPokedexNum(summary->species);
+    // u16 dexNum = SpeciesToPokedexNum(summary->species); // not printing pokedex number
     windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_DEX_NUMBER_NAME);
 
     if (sMonSummaryScreen->summary.isEgg)
     {
-        PrintTextOnWindow(windowId, gText_FiveMarks, 4, 12, 0, 0);
+        PrintTextOnWindow(windowId, gText_FiveMarks, 4, 11, 0, 0);
         PrintTextOnWindow(windowId, gText_FiveMarks, 4, 0, 0, 0);
     }
     else
     {
-        PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 4, 12, 0, 0, WindowWidthPx(windowId) - 9);
+        PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 4, 11, 0, 0, WindowWidthPx(windowId) - 9);
+        
+        // // not printing pokedex number
+        // if (dexNum != 0xFFFF)
+        // {
+        //     u8 digitCount = (NATIONAL_DEX_COUNT > 999 && IsNationalPokedexEnabled()) ? 4 : 3;
 
-        if (dexNum != 0xFFFF)
-        {
-            u8 digitCount = (NATIONAL_DEX_COUNT > 999 && IsNationalPokedexEnabled()) ? 4 : 3;
+        //     StringCopy(gStringVar1, &gText_NumberClear01[0]);
+        //     ConvertIntToDecimalStringN(gStringVar2, dexNum, STR_CONV_MODE_LEADING_ZEROS, digitCount);
+        //     StringAppend(gStringVar1, gStringVar2);
+        //     ConvertIntToDecimalStringN(gStringVar1, dexNum, STR_CONV_MODE_LEADING_ZEROS, digitCount);
 
-            StringCopy(gStringVar1, &gText_NumberClear01[0]);
-            ConvertIntToDecimalStringN(gStringVar2, dexNum, STR_CONV_MODE_LEADING_ZEROS, digitCount);
-            StringAppend(gStringVar1, gStringVar2);
-            ConvertIntToDecimalStringN(gStringVar1, dexNum, STR_CONV_MODE_LEADING_ZEROS, digitCount);
-
-            if (!IsMonShiny(mon))
-            {
-                PrintTextOnWindow(windowId, gStringVar1, 4, 0, 0, 0);
-                HandleMonShinyIcon(FALSE);
-            }
-            else
-            {
-                PrintTextOnWindow(windowId, gStringVar1, 4, 0, 0, 6);
-                HandleMonShinyIcon(TRUE);
-            }
-        }
+        //     if (!IsMonShiny(mon))
+        //     {
+        //         PrintTextOnWindow(windowId, gStringVar1, 4, 0, 0, 0);
+        //         HandleMonShinyIcon(FALSE);
+        //     }
+        //     else
+        //     {
+        //         PrintTextOnWindow(windowId, gStringVar1, 4, 0, 0, 6);
+        //         HandleMonShinyIcon(TRUE);
+        //     }
+        // }
     }
 
 }
 
-static void HandleMonShinyIcon(bool8 isShiny)
-{
-    if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] != SPRITE_NONE)
-        gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY]].invisible = !isShiny;
-}
+// // Commented out as no longer showing Dex Num in Summary
+// static void HandleMonShinyIcon(bool8 isShiny)
+// {
+//     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] != SPRITE_NONE)
+//         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY]].invisible = !isShiny;
+// }
 
 static void PrintMonOTName(void)
 {
@@ -5312,7 +5334,7 @@ static void CreateSetStatusSprite(void)
     u8 statusAnim;
 
     if (*spriteId == SPRITE_NONE)
-        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 213, 38, 6);
+        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 179, 36, 6); // moved from 213 to 179 to print status where level is.
 
     statusAnim = GetMonAilment(&sMonSummaryScreen->currentMon);
     if (statusAnim != 0)

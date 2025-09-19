@@ -22,7 +22,8 @@
 #define BW_SUMMARY_IV_EV_DISPLAY                    BW_IV_EV_PRECISE     // determines how to show IVs and EVs
 #define BW_SUMMARY_DECAP                            TRUE               // indicates if summary screen-specific strings should be decapitalized
 #define BW_SUMMARY_SHOW_FRIENDSHIP                  TRUE               // show a heart that fills up to indicate friendship value
-#define BW_SUMMARY_BW_STATUS_ICONS                  TRUE                // use Gen 5 style status icons instead of the default ones.
+#define BW_SUMMARY_BW_STATUS_ICONS                  FALSE                // use Gen 5 style status icons instead of the default ones.
+#define BW_SUMMARY_GEN8_STATUS_ICONS                TRUE               // use Gen 8 style status icons instead of Gen 5 or default ones.
 #define BW_SUMMARY_BW_TYPE_ICONS                    TRUE                // use Gen 5 style type icons instead of the default ones.
                                                                         // out of the box the vanilla icons don't fit well, this is mostly a compatibility
                                                                         // option for people who already use custom icons everywhere else
