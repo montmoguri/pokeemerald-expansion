@@ -398,7 +398,7 @@ static const u8 sText_ViewEVs[]                             = _("View EV");
 static const u8 sText_ViewStats[]                           = _("View Stats");
 static const u8 sText_ViewIVs_Graded[]                      = _("See Innate");
 static const u8 sText_ViewEVs_Graded[]                      = _("See Effort");
-static const u8 sText_NextLv[]                              = _("Next Lv.");
+static const u8 sText_NextLv[]                              = _("Next {LV}");
 static const u8 sText_RentalPkmn[]                          = _("Rental Pokémon");
 static const u8 sText_None[]                                = _("None");
 #else
@@ -415,7 +415,7 @@ static const u8 sText_ViewEVs[]                             = _("VIEW EV");
 static const u8 sText_ViewStats[]                           = _("VIEW STATS");
 static const u8 sText_ViewIVs_Graded[]                      = _("SEE INNATE");
 static const u8 sText_ViewEVs_Graded[]                      = _("SEE EFFORT");
-static const u8 sText_NextLv[]                              = _("NEXT LV.");
+static const u8 sText_NextLv[]                              = _("NEXT {LV}");
 static const u8 sText_RentalPkmn[]                          = _("RENTAL POKéMON");
 static const u8 sText_None[]                                = _("NONE");
 #endif
@@ -670,6 +670,7 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
         .paletteNum = 6,
         .baseBlock = 335,
     },
+    // this was modify to remove HP bar and just print value together with non-HP stats
     [PSS_DATA_WINDOW_SKILLS_STATS_HP] = {
         .bg = 0,
         .tilemapLeft = 8,
@@ -2628,7 +2629,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
             gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sIsShadow = TRUE;
         }
 
-        // TryDrawHPBar();
+        // TryDrawHPBar(); // Removed HP bar
         TryDrawExperienceProgressBar();
         data[1] = 0;
         break;
@@ -2827,7 +2828,7 @@ static void PssScrollEnd(u8 taskId)
 
     SetTypeIcons();
     TrySetInfoPageIcons();
-    // TryDrawHPBar();
+    // TryDrawHPBar(); // Removed HP Bar
     TryDrawExperienceProgressBar();
 
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS && BW_SUMMARY_IV_EV_DISPLAY == BW_IV_EV_GRADED)
@@ -2851,6 +2852,7 @@ static void TryDrawExperienceProgressBar(void)
         DrawExperienceProgressBar(&sMonSummaryScreen->currentMon);
 }
 
+// // Removed, no longer draw HP bar
 // static void TryDrawHPBar(void)
 // {
 //     OverrideHPBarPalette();
@@ -3419,6 +3421,7 @@ static void HandleAppealJamTilemap(u16 move)
 #define HP_BAR_TILE_EMPTY_ROW_2    0x5120
 #define HP_BAR_TILE_FULL_ROW_2     0x5128
 
+// // Removed as no longer drawing HP bar
 // static void DrawHPBar(struct Pokemon *unused)
 // {
 //     s64 numHPBarTicks;
@@ -3472,6 +3475,7 @@ static void HandleAppealJamTilemap(u16 move)
 #define HP_BAR_LIGHT_RED                RGB(31, 11,  7)
 #define HP_BAR_DARK_RED                 RGB(21,  8,  9)
 
+// // Removed as no longer drawing HP bar
 // static void OverrideHPBarPalette(void)
 // {
 //     u16 palColor;
@@ -3575,7 +3579,9 @@ static void PrintTextOnWindow_BW_Font(u8 windowId, const u8 *string, u8 x, u8 y,
 
 static void PrintTextOnWindowToFitPx(u8 windowId, const u8 *string, u8 x, u8 y, u8 lineSpacing, u8 colorId, u32 width)
 {
-    u32 fontId = GetFontIdToFit(string, FONT_SHORT, 0, width);
+    // Changed from FONT_SHORT TO FONT_NORMAL for lowercase L-letter spacing
+    // Worked exclusively when FONT_NORMAL points to latin_frlg or latin_frlg_nums
+    u32 fontId = GetFontIdToFit(string, FONT_NORMAL, 0, width); 
     PrintTextOnWindowWithFont(windowId, string, x, y, lineSpacing, colorId, fontId);
 }
 
@@ -3968,14 +3974,14 @@ static void PrintMonOTName(void)
     {
         windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM);
         if (sMonSummaryScreen->summary.OTGender == 0)
-            PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 12, 4, 0, 5);
+            PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 12, 3, 0, 5);
         else
-            PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 12, 4, 0, 6);
+            PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 12, 3, 0, 6);
     }
     else
     {
         StringCopy(gStringVar1, sText_RentalPkmn);
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 4, 0, 0);
+        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 3, 0, 0);
     }
 }
 
@@ -3984,12 +3990,12 @@ static void PrintMonOTID(void)
     if (InBattleFactory() != TRUE && InSlateportBattleTent() != TRUE)
     {
         ConvertIntToDecimalStringN(gStringVar1, (u16)sMonSummaryScreen->summary.OTID, STR_CONV_MODE_LEADING_ZEROS, 5);
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 16, 0, 0);
+        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 15, 0, 0);
     }
     else
     {
         StringCopy(gStringVar1, gText_FiveMarks);
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 16, 0, 0);
+        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 15, 0, 0);
     }
 }
 
@@ -4258,7 +4264,7 @@ static void PrintHeldItemName(void)
     }
 
     fontId = GetFontIdToFit(text, FONT_SHORT, 0, WindowTemplateWidthPx(&sPageSkillsTemplate[PSS_DATA_WINDOW_INFO_OT_OTID_ITEM]) - 8);
-    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), text, 12, 28, 0, 0, fontId);
+    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), text, 12, 27, 0, 0, fontId);
 }
 
 static void UNUSED PrintRibbonCount(void)
