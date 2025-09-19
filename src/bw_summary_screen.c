@@ -107,11 +107,10 @@ enum BWSkillsPageState
 
 // Dynamic fields for the Pokémon Skills page
 #define PSS_DATA_WINDOW_SKILLS_RIBBON_COUNT 0 //ravetodo handle ribbons
-#define PSS_DATA_WINDOW_SKILLS_STATS_HP 1
-#define PSS_DATA_WINDOW_SKILLS_STATS_NON_HP 2 //  Attack, Defense, Sp. Attack, Sp. Defense, Speed
-#define PSS_DATA_WINDOW_EXP 3 // Exp
-#define PSS_DATA_WINDOW_EXP_NEXT_LEVEL 4 // Exp next level
-#define PSS_DATA_WINDOW_SKILLS_ABILITY 5
+#define PSS_DATA_WINDOW_SKILLS_STATS 1
+#define PSS_DATA_WINDOW_EXP 2 // Exp
+#define PSS_DATA_WINDOW_EXP_NEXT_LEVEL 3 // Exp next level
+#define PSS_DATA_WINDOW_SKILLS_ABILITY 4
 
 // Dynamic fields for the Battle Moves and Contest Moves pages.
 #define PSS_DATA_WINDOW_MOVE_NAMES_PP 0
@@ -671,23 +670,14 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
         .baseBlock = 335,
     },
     // this was modify to remove HP bar and just print value together with non-HP stats
-    [PSS_DATA_WINDOW_SKILLS_STATS_HP] = {
+    [PSS_DATA_WINDOW_SKILLS_STATS] = {
         .bg = 0,
-        .tilemapLeft = 8,
-        .tilemapTop = 3,   // Moved down 1
-        .width = 8,
-        .height = 9,       // Expanded to also print non-HP stats
+        .tilemapLeft = 5,
+        .tilemapTop = 5,   // Moved down 1
+        .width = 13,
+        .height = 6,       // Increased from 2 to 9 to also print non-HP stats
         .paletteNum = 6,
         .baseBlock = 355,
-    },
-    [PSS_DATA_WINDOW_SKILLS_STATS_NON_HP] = {
-        .bg = 0,
-        .tilemapLeft = 8,
-        .tilemapTop = 4,
-        .width = 10,
-        .height = 8,
-        .paletteNum = 6,
-        .baseBlock = 371,
     },
     [PSS_DATA_WINDOW_EXP] = {
         .bg = 0,
@@ -3632,11 +3622,13 @@ static void PrintNotEggInfo(void)
     // print level only if no status condition
     if (statusAnim == 0)
     {
-        StringCopy(gStringVar1, gText_LevelSymbol);
+        // Convert level number to string
         ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
-        StringAppend(gStringVar1, gStringVar2);
 
-        PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 5, 12, 0, 0);
+        // Print "Lv." with FONT_NORMAL
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_LevelSymbol, 5, 12, 0, 0, FONT_NORMAL);
+        // Print the level number with FONT_NARROW, positioned after "Lv." (10) + space (1)
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar2, 5 + 10 + 1, 12, 0, 0, FONT_NARROW);
     }
     
     PutWindowTilemap(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL);
@@ -4381,8 +4373,7 @@ static void BufferAndPrintStats_HandleState(u8 mode)
         break;
     }
 
-    FillWindowPixelBuffer(sMonSummaryScreen->windowIds[PSS_DATA_WINDOW_SKILLS_STATS_HP], 0);
-    FillWindowPixelBuffer(sMonSummaryScreen->windowIds[PSS_DATA_WINDOW_SKILLS_STATS_NON_HP], 0);
+    FillWindowPixelBuffer(sMonSummaryScreen->windowIds[PSS_DATA_WINDOW_SKILLS_STATS], 0);
 
     if (mode == SKILL_STATE_STATS)
     {
@@ -4442,9 +4433,9 @@ static void BufferHPStats(void)
 static void PrintHPStats(u8 mode)
 {
     if (mode == SKILL_STATE_STATS)
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS_HP), gStringVar4, 19, 0, 0, 0);
+        PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS), gStringVar4, 0, 1, 0, 0);
     else
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS_HP), gStringVar4, 6, 0, 0, 0);
+        PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS), gStringVar4, 0, 1, 0, 0);
 }
 
 
@@ -4460,14 +4451,12 @@ static void BufferNonHPStats(void)
 
 static void PrintNonHPStats(void)
 {
-    u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS_HP);
-    // Changed from PSS_DATA_WINDOW_SKILLS_STATS_NON_HP
-    // Added offsets of 12 (height of text)
-    PrintTextOnWindow(windowId, gStringVar1, 30, 12, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 30, 24, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 30, 36, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 30, 48, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 30, 60, 0, 0);
+    u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
+    PrintTextOnWindow(windowId, gStringVar1, 80, 1, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar2, 24, 15, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar3, 80, 15, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 24, 29, 0, 0);
+    PrintTextOnWindow(windowId, sStringVar5, 80, 29, 0, 0);
 }
 
 static void PrintExpPointsNextLevel(void)
