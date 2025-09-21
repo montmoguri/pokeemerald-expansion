@@ -574,8 +574,8 @@ static const struct WindowTemplate sSummaryTemplate[] =
     },
     [PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP] = {
         .bg = 0,
-        .tilemapLeft = 9,
-        .tilemapTop = 13,
+        .tilemapLeft = 5,
+        .tilemapTop = 10,
         .width = 11,
         .height = 4,
         .paletteNum = 6,
@@ -672,13 +672,14 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
     // this was modify to remove HP bar and just print value together with non-HP stats
     [PSS_DATA_WINDOW_SKILLS_STATS] = {
         .bg = 0,
-        .tilemapLeft = 5,
-        .tilemapTop = 5,   // Moved down 1
-        .width = 13,
+        .tilemapLeft = 1,
+        .tilemapTop = 4,   // Moved down 1
+        .width = 17,
         .height = 6,       // Increased from 2 to 9 to also print non-HP stats
         .paletteNum = 6,
         .baseBlock = 355,
     },
+    // Looking to move the EXP bar, buddy? Go to EXP_BAR_VERTICAL_OFFSET_TILES
     [PSS_DATA_WINDOW_EXP] = {
         .bg = 0,
         .tilemapLeft = 0,
@@ -690,8 +691,8 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
     },
     [PSS_DATA_WINDOW_EXP_NEXT_LEVEL] = {
         .bg = 0,
-        .tilemapLeft = 15,
-        .tilemapTop = 13,
+        .tilemapLeft = 10,
+        .tilemapTop = 10,
         .width = 9,
         .height = 2,
         .paletteNum = 6,
@@ -3508,7 +3509,7 @@ static void HandleAppealJamTilemap(u16 move)
 
 // Move up by 3 tiles (24 pixels) AND left by 8 tiles (64 pixels)
 #define EXP_BAR_VERTICAL_OFFSET_TILES -3
-#define EXP_BAR_HORIZONTAL_OFFSET_TILES -11  // Negative = left, positive = right
+#define EXP_BAR_HORIZONTAL_OFFSET_TILES -14  // Negative = left, positive = right
 #define EXP_BAR_TILEMAP_START (0x1F4 + (EXP_BAR_VERTICAL_OFFSET_TILES * 32) + EXP_BAR_HORIZONTAL_OFFSET_TILES)
 #define EXP_BAR_TILE_EMPTY    0x2100
 #define EXP_BAR_TILE_FULL     0x2108
@@ -3738,7 +3739,7 @@ static void PrintPageNamesAndStats(void)
         PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_STATS, sText_ViewStats, stringXPos, 1, 0, 1);
     }
 
-    PrintTextOnWindow(PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP, sText_NextLv, 0, 4, 0, 0);
+    PrintTextOnWindow(PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP, sText_NextLv, 0, 0, 0, 0);
 }
 
 static void PutPageWindowTilemaps(u8 page)
@@ -4386,11 +4387,12 @@ static void BufferAndPrintStats_HandleState(u8 mode)
         PrintHPStats(mode);
 
         DynamicPlaceholderTextUtil_Reset();
-        BufferStat(gStringVar1, STAT_ATK, atk, 0, 3);
-        BufferStat(gStringVar2, STAT_DEF, def, 1, 3);
-        BufferStat(gStringVar3, STAT_SPATK, spA, 2, 3);
-        BufferStat(gStringVar4, STAT_SPDEF, spD, 3, 3);
-        BufferStat(sStringVar5, STAT_SPEED, spe, 4, 3);
+        // Pass 0 as statIndex to disable nature coloring on numbers
+        BufferStat(gStringVar1, 0, atk, 0, 3);     // was STAT_ATK
+        BufferStat(gStringVar2, 0, def, 1, 3);     // was STAT_DEF  
+        BufferStat(gStringVar3, 0, spA, 2, 3);     // was STAT_SPATK
+        BufferStat(gStringVar4, 0, spD, 3, 3);     // was STAT_SPDEF
+        BufferStat(sStringVar5, 0, spe, 4, 3);     // was STAT_SPEED
         PrintNonHPStats();
     }
     else
@@ -4432,43 +4434,88 @@ static void BufferHPStats(void)
 
 static void PrintHPStats(u8 mode)
 {
+    u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
+    PrintTextOnWindowWithFont(windowId, gText_HP_Title, 0, 0, 0, 0, FONT_SMALL);
     if (mode == SKILL_STATE_STATS)
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS), gStringVar4, 0, 1, 0, 0);
+        PrintTextOnWindow(windowId, gStringVar4, 24, 0, 0, 0);
     else
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS), gStringVar4, 0, 1, 0, 0);
+        PrintTextOnWindow(windowId, gStringVar4, 24, 0, 0, 0);
 }
 
 
 static void BufferNonHPStats(void)
 {
     DynamicPlaceholderTextUtil_Reset();
-    BufferStat(gStringVar1, STAT_ATK, sMonSummaryScreen->summary.atk, 0, 3);
-    BufferStat(gStringVar2, STAT_DEF, sMonSummaryScreen->summary.def, 1, 3);
-    BufferStat(gStringVar3, STAT_SPATK, sMonSummaryScreen->summary.spatk, 2, 3);
-    BufferStat(gStringVar4, STAT_SPDEF, sMonSummaryScreen->summary.spdef, 3, 3);
-    BufferStat(sStringVar5, STAT_SPEED, sMonSummaryScreen->summary.speed, 4, 3);
+    BufferStat(gStringVar1, 0, sMonSummaryScreen->summary.atk, 0, 3);
+    BufferStat(gStringVar2, 0, sMonSummaryScreen->summary.def, 1, 3);
+    BufferStat(gStringVar3, 0, sMonSummaryScreen->summary.spatk, 2, 3);
+    BufferStat(gStringVar4, 0, sMonSummaryScreen->summary.spdef, 3, 3);
+    BufferStat(sStringVar5, 0, sMonSummaryScreen->summary.speed, 4, 3);
+    // BufferStat(gStringVar1, STAT_ATK, sMonSummaryScreen->summary.atk, 0, 3);
+    // BufferStat(gStringVar2, STAT_DEF, sMonSummaryScreen->summary.def, 1, 3);
+    // BufferStat(gStringVar3, STAT_SPATK, sMonSummaryScreen->summary.spatk, 2, 3);
+    // BufferStat(gStringVar4, STAT_SPDEF, sMonSummaryScreen->summary.spdef, 3, 3);
+    // BufferStat(sStringVar5, STAT_SPEED, sMonSummaryScreen->summary.speed, 4, 3);
 }
 
 static void PrintNonHPStats(void)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
-    PrintTextOnWindow(windowId, gStringVar1, 80, 1, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 24, 15, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 80, 15, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 24, 29, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 80, 29, 0, 0);
+    u8 coloredLabel[64];
+    
+    static const u8 sTextNatureDown[] = _("{COLOR}{08}");
+    static const u8 sTextNatureUp[] = _("{COLOR}{05}");
+    static const u8 sTextNatureNeutral[] = _("{COLOR}{01}");
+    
+    // Pre-calculate nature info once
+    const u8 *neutralColor = sTextNatureNeutral;
+    const u8 *upColor = sTextNatureUp;
+    const u8 *downColor = sTextNatureDown;
+    u8 natureUpStat = 0;
+    u8 natureDownStat = 0;
+    
+    if (BW_SUMMARY_NATURE_COLORS) 
+    {
+        natureUpStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statUp;
+        natureDownStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statDown;
+    }
+    
+    // Optimized helper - just lookup, no calculations
+    void printColoredStat(s8 statIndex, const u8 *text, u8 x, u8 y) {
+        const u8 *color = (statIndex == natureUpStat) ? upColor : 
+                         (statIndex == natureDownStat) ? downColor : 
+                         neutralColor;
+        
+        StringCopy(coloredLabel, color);
+        StringAppend(coloredLabel, text);
+        PrintTextOnWindowWithFont(windowId, coloredLabel, x, y, 0, 0, FONT_SMALL);
+    }
+
+    // Print all stats
+    printColoredStat(STAT_ATK, gText_Attack_Title, 72, 0);
+    printColoredStat(STAT_DEF, gText_Defense_Title, 0, 16);
+    printColoredStat(STAT_SPATK, gText_SpAtk_Title, 72, 16);
+    printColoredStat(STAT_SPDEF, gText_SpDef_Title, 0, 32);
+    printColoredStat(STAT_SPEED, gText_Speed_Title, 72, 32);
+
+    // Print numbers (unchanged)
+    PrintTextOnWindow(windowId, gStringVar1, 112, 0, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar2, 48, 16, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar3, 112, 16, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 48, 32, 0, 0);
+    PrintTextOnWindow(windowId, sStringVar5, 112, 32, 0, 0);
 }
 
 static void PrintExpPointsNextLevel(void)
 {
     u32 expToNextLevel;
     struct PokeSummary *sum = &sMonSummaryScreen->summary;
-    u8 windowIdExp = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_EXP);
+    // u8 windowIdExp = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_EXP);
     u8 windowIdNextLvl = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_EXP_NEXT_LEVEL);
 
     // print exp
-    ConvertIntToDecimalStringN(gStringVar1, sum->exp, STR_CONV_MODE_RIGHT_ALIGN, 7);
-    PrintTextOnWindow(windowIdExp, gStringVar1, 20, 4, 0, 0);
+    // ConvertIntToDecimalStringN(gStringVar1, sum->exp, STR_CONV_MODE_RIGHT_ALIGN, 7);
+    // PrintTextOnWindow(windowIdExp, gStringVar1, 20, 4, 0, 0);
     // PrintTextOnWindowWithFont(windowIdExp, gStringVar1, 30, 4, 0, 0, FONT_NARROW);
 
     // print exp to next level
@@ -4479,7 +4526,7 @@ static void PrintExpPointsNextLevel(void)
 
     ConvertIntToDecimalStringN(gStringVar1, expToNextLevel, STR_CONV_MODE_RIGHT_ALIGN, 6);
 
-    PrintTextOnWindow(windowIdNextLvl, gStringVar1, 1, 4, 0, 0);
+    PrintTextOnWindow(windowIdNextLvl, gStringVar1, 1, 0, 0, 0);
     // PrintTextOnWindowWithFont(windowIdNextLvl, gStringVar1, 1, 4, 0, 0, FONT_NARROW);
 }
 

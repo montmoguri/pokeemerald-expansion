@@ -2434,6 +2434,12 @@ extern const u8 gText_PlayerRegroupHome[];
 
 extern const u8 gText_Relearn[]; // move relearner from summary screen
 extern const u8 gText_Rename[]; // change nickname from summary screen
+extern const u8 gText_HP_Title[];
+extern const u8 gText_Attack_Title[];
+extern const u8 gText_Defense_Title[];
+extern const u8 gText_SpAtk_Title[];
+extern const u8 gText_SpDef_Title[];
+extern const u8 gText_Speed_Title[];
 
 // Switch Caught Mon into Party
 extern const u8 gText_CannotSendMonToBoxHM[];
