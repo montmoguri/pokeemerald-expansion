@@ -126,6 +126,7 @@ enum BWSummarySprites
     SPRITE_ARR_ID_BALL,
     SPRITE_ARR_ID_STATUS,
     SPRITE_ARR_ID_SHINY,
+    SPRITE_ARR_ID_GENDER,
     // all sprites below are considered "page-specific" and will be hidden when switching pages
     SPRITE_ARR_ID_POKERUS_CURED,
     SPRITE_ARR_ID_FRIENDSHIP,
@@ -276,7 +277,9 @@ static void ResetWindows(void);
 static void PrintMonPortraitInfo(void);
 static void PrintNotEggInfo(void);
 static void PrintEggInfo(void);
-static void PrintGenderSymbol(struct Pokemon *, u16);
+static void LoadGenderGfx(void);
+static void CreateGenderSprite(struct Pokemon *mon, u16 species);
+// static void PrintGenderSymbol(struct Pokemon *, u16);
 static void PrintPageNamesAndStats(void);
 static void PutPageWindowTilemaps(u8);
 static void ClearPageWindowTilemaps(u8);
@@ -464,6 +467,20 @@ static const u32 sRelearnPrompt_Gfx[]                       = INCBIN_U32("graphi
 static const u32 sRelearnPrompt_Gfx[]                       = INCBIN_U32("graphics/summary_screen/bw/relearn_prompt.4bpp.lz");
 #endif
 
+#if BW_SUMMARY_BW_STATUS_ICONS == TRUE
+static const u32 sStatusGfx_Icons[] = INCBIN_U32("graphics/summary_screen/bw/status_icons.4bpp.lz");
+static const u16 sStatusPal_Icons[] = INCBIN_U16("graphics/summary_screen/bw/status_icons.gbapal");
+#endif
+
+#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
+static const u32 sStatusIcons_Gfx_Gen8[] = INCBIN_U32("graphics/summary_screen/gen8/status_icons.4bpp.lz");
+static const u16 sStatusIcons_Pal_Gen8[] = INCBIN_U16("graphics/summary_screen/gen8/status_icons.gbapal");
+#endif
+
+static const u32 sGenderIcons_Gfx[] = INCBIN_U32("graphics/summary_screen/gen8/gender_icons.4bpp.lz");
+static const u16 sGenderIcons_Pal[] = INCBIN_U16("graphics/summary_screen/gen8/gender_icons.gbapal");
+
+
 static const struct BgTemplate sBgTemplates[] =
 {
     {
@@ -596,10 +613,10 @@ static const struct WindowTemplate sSummaryTemplate[] =
     },
     [PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL] = {
         .bg = 0,
-        .tilemapLeft = 20,
+        .tilemapLeft = 16,
         .tilemapTop = 2,
-        .width = 10,
-        .height = 3,
+        .width = 14,
+        .height = 2,
         .paletteNum = 6,
         .baseBlock = 245,
     },
@@ -655,7 +672,7 @@ static const struct WindowTemplate sPageInfoTemplate[] =
     [PSS_DATA_WINDOW_INFO_DEX_NUMBER_NAME] = {
         .bg = 0,
         .tilemapLeft = 8,
-        .tilemapTop = 3,
+        .tilemapTop = 4,
         .width = 9,
         .height = 4,
         .paletteNum = 6,
@@ -778,6 +795,7 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
 #define TAG_TERA_TYPE 30009
 #define TAG_MON_SHADOW 30010
 #define TAG_RELEARN_PROMPT 30011
+#define TAG_GENDER_ICON 30012
 
 enum BWCategoryIcon
 {
@@ -1581,24 +1599,14 @@ static const union AnimCmd *const sSpriteAnimTable_StatusCondition[] = {
     sSpriteAnim_StatusFrostbite,
 };
 
-#if BW_SUMMARY_BW_STATUS_ICONS == TRUE
-static const u32 sStatusGfx_Icons[] = INCBIN_U32("graphics/summary_screen/bw/status_icons.4bpp.lz");
-static const u16 sStatusPal_Icons[] = INCBIN_U16("graphics/summary_screen/bw/status_icons.gbapal");
-#endif
-
-#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
-static const u32 sStatusGfx_Icons_Gen8[] = INCBIN_U32("graphics/summary_screen/gen8/status_icons.4bpp.lz");
-static const u16 sStatusPal_Icons_Gen8[] = INCBIN_U16("graphics/summary_screen/gen8/status_icons.gbapal");
-#endif
 
 static const struct CompressedSpriteSheet sStatusIconsSpriteSheet =
 {
 #if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
-    .data = sStatusGfx_Icons_Gen8,
+    .data = sStatusIcons_Gfx_Gen8,
 #elif BW_SUMMARY_BW_STATUS_ICONS == TRUE
     .data = sStatusGfx_Icons,
-#else
-    .data = gStatusGfx_Icons,
+#eIcons_Pala = gStatusGfx_Icons,
 #endif
     .size = 0x400,
     .tag = TAG_MON_STATUS
@@ -1607,7 +1615,7 @@ static const struct CompressedSpriteSheet sStatusIconsSpriteSheet =
 static const struct SpritePalette sStatusIconsSpritePalette =
 {
 #if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
-    .data = sStatusPal_Icons_Gen8,
+    .data = sStatusIcons_Pal_Gen8,
 #elif BW_SUMMARY_BW_STATUS_ICONS == TRUE
     .data = sStatusPal_Icons,
 #else
@@ -1622,6 +1630,63 @@ static const struct SpriteTemplate sSpriteTemplate_StatusCondition =
     .paletteTag = TAG_MON_STATUS,
     .oam = &sOamData_StatusCondition,
     .anims = sSpriteAnimTable_StatusCondition,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCallbackDummy
+};
+
+static const struct CompressedSpriteSheet sGenderIconsSpriteSheet =
+{
+    .data = sGenderIcons_Gfx,
+    .size = 0x200,
+    .tag = TAG_GENDER_ICON
+};
+
+static const struct SpritePalette sGenderIconsSpritePalette =
+{
+    .data = sGenderIcons_Pal,
+    .tag = TAG_GENDER_ICON
+};
+
+static const union AnimCmd sSpriteAnim_Female[] = {
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sSpriteAnim_Male[] = {
+    ANIMCMD_FRAME(4, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+
+static const union AnimCmd *const sSpriteAnimTable_Gender[] = {
+    sSpriteAnim_Female,
+    sSpriteAnim_Male,
+};
+
+static const struct OamData sOamData_Gender =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(16x16),
+    .x = 0,
+    .matrixNum = 0,
+    .size = SPRITE_SIZE(16x16),
+    .tileNum = 0,
+    .priority = 1,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+
+static const struct SpriteTemplate sSpriteTemplate_Gender =
+{
+    .tileTag = TAG_GENDER_ICON,
+    .paletteTag = TAG_GENDER_ICON,
+    .oam = &sOamData_Gender,
+    .anims = sSpriteAnimTable_Gender,
     .images = NULL,
     .affineAnims = gDummySpriteAffineAnimTable,
     .callback = SpriteCallbackDummy
@@ -1960,33 +2025,37 @@ static bool8 LoadGraphics(void)
         gMain.state++;
         break;
     case 21:
+        CreateGenderSprite(&sMonSummaryScreen->currentMon, sMonSummaryScreen->summary.species);
+        gMain.state++;
+        break;
+    case 22:
         if (sMonSummaryScreen->summary.isEgg)
             LimitEggSummaryPageDisplay();
 
         gMain.state++;
         break;
-    case 22:
+    case 23:
         SetTypeIcons();
         TrySetInfoPageIcons();
         gMain.state++;
         break;
-    case 23:
+    case 24:
         if (sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
             CreateTask(Task_HandleInput, 0);
         else
             CreateTask(Task_SetHandleReplaceMoveInput, 0);
         gMain.state++;
         break;
-    case 24:
+    case 25:
         BlendPalettes(PALETTES_ALL, 16, 0);
         gMain.state++;
         break;
-    case 25:
+    case 26:
         BeginNormalPaletteFade(PALETTES_ALL, 0, 16, 0, RGB_BLACK);
         gPaletteFade.bufferTransferDisabled = 0;
         gMain.state++;
         break;
-    case 26:
+    case 27:
         if ((sMonSummaryScreen->mode == SUMMARY_MODE_RELEARNER_BATTLE || sMonSummaryScreen->mode == SUMMARY_MODE_RELEARNER_CONTEST)
             && ShouldShowMoveRelearner())
         {
@@ -2616,8 +2685,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
         break;
     case 7:
         // Moved to case 10 to avoid printing status before prior mon level clears (~5 frames overlap)
-        // HandleStatusSprite(&sMonSummaryScreen->currentMon);
-        data[1] = 0;
+        CreateGenderSprite(&sMonSummaryScreen->currentMon, sMonSummaryScreen->summary.species);
         break;
     case 8:
         sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &data[1], FALSE);
@@ -3618,11 +3686,12 @@ static void PrintNotEggInfo(void)
 
     // print nickname
     GetMonNickname(mon, gStringVar1);
-    PrintTextOnWindowToFitPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 5, 1, 0, 0, WindowWidthPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL) - 15);
+    PrintTextOnWindowToFitPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 0, 1, 0, 1, WindowWidthPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL) - 48);
     // increased from - 9 to - 15 to force narrow font for long names so they don't overlap with gender symbol
 
     //print gender
-    PrintGenderSymbol(mon, summary->species2);
+    // PrintGenderSymbol(mon, summary->species2);
+    // CreateGenderSprite(mon, summary->species2);
 
     // print level only if no status condition
     if (statusAnim == 0)
@@ -3631,9 +3700,9 @@ static void PrintNotEggInfo(void)
         ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
 
         // Print "Lv." with FONT_NORMAL
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_LevelSymbol, 5, 12, 0, 0, FONT_NORMAL);
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_LevelSymbol, 68, 1, 0, 1, FONT_NORMAL);
         // Print the level number with FONT_NARROW, positioned after "Lv." (10) + space (1)
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar2, 5 + 10 + 1, 12, 0, 0, FONT_NARROW);
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar2, 68 + 10 + 1, 1, 0, 1, FONT_NARROW);
     }
     
     PutWindowTilemap(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL);
@@ -3646,21 +3715,61 @@ static void PrintEggInfo(void)
     PutWindowTilemap(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL);
 }
 
-static void PrintGenderSymbol(struct Pokemon *mon, u16 species)
+// Functions
+static void LoadGenderGfx(void)
 {
-    if (species != SPECIES_NIDORAN_M && species != SPECIES_NIDORAN_F)
+    if (GetSpriteTileStartByTag(TAG_GENDER_ICON) == 0xFFFF)
     {
-        switch (GetMonGender(mon))
-        {
-        case MON_MALE:
-            PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_MaleSymbol, 70, 1, 0, 3);
-            break;
-        case MON_FEMALE:
-            PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_FemaleSymbol, 70, 1, 0, 4);
-            break;
-        }
+        LoadCompressedSpriteSheet(&sGenderIconsSpriteSheet);
+        LoadSpritePalette(&sGenderIconsSpritePalette);
     }
 }
+
+static void CreateGenderSprite(struct Pokemon *mon, u16 species)
+{
+    u8 *spriteId = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_GENDER];
+    u8 gender;
+
+    if (*spriteId == SPRITE_NONE)
+    {
+        LoadGenderGfx();
+        *spriteId = CreateSprite(&sSpriteTemplate_Gender, 233, 25, 6);
+    }
+
+    if (species != SPECIES_NIDORAN_M && species != SPECIES_NIDORAN_F)
+    {
+        gender = GetMonGender(mon);
+        if (gender == MON_MALE || gender == MON_FEMALE)
+        {
+            u8 animIndex = (gender == MON_MALE) ? 1 : 0;
+            StartSpriteAnim(&gSprites[*spriteId], animIndex);
+            SetSpriteInvisibility(SPRITE_ARR_ID_GENDER, FALSE);
+        }
+        else
+        {
+            SetSpriteInvisibility(SPRITE_ARR_ID_GENDER, TRUE);
+        }
+    }
+    else
+    {
+        SetSpriteInvisibility(SPRITE_ARR_ID_GENDER, TRUE);
+    }
+}
+// static void PrintGenderSymbol(struct Pokemon *mon, u16 species)
+// {
+//     if (species != SPECIES_NIDORAN_M && species != SPECIES_NIDORAN_F)
+//     {
+//         switch (GetMonGender(mon))
+//         {
+//         case MON_MALE:
+//             PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_MaleSymbol, 103, 1, 0, 3);
+//             break;
+//         case MON_FEMALE:
+//             PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_FemaleSymbol, 103, 1, 0, 4);
+//             break;
+//         }
+//     }
+// }
 
 static void PrintAOrBButtonIcon(u8 windowId, bool8 bButton, u32 x)
 {
@@ -3953,7 +4062,7 @@ static void PrintMonDexNumberSpecies(void)
     }
     else
     {
-        PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 4, 11, 0, 0, WindowWidthPx(windowId) - 9);
+        PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 4, 3, 0, 0, WindowWidthPx(windowId) - 9);
         
         // // not printing pokedex number
         // if (dexNum != 0xFFFF)
@@ -4970,6 +5079,7 @@ static void TrySetInfoPageIcons(void)
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO)
     { 
         SetPokerusCuredSprite();
+        // // Hold off on printing friendship
         if (BW_SUMMARY_SHOW_FRIENDSHIP)
             SetFriendshipSprite();
     }
@@ -5310,7 +5420,7 @@ static void SetFriendshipSprite(void)
     u8 level = FRIENDSHIP_LEVEL_0;
     
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_FRIENDSHIP] == SPRITE_NONE)
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_FRIENDSHIP] = CreateSprite(&sSpriteTemplate_FriendshipIcon, 153, 25, 0);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_FRIENDSHIP] = CreateSprite(&sSpriteTemplate_FriendshipIcon, 233, 41, 0);
 
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_FRIENDSHIP]].invisible = FALSE;
     
@@ -5342,7 +5452,7 @@ static void CreateCaughtBallSprite(struct Pokemon *mon)
     u8 ball = ItemIdToBallId(GetMonData(mon, MON_DATA_POKEBALL));
 
     LoadBallGfx(ball);
-    sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL] = CreateSprite(&gBallSpriteTemplates[ball], 233, 38, 6);
+    sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL] = CreateSprite(&gBallSpriteTemplates[ball], 118, 24, 6);
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL]].callback = SpriteCallbackDummy;
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL]].oam.priority = 1;
 }
@@ -5353,7 +5463,7 @@ static void CreateSetStatusSprite(void)
     u8 statusAnim;
 
     if (*spriteId == SPRITE_NONE)
-        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 179, 36, 6); // moved from 213 to 179 to print status where level is.
+        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 209, 25, 6); // moved from 213 to 179 to print status where level is.
 
     statusAnim = GetMonAilment(&sMonSummaryScreen->currentMon);
     if (statusAnim != 0)
