@@ -305,6 +305,8 @@ static void Task_PrintSkillsPage(u8);
 static void PrintHeldItemName(void);
 static void PrintSkillsPageText(void);
 static void PrintRibbonCount(void);
+static void PrintStatLabels(void);
+static void PrintColoredStatLabel(u8, s8, const u8*, u8, u8, u8, u8, u8*);
 static void BufferHPStats(void);
 static void PrintHPStats(u8);
 static void BufferNonHPStats(void);
@@ -4219,6 +4221,7 @@ static void PrintSkillsPageText(void)
     //PrintRibbonCount();
     PrintMonAbilityName();
     PrintMonAbilityDescription();
+    PrintStatLabels();
     BufferHPStats();
     PrintHPStats(SKILL_STATE_STATS);
     BufferNonHPStats();
@@ -4226,6 +4229,7 @@ static void PrintSkillsPageText(void)
     PrintExpPointsNextLevel();
 }
 
+// Update the task function to include stat label printing as a separate step
 static void Task_PrintSkillsPage(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
@@ -4239,21 +4243,24 @@ static void Task_PrintSkillsPage(u8 taskId)
         PrintMonAbilityDescription();
         break;
     case 3:
-        BufferHPStats();
+        PrintStatLabels();
         break;
     case 4:
-        PrintHPStats(SKILL_STATE_STATS);
+        BufferHPStats();
         break;
     case 5:
-        BufferNonHPStats();
+        PrintHPStats(SKILL_STATE_STATS);
         break;
     case 6:
-        PrintNonHPStats();
+        BufferNonHPStats();
         break;
     case 7:
-        PrintExpPointsNextLevel();
+        PrintNonHPStats();
         break;
     case 8:
+        PrintExpPointsNextLevel();
+        break;
+    case 9:
         DestroyTask(taskId);
         return;
     }
@@ -4352,6 +4359,9 @@ static void BufferAndPrintStats_HandleState(u8 mode)
 
     FillWindowPixelBuffer(sMonSummaryScreen->windowIds[PSS_DATA_WINDOW_SKILLS_STATS], 0);
 
+    // Add the stat labels printing here for mode switching
+    PrintStatLabels();
+
     if (mode == SKILL_STATE_STATS)
     {
         ConvertIntToDecimalStringN(currentHPString, hp, STR_CONV_MODE_RIGHT_ALIGN, 3);
@@ -4363,7 +4373,6 @@ static void BufferAndPrintStats_HandleState(u8 mode)
         PrintHPStats(mode);
 
         DynamicPlaceholderTextUtil_Reset();
-        // Pass 0 as statIndex to disable nature coloring on numbers
         BufferStat(gStringVar1, atk, 0, 3);
         BufferStat(gStringVar2, def, 1, 3);
         BufferStat(gStringVar3, spA, 2, 3);
@@ -4430,6 +4439,19 @@ static void BufferNonHPStats(void)
 }
 
 
+static void PrintNonHPStats(void)
+{
+    u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
+    
+    // Don't print stat labels here anymore - PrintStatLabels handles it
+    // Just print the stat values
+    PrintTextOnWindow(windowId, gStringVar1, 126, 0, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar2, 52, 16, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar3, 126, 16, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 52, 32, 0, 0);
+    PrintTextOnWindow(windowId, sStringVar5, 126, 32, 0, 0);
+}
+
 static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 x, u8 y, 
                                   u8 natureUpStat, u8 natureDownStat, u8 *coloredLabel)
 {
@@ -4446,7 +4468,8 @@ static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 
     PrintTextOnWindowWithFont(windowId, coloredLabel, x, y, 0, 0, FONT_SMALL);
 }
 
-static void PrintNonHPStats(void)
+// Add a function to just print the stat labels
+static void PrintStatLabels(void)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
     u8 coloredLabel[64];
@@ -4455,19 +4478,15 @@ static void PrintNonHPStats(void)
     u8 natureUpStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statUp;
     u8 natureDownStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statDown;
 
+    // Print HP label
+    PrintTextOnWindowWithFont(windowId, gText_HP_Title, 4, 0, 0, 0, FONT_SMALL);
+    
     // Print non-HP stat labels (colored)
     PrintColoredStatLabel(windowId, STAT_ATK, gText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
     PrintColoredStatLabel(windowId, STAT_DEF, gText_Defense_Title, 4, 16, natureUpStat, natureDownStat, coloredLabel);
     PrintColoredStatLabel(windowId, STAT_SPATK, gText_SpAtk_Title, 80, 16, natureUpStat, natureDownStat, coloredLabel);
     PrintColoredStatLabel(windowId, STAT_SPDEF, gText_SpDef_Title, 4, 32, natureUpStat, natureDownStat, coloredLabel);
     PrintColoredStatLabel(windowId, STAT_SPEED, gText_Speed_Title, 80, 32, natureUpStat, natureDownStat, coloredLabel);
-
-    // Print non-HP stat values (no color)
-    PrintTextOnWindow(windowId, gStringVar1, 126, 0, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 52, 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 126, 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 52, 32, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 126, 32, 0, 0);
 }
 
 static void PrintExpPointsNextLevel(void)

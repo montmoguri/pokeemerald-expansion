@@ -7367,9 +7367,9 @@ const struct Item gItemsInfo[] =
         .price = (I_PRICE >= GEN_7) ? 1000 : 200,
         .holdEffect = HOLD_EFFECT_LEEK,
         .description = COMPOUND_STRING(
-            "A hold item that\n"
-            "raises Farfetch'd's\n"
-            "critical-hit ratio."),
+            "Raises critical-hit\n"
+            "ratio when held by\n"
+            "Farfetch'd."),
         .pocket = POCKET_ITEMS,
         .sortType = ITEM_TYPE_HELD_ITEM,
         .type = ITEM_USE_BAG_MENU,
@@ -8405,8 +8405,8 @@ const struct Item gItemsInfo[] =
         .holdEffect = HOLD_EFFECT_DAMP_ROCK,
         .description = COMPOUND_STRING(
             "Extends the length\n"
-            "of Rain Dance if\n"
-            "used by the holder."),
+            "of Rain Dance used\n"
+            "by the holder."),
         .pocket = POCKET_ITEMS,
         .sortType = ITEM_TYPE_HELD_ITEM,
         .type = ITEM_USE_BAG_MENU,
@@ -8423,8 +8423,8 @@ const struct Item gItemsInfo[] =
         .holdEffect = HOLD_EFFECT_HEAT_ROCK,
         .description = COMPOUND_STRING(
             "Extends the length\n"
-            "of Sunny Day if\n"
-            "used by the holder."),
+            "of Sunny Day used\n"
+            "by the holder."),
         .pocket = POCKET_ITEMS,
         .sortType = ITEM_TYPE_HELD_ITEM,
         .type = ITEM_USE_BAG_MENU,
@@ -8441,8 +8441,8 @@ const struct Item gItemsInfo[] =
         .holdEffect = HOLD_EFFECT_SMOOTH_ROCK,
         .description = COMPOUND_STRING(
             "Extends the length\n"
-            "of Sandstorm if\n"
-            "used by the holder."),
+            "of Sandstorm used\n"
+            "by the holder."),
         .pocket = POCKET_ITEMS,
         .sortType = ITEM_TYPE_HELD_ITEM,
         .type = ITEM_USE_BAG_MENU,
@@ -8460,13 +8460,13 @@ const struct Item gItemsInfo[] =
         #if B_PREFERRED_ICE_WEATHER == B_ICE_WEATHER_HAIL
         .description = COMPOUND_STRING(
             "Extends the length\n"
-            "of the move Hail\n"
-            "used by the holder."),
+            "of Hail used\n"
+            "by the holder."),
         #elif B_PREFERRED_ICE_WEATHER == B_ICE_WEATHER_SNOW
         .description = COMPOUND_STRING(
             "Extends the length\n"
-            "of Snowscape if\n"
-            "used by the holder."),
+            "of Snowscape used\n"
+            "by the holder."),
         #else
         .description = COMPOUND_STRING(
             "Extends the length\n"
