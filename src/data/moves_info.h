@@ -6657,8 +6657,8 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Beat Up"),
         .description = COMPOUND_STRING(
-            "Summons party Pokémon to\n"
-            "join in the attack."),
+            "Summons ally to join in\n"
+            "the attack."),
         .effect = EFFECT_BEAT_UP,
         .power = B_UPDATED_MOVE_DATA >= GEN_5 ? 1 : 10,
         .type = TYPE_DARK,
@@ -18761,7 +18761,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
         .name = COMPOUND_STRING("Flip Turn"),
         .description = COMPOUND_STRING(
             "Attacks and rushes back to\n"
-            "switch with a party Pokémon."),
+            "switch with an ally."),
         .effect = EFFECT_HIT_ESCAPE,
         .power = 60,
         .type = TYPE_WATER,
@@ -19133,7 +19133,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Dire Claw"),
         .description = COMPOUND_STRING(
-            "High critical hit chance. May\n"
+            "High critical-hit chance. May\n"
             "paralyze, poison or drowse."),
         .effect = EFFECT_HIT,
         .power = B_UPDATED_MOVE_DATA >= GEN_9 ? 80 : 60,
@@ -19199,7 +19199,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Stone Axe"),
         .description = COMPOUND_STRING(
-            "High critical hit ratio. Sets\n"
+            "High critical-hit ratio. Sets\n"
             "Splinters that hurt the foe."),
         .effect = EFFECT_STONE_AXE,
         .power = 65,
@@ -19412,7 +19412,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Esper Wing"),
         .description = COMPOUND_STRING(
-            "High critical hit ratio.\n"
+            "High critical-hit ratio.\n"
             "Ups the user's Speed."),
         .effect = EFFECT_HIT,
         .power = B_UPDATED_MOVE_DATA >= GEN_9 ? 80 : 75,
@@ -19476,7 +19476,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Triple Arrows"),
         .description = COMPOUND_STRING(
-            "High critical hit ratio.\n"
+            "High critical-hit ratio.\n"
             "May lower Defense or flinch."),
         .effect = EFFECT_HIT,
         .power = B_UPDATED_MOVE_DATA >= GEN_9 ? 90 : 50,
@@ -19524,7 +19524,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Ceaseless Edge"),
         .description = COMPOUND_STRING(
-            "High critical hit ratio. Sets\n"
+            "High critical-hit ratio. Sets\n"
             "Splinters that hurt the foe."),
         .effect = EFFECT_CEASELESS_EDGE,
         .power = 65,
@@ -19904,7 +19904,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Revival Blessing"),
         .description = COMPOUND_STRING(
-            "Revives a fainted party {PKMN}\n"
+            "Revives a fainted ally\n"
             "and restores half of its HP."),
         .effect = EFFECT_REVIVAL_BLESSING,
         .power = 0,
@@ -20986,7 +20986,7 @@ const struct MoveInfo gMovesInfo[MOVES_COUNT_ALL] =
     {
         .name = COMPOUND_STRING("Dragon Cheer"),
         .description = COMPOUND_STRING(
-            "Increases allies' critical hit\n"
+            "Increases allies' critical-hit\n"
             "ratio, especially if Dragons."),
         .effect = EFFECT_DRAGON_CHEER,
         .power = 0,

@@ -101,9 +101,10 @@ enum BWSkillsPageState
 #define PSS_LABEL_WINDOW_END 14
 
 // Dynamic fields for the Pokémon Info page
-#define PSS_DATA_WINDOW_INFO_OT_OTID_ITEM 0
-#define PSS_DATA_WINDOW_INFO_MEMO 1
-#define PSS_DATA_WINDOW_INFO_DEX_NUMBER_NAME 2
+#define PSS_DATA_WINDOW_INFO_ITEM 0
+#define PSS_DATA_WINDOW_INFO_OT_OTID 1
+#define PSS_DATA_WINDOW_INFO_MEMO 2
+#define PSS_DATA_WINDOW_INFO_SPECIES 3
 
 // Dynamic fields for the Pokémon Skills page
 #define PSS_DATA_WINDOW_SKILLS_RIBBON_COUNT 0 //ravetodo handle ribbons
@@ -651,32 +652,41 @@ static const struct WindowTemplate sSummaryTemplate[] =
 };
 static const struct WindowTemplate sPageInfoTemplate[] =
 {
-    [PSS_DATA_WINDOW_INFO_OT_OTID_ITEM] = {
+    [PSS_DATA_WINDOW_INFO_ITEM] = {
         .bg = 0,
-        .tilemapLeft = 7,
-        .tilemapTop = 7,
-        .width = 12,
-        .height = 6,
+        .tilemapLeft = 10,
+        .tilemapTop = 12,
+        .width = 10,
+        .height = 2,
         .paletteNum = 6,
         .baseBlock = 335,
     },
+    [PSS_DATA_WINDOW_INFO_OT_OTID] = {
+        .bg = 0,
+        .tilemapLeft = 7,
+        .tilemapTop = 9,
+        .width = 12,
+        .height = 2,
+        .paletteNum = 6,
+        .baseBlock = 355,
+    },
     [PSS_DATA_WINDOW_INFO_MEMO] = {
         .bg = 0,
-        .tilemapLeft = 2,
-        .tilemapTop = 13,
+        .tilemapLeft = 1,
+        .tilemapTop = 15,
         .width = 26,
         .height = 7,
         .paletteNum = 6,
-        .baseBlock = 407,
+        .baseBlock = 379,
     },
-    [PSS_DATA_WINDOW_INFO_DEX_NUMBER_NAME] = {
+    [PSS_DATA_WINDOW_INFO_SPECIES] = {
         .bg = 0,
-        .tilemapLeft = 8,
+        .tilemapLeft = 7,
         .tilemapTop = 4,
         .width = 9,
-        .height = 4,
+        .height = 3,
         .paletteNum = 6,
-        .baseBlock = 589,
+        .baseBlock = 561,
     },
 };
 static const struct WindowTemplate sPageSkillsTemplate[] =
@@ -3686,7 +3696,8 @@ static void PrintNotEggInfo(void)
 
     // print nickname
     GetMonNickname(mon, gStringVar1);
-    PrintTextOnWindowToFitPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 0, 1, 0, 1, WindowWidthPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL) - 48);
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 1, 1, 0, 1, FONT_NARROW);
+    // PrintTextOnWindowToFitPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar1, 0, 1, 0, 1, WindowWidthPx(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL) - 48);
     // increased from - 9 to - 15 to force narrow font for long names so they don't overlap with gender symbol
 
     //print gender
@@ -3700,9 +3711,9 @@ static void PrintNotEggInfo(void)
         ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
 
         // Print "Lv." with FONT_NORMAL
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_LevelSymbol, 68, 1, 0, 1, FONT_NORMAL);
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gText_LevelSymbol, 66, 1, 0, 1, FONT_NORMAL);
         // Print the level number with FONT_NARROW, positioned after "Lv." (10) + space (1)
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar2, 68 + 10 + 1, 1, 0, 1, FONT_NARROW);
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL, gStringVar2, 66 + 10 + 1, 1, 0, 1, FONT_NARROW);
     }
     
     PutWindowTilemap(PSS_LABEL_WINDOW_PORTRAIT_NICKNAME_GENDER_LEVEL);
@@ -3733,7 +3744,7 @@ static void CreateGenderSprite(struct Pokemon *mon, u16 species)
     if (*spriteId == SPRITE_NONE)
     {
         LoadGenderGfx();
-        *spriteId = CreateSprite(&sSpriteTemplate_Gender, 233, 25, 6);
+        *spriteId = CreateSprite(&sSpriteTemplate_Gender, 232, 25, 6);
     }
 
     if (species != SPECIES_NIDORAN_M && species != SPECIES_NIDORAN_F)
@@ -4011,8 +4022,8 @@ static void PrintInfoPageText(void)
         PrintMonOTID();
         PrintMonDexNumberSpecies();
         PrintHeldItemName();
-        BufferMonTrainerMemo();
-        PrintMonTrainerMemo();
+        // BufferMonTrainerMemo();
+        // PrintMonTrainerMemo();
     }
 }
 
@@ -4034,12 +4045,12 @@ static void Task_PrintInfoPage(u8 taskId)
         PrintHeldItemName();
         break;
     case 5:
-        BufferMonTrainerMemo();
-        break;
-    case 6:
-        PrintMonTrainerMemo();
-        break;
-    case 7:
+    //     BufferMonTrainerMemo();
+    //     break;
+    // case 6:
+    //     PrintMonTrainerMemo();
+    //     break;
+    // case 7:
         DestroyTask(taskId);
         return;
     }
@@ -4053,7 +4064,7 @@ static void PrintMonDexNumberSpecies(void)
     // struct Pokemon *mon = &sMonSummaryScreen->currentMon; // not printing pokedex number
 
     // u16 dexNum = SpeciesToPokedexNum(summary->species); // not printing pokedex number
-    windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_DEX_NUMBER_NAME);
+    windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_SPECIES);
 
     if (sMonSummaryScreen->summary.isEgg)
     {
@@ -4062,7 +4073,7 @@ static void PrintMonDexNumberSpecies(void)
     }
     else
     {
-        PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 4, 3, 0, 0, WindowWidthPx(windowId) - 9);
+        PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 0, 5, 0, 0, WindowWidthPx(windowId) - 9);
         
         // // not printing pokedex number
         // if (dexNum != 0xFFFF)
@@ -4098,19 +4109,19 @@ static void PrintMonDexNumberSpecies(void)
 
 static void PrintMonOTName(void)
 {
-    int windowId;
+    int windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID);
     if (InBattleFactory() != TRUE && InSlateportBattleTent() != TRUE)
     {
-        windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM);
-        if (sMonSummaryScreen->summary.OTGender == 0)
-            PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 12, 3, 0, 5);
-        else
-            PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 12, 3, 0, 6);
+        PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 0, 0, 0, 0);
+        // if (sMonSummaryScreen->summary.OTGender == 0)
+        //     PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 0, 0, 0, 5);
+        // else
+        //     PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 0, 0, 0, 6);
     }
     else
     {
         StringCopy(gStringVar1, sText_RentalPkmn);
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 3, 0, 0);
+        PrintTextOnWindow(windowId, gStringVar1, 0, 0, 0, 0);
     }
 }
 
@@ -4119,13 +4130,13 @@ static void PrintMonOTID(void)
     if (InBattleFactory() != TRUE && InSlateportBattleTent() != TRUE)
     {
         ConvertIntToDecimalStringN(gStringVar1, (u16)sMonSummaryScreen->summary.OTID, STR_CONV_MODE_LEADING_ZEROS, 5);
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 15, 0, 0);
+        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 66, 0, 0, 0);
     }
-    else
-    {
-        StringCopy(gStringVar1, gText_FiveMarks);
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 15, 0, 0);
-    }
+    // else
+    // {
+    //     StringCopy(gStringVar1, gText_FiveMarks);
+    //     PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 66, 0, 0, 0);
+    // }
 }
 
 static void PrintMonAbilityName(void)
@@ -4271,14 +4282,14 @@ static bool8 IsInGamePartnerMon(void)
 
 static void PrintEggOTName(void)
 {
-    u32 windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM);
+    u32 windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID);
     PrintTextOnWindow(windowId, gText_FiveMarks, 12, 4, 0, 0);
 }
 
 static void PrintEggOTID(void)
 {
     StringCopy(gStringVar1, gText_FiveMarks);
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), gStringVar1, 12, 16, 0, 0);
+    PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 12, 16, 0, 0);
 }
 
 static void PrintEggState(void)
@@ -4397,8 +4408,8 @@ static void PrintHeldItemName(void)
         text = gStringVar1;
     }
 
-    fontId = GetFontIdToFit(text, FONT_SHORT, 0, WindowTemplateWidthPx(&sPageSkillsTemplate[PSS_DATA_WINDOW_INFO_OT_OTID_ITEM]) - 8);
-    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_INFO_OT_OTID_ITEM), text, 12, 27, 0, 0, fontId);
+    fontId = GetFontIdToFit(text, FONT_SHORT, 0, WindowTemplateWidthPx(&sPageInfoTemplate[PSS_DATA_WINDOW_INFO_ITEM]) - 8);
+    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM), text, 0, 1, 0, 0, fontId);
 }
 
 static void UNUSED PrintRibbonCount(void)
@@ -5126,17 +5137,17 @@ static void SetMonTypeIcons(void)
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
     if (summary->isEgg)
     {
-        SetTypeSpritePosAndPal(TYPE_MYSTERY, 68, 46, SPRITE_ARR_ID_TYPE);
+        SetTypeSpritePosAndPal(TYPE_MYSTERY, 56, 53, SPRITE_ARR_ID_TYPE);
         SetSpriteInvisibility(SPRITE_ARR_ID_TYPE + 1, TRUE);
         if (BW_SUMMARY_SHOW_TERA_TYPE)
             SetSpriteInvisibility(SPRITE_ARR_ID_TERA_TYPE, TRUE);
     }
     else
     {
-        SetTypeSpritePosAndPal(gSpeciesInfo[summary->species].types[0], 68, 46, SPRITE_ARR_ID_TYPE);
+        SetTypeSpritePosAndPal(gSpeciesInfo[summary->species].types[0], 56, 53, SPRITE_ARR_ID_TYPE);
         if (gSpeciesInfo[summary->species].types[0] != gSpeciesInfo[summary->species].types[1])
         {
-            SetTypeSpritePosAndPal(gSpeciesInfo[summary->species].types[1], 106, 46, SPRITE_ARR_ID_TYPE + 1);
+            SetTypeSpritePosAndPal(gSpeciesInfo[summary->species].types[1], 92, 53, SPRITE_ARR_ID_TYPE + 1);
             SetSpriteInvisibility(SPRITE_ARR_ID_TYPE + 1, FALSE);
         }
         else
@@ -5435,7 +5446,7 @@ static void SetFriendshipSprite(void)
 static void CreateMonShinySprite(struct Pokemon *mon)
 {
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] == SPRITE_NONE)
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 158, 38, 6);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 152, 45, 6);
 
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY]].invisible = !IsMonShiny(mon);
 }
@@ -5463,7 +5474,7 @@ static void CreateSetStatusSprite(void)
     u8 statusAnim;
 
     if (*spriteId == SPRITE_NONE)
-        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 209, 25, 6); // moved from 213 to 179 to print status where level is.
+        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 207, 25, 6); // moved from 213 to 179 to print status where level is.
 
     statusAnim = GetMonAilment(&sMonSummaryScreen->currentMon);
     if (statusAnim != 0)
