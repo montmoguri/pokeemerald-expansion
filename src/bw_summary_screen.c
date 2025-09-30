@@ -117,7 +117,7 @@ enum BWSkillsPageState
 #define PSS_DATA_WINDOW_MOVE_NAMES_PP 0
 #define PSS_DATA_WINDOW_MOVE_DESCRIPTION 1
 
-#define MOVE_SELECTOR_SPRITES_COUNT 15
+#define MOVE_SELECTOR_SPRITES_COUNT 10
 #define TYPE_ICON_SPRITE_COUNT (MAX_MON_MOVES + 1)
 // for the spriteIds field in PokemonSummaryScreenData
 enum BWSummarySprites
@@ -452,6 +452,8 @@ static const u16 sMoveTypes_Pal_BW[]                        = INCBIN_U16("graphi
 static const u32 sTeraTypes_Gfx[]                           = INCBIN_U32("graphics/types_bw/tera/tera_types_bw.4bpp.lz");
 static const u32 sSummaryMoveSelect_Gfx_BW[]                = INCBIN_U32("graphics/summary_screen/bw/move_select.4bpp.lz");
 static const u16 sSummaryMoveSelect_Pal_BW[]                = INCBIN_U16("graphics/summary_screen/bw/move_select.gbapal");
+static const u32 sSummaryMoveSelect_Gfx_Gen8[]              = INCBIN_U32("graphics/summary_screen/gen8/move_select.4bpp.lz");
+static const u16 sSummaryMoveSelect_Pal_Gen8[]              = INCBIN_U16("graphics/summary_screen/gen8/move_select.gbapal");
 static const u16 sMarkings_Pal_BW[]                         = INCBIN_U16("graphics/summary_screen/bw/markings.gbapal");
 static const u32 sShinyIcon_Gfx_BW[]                        = INCBIN_U32("graphics/summary_screen/bw/shiny_icon.4bpp.lz");
 static const u32 sPokerusCuredIcon_Gfx_BW[]                 = INCBIN_U32("graphics/summary_screen/bw/pokerus_cured_icon.4bpp.lz");
@@ -1457,10 +1459,10 @@ static const struct OamData sOamData_MoveSelector =
     .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = FALSE,
     .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(8x32),
+    .shape = SPRITE_SHAPE(16x32),
     .x = 0,
     .matrixNum = 0,
-    .size = SPRITE_SIZE(8x32),
+    .size = SPRITE_SIZE(16x32),
     .tileNum = 0,
     .priority = 1,
     .paletteNum = 0,
@@ -1487,24 +1489,24 @@ static const union AnimCmd sSpriteAnim_MoveSelectorLeft[] = {
     ANIMCMD_FRAME(0, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_MoveSelectorRight[] = {
-    ANIMCMD_FRAME(0, 0, TRUE, FALSE),
-    ANIMCMD_END
-};
 static const union AnimCmd sSpriteAnim_MoveSelectorMiddle[] = {
-    ANIMCMD_FRAME(4, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_MoveSelectorLeftAlt[] = {
     ANIMCMD_FRAME(8, 0, FALSE, FALSE),
     ANIMCMD_END
 };
+static const union AnimCmd sSpriteAnim_MoveSelectorRight[] = {
+    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MoveSelectorLeftAlt[] = {
+    ANIMCMD_FRAME(24, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
 static const union AnimCmd sSpriteAnim_MoveSelectorMiddleAlt[] = {
-    ANIMCMD_FRAME(8, 0, TRUE, FALSE),
+    ANIMCMD_FRAME(40, 0, FALSE, FALSE),
     ANIMCMD_END
 };
 static const union AnimCmd sSpriteAnim_MoveSelectorRightAlt[] = {
-    ANIMCMD_FRAME(12, 0, FALSE, FALSE),
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
     ANIMCMD_END
 };
 
@@ -1525,14 +1527,14 @@ static const union AnimCmd *const sSpriteAnimTable_MoveSelector[] = {
 
 static const struct CompressedSpriteSheet sMoveSelectorSpriteSheet =
 {
-    .data = sSummaryMoveSelect_Gfx_BW,
-    .size = 8*128,
+    .data = sSummaryMoveSelect_Gfx_Gen8,
+    .size = 16*192,
     .tag = TAG_MOVE_SELECTOR
 };
 
 static const struct SpritePalette sMoveSelectorSpritePal =
 {
-    .data = sSummaryMoveSelect_Pal_BW,
+    .data = sSummaryMoveSelect_Pal_Gen8,
     .tag = TAG_MOVE_SELECTOR
 };
 
@@ -4904,18 +4906,17 @@ static void PrintNewMoveDetailsOrCancelText(void)
 
     if (sMonSummaryScreen->newMove == MOVE_NONE)
     {
-        // TO-DO - figure out where to print Cancel text (maybe move to header action)
-        // Currently printing out of frame
-        PrintTextOnWindowWithFont(windowId1, sText_Cancel, 3, 119, 0, 12, FONT_SMALL);
+
+        PrintTextOnWindowWithFont(windowId1, sText_Cancel, 4, 76, 0, 10, FONT_SMALL);
     }
     else
     {
         u16 move = sMonSummaryScreen->newMove;
 
         if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES)
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 0, FONT_SMALL, WindowWidthPx(windowId1) - 3);
+            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 10, FONT_SMALL, WindowWidthPx(windowId1) - 3);
         else
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 0, FONT_SMALL, WindowWidthPx(windowId1) - 3);
+            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 10, FONT_SMALL, WindowWidthPx(windowId1) - 3);
 
         ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[move].pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
         DynamicPlaceholderTextUtil_Reset();
@@ -4929,7 +4930,7 @@ static void PrintNewMoveDetailsOrCancelText(void)
 static void ClearCancelText(void)
 {
     u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
-    FillWindowPixelRect(windowId, PIXEL_FILL(0), 0, 116, 72, 16);
+    FillWindowPixelRect(windowId, PIXEL_FILL(0), 0, 77, 72, 16);
     CopyWindowToVram(windowId, COPYWIN_GFX);
 }
 
@@ -5518,7 +5519,7 @@ static void CreateMoveSelectorSprites(u8 idArrayStart)
 
         for (i = 0; i < MOVE_SELECTOR_SPRITES_COUNT; i++)
         {
-            spriteIds[i] = CreateSprite(&sMoveSelectorSpriteTemplate, i * 8 + 4, 34, subpriority);
+            spriteIds[i] = CreateSprite(&sMoveSelectorSpriteTemplate, i * 16 + 17, 51, subpriority);
             if (i == 0)
                 StartSpriteAnim(&gSprites[spriteIds[i]], 4); // left
             else if (i == MOVE_SELECTOR_SPRITES_COUNT - 1)
@@ -5539,7 +5540,7 @@ static void SpriteCB_MoveSelector(struct Sprite *sprite)
     {
         sprite->data[1] = (sprite->data[1] + 1) & 0x1F;
         if (sprite->data[1] > 24)
-            sprite->invisible = TRUE;
+            sprite->invisible = FALSE; // Set to FALSE so selector doesn't blink. Probably more simple ways to disable.
         else
             sprite->invisible = FALSE;
     }
@@ -5550,9 +5551,9 @@ static void SpriteCB_MoveSelector(struct Sprite *sprite)
     }
 
     if (sprite->data[0] == SPRITE_ARR_ID_MOVE_SELECTOR1)
-        sprite->y2 = sMonSummaryScreen->firstMoveIndex * 28;
+        sprite->y2 = sMonSummaryScreen->firstMoveIndex * 18;
     else
-        sprite->y2 = sMonSummaryScreen->secondMoveIndex * 28;
+        sprite->y2 = sMonSummaryScreen->secondMoveIndex * 18;
 }
 
 static void DestroyMoveSelectorSprites(u8 firstArrayId)
