@@ -3808,14 +3808,14 @@ static void PrintPageNamesAndStats(void)
     if (iconXPos < 0)
         iconXPos = 0;
     PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_INFO, FALSE, iconXPos);
-    PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_INFO, sText_Info, stringXPos, 1, 0, 1);
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_INFO, sText_Info, stringXPos, 1, 0, 1, FONT_NARROW);
 
     stringXPos = GetStringRightAlignXOffset(FONT_NORMAL, sText_Switch, 62);
     iconXPos = stringXPos - 16;
     if (iconXPos < 0)
         iconXPos = 0;
     PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_SWITCH, FALSE, iconXPos);
-    PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_SWITCH, sText_Switch, stringXPos, 1, 0, 1);
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_SWITCH, sText_Switch, stringXPos, 1, 0, 1, FONT_NARROW);
 
     if (BW_SUMMARY_IV_EV_DISPLAY != BW_IV_EV_HIDDEN)
     {
@@ -3826,14 +3826,14 @@ static void PrintPageNamesAndStats(void)
             if (iconXPos < 0)
                 iconXPos = 0;
             PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_IVS, FALSE, iconXPos);
-            PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_IVS, sText_ViewIVs_Graded, stringXPos, 1, 0, 1);
+            PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_IVS, sText_ViewIVs_Graded, stringXPos, 1, 0, 1, FONT_NARROW);
 
             stringXPos = GetStringRightAlignXOffset(FONT_NORMAL, sText_ViewEVs_Graded, skillsLabelWidth);
             iconXPos = stringXPos - 16;
             if (iconXPos < 0)
                 iconXPos = 0;
             PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_EVS, FALSE, iconXPos);
-            PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_EVS, sText_ViewEVs_Graded, stringXPos, 1, 0, 1);
+            PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_EVS, sText_ViewEVs_Graded, stringXPos, 1, 0, 1, FONT_NARROW);
         }
         else // precise display
         {
@@ -3842,14 +3842,14 @@ static void PrintPageNamesAndStats(void)
             if (iconXPos < 0)
                 iconXPos = 0;
             PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_IVS, FALSE, iconXPos);
-            PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_IVS, sText_ViewIVs, stringXPos, 1, 0, 1);
+            PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_IVS, sText_ViewIVs, stringXPos, 1, 0, 1, FONT_NARROW);
 
             stringXPos = GetStringRightAlignXOffset(FONT_NORMAL, sText_ViewEVs, skillsLabelWidth);
             iconXPos = stringXPos - 16;
             if (iconXPos < 0)
                 iconXPos = 0;
             PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_EVS, FALSE, iconXPos);
-            PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_EVS, sText_ViewEVs, stringXPos, 1, 0, 1);
+            PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_EVS, sText_ViewEVs, stringXPos, 1, 0, 1, FONT_NARROW);
         }
 
         stringXPos = GetStringRightAlignXOffset(FONT_NORMAL, sText_ViewStats, skillsLabelWidth);
@@ -3857,11 +3857,11 @@ static void PrintPageNamesAndStats(void)
         if (iconXPos < 0)
             iconXPos = 0;
         PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_STATS, FALSE, iconXPos);
-        PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_STATS, sText_ViewStats, stringXPos, 1, 0, 1);
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_STATS, sText_ViewStats, stringXPos, 1, 0, 1, FONT_NARROW);
     }
 
-    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP, sText_Next, 36, 0, 0, 0, FONT_SMALL);
-    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP, gText_LevelSymbol, 60, 0, 0, 0, FONT_NORMAL);
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP, sText_Next, 40, 0, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP, gText_LevelSymbol, 62, 0, 0, 0, FONT_NORMAL);
 }
 
 static void PutPageWindowTilemaps(u8 page)
@@ -4070,7 +4070,8 @@ static void PrintMonDexNumberSpecies(void)
     }
     else
     {
-        PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 0, 4, 0, 0, WindowWidthPx(windowId) - 9);
+        PrintTextOnWindowWithFont(windowId, GetSpeciesName(summary->species2), 0, 4, 0, 0, FONT_NARROW);
+        // PrintTextOnWindowToFitPx(windowId, GetSpeciesName(summary->species2), 0, 4, 0, 0, WindowWidthPx(windowId) - 9);
         
         // // not printing pokedex number
         // if (dexNum != 0xFFFF)
@@ -4109,7 +4110,8 @@ static void PrintMonOTName(void)
     int windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID);
     if (InBattleFactory() != TRUE && InSlateportBattleTent() != TRUE)
     {
-        PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 0, 4, 0, 0);
+        PrintTextOnWindowWithFont(windowId, sMonSummaryScreen->summary.OTName, 0, 4, 0, 0, FONT_NARROW);
+        // PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 0, 4, 0, 0);
         // if (sMonSummaryScreen->summary.OTGender == 0)
         //     PrintTextOnWindow(windowId, sMonSummaryScreen->summary.OTName, 0, 0, 0, 5);
         // else
@@ -4127,7 +4129,7 @@ static void PrintMonOTID(void)
     if (InBattleFactory() != TRUE && InSlateportBattleTent() != TRUE)
     {
         ConvertIntToDecimalStringN(gStringVar1, (u16)sMonSummaryScreen->summary.OTID, STR_CONV_MODE_LEADING_ZEROS, 5);
-        PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 66, 4, 0, 0);
+        PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 66, 4, 0, 0, FONT_NARROW);
     }
     // else
     // {
@@ -4286,7 +4288,7 @@ static void PrintEggOTName(void)
 static void PrintEggOTID(void)
 {
     StringCopy(gStringVar1, gText_FiveMarks);
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 66, 4, 0, 0);
+    // PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 66, 4, 0, 0);
 }
 
 static void PrintEggState(void)
@@ -4405,7 +4407,7 @@ static void PrintHeldItemName(void)
         text = gStringVar1;
     }
 
-    fontId = GetFontIdToFit(text, FONT_SHORT, 0, WindowTemplateWidthPx(&sPageInfoTemplate[PSS_DATA_WINDOW_INFO_ITEM]) - 8);
+    fontId = GetFontIdToFit(text, FONT_NARROW, 0, WindowTemplateWidthPx(&sPageInfoTemplate[PSS_DATA_WINDOW_INFO_ITEM]) - 8);
     PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM), text, 4, 6, 0, 0, fontId);
 }
 
@@ -4539,9 +4541,9 @@ static void PrintHPStats(u8 mode)
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
     PrintTextOnWindowWithFont(windowId, gText_HP_Title, 4, 0, 0, 0, FONT_SMALL);
     if (mode == SKILL_STATE_STATS)
-        PrintTextOnWindow(windowId, gStringVar4, 28, 0, 0, 0);
+        PrintTextOnWindowWithFont(windowId, gStringVar4, 32, 0, 0, 0, FONT_NARROW);
     else
-        PrintTextOnWindow(windowId, gStringVar4, 28, 0, 0, 0);
+        PrintTextOnWindowWithFont(windowId, gStringVar4, 32, 0, 0, 0, FONT_NARROW);
 }
 
 
@@ -4562,11 +4564,11 @@ static void PrintNonHPStats(void)
     
     // Don't print stat labels here anymore - PrintStatLabels handles it
     // Just print the stat values
-    PrintTextOnWindow(windowId, gStringVar1, 126, 0, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 52, 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 126, 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 52, 32, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 126, 32, 0, 0);
+    PrintTextOnWindowWithFont(windowId, gStringVar1, 129, 0, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, gStringVar2, 53, 16, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, gStringVar3, 129, 16, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, gStringVar4, 53, 32, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, sStringVar5, 129, 32, 0, 0, FONT_NARROW);
 }
 
 static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 x, u8 y, 
@@ -4626,8 +4628,8 @@ static void PrintExpPointsNextLevel(void)
 
     ConvertIntToDecimalStringN(gStringVar1, expToNextLevel, STR_CONV_MODE_RIGHT_ALIGN, 5);
 
-    PrintTextOnWindow(windowIdNextLvl, gStringVar1, 2, 0, 0, 0);
-    // PrintTextOnWindowWithFont(windowIdNextLvl, gStringVar1, 1, 4, 0, 0, FONT_NARROW);
+    // PrintTextOnWindow(windowIdNextLvl, gStringVar1, 2, 0, 0, 0);
+    PrintTextOnWindowWithFont(windowIdNextLvl, gStringVar1, 7, 0, 0, 0, FONT_NARROW);
 }
 
 static void PrintBattleMoves(void)
@@ -5685,7 +5687,7 @@ static void ShowCancelOrRenamePrompt(void)
         iconXPos = 0;
 
     PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_CANCEL, FALSE, iconXPos);
-    PrintTextOnWindow(PSS_LABEL_WINDOW_PROMPT_CANCEL, promptText, stringXPos, 1, 0, 1);
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_CANCEL, promptText, stringXPos, 1, 0, 1, FONT_NARROW);
 }
 
 static void CB2_ReturnToSummaryScreenFromNamingScreen(void)
