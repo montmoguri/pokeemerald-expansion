@@ -4910,7 +4910,7 @@ static void PrintNewMoveDetailsOrCancelText(void)
     if (sMonSummaryScreen->newMove == MOVE_NONE)
     {
 
-        PrintTextOnWindowWithFont(windowId1, sText_Cancel, 4, 76, 0, 10, FONT_SMALL);
+        PrintTextOnWindowWithFont(windowId1, sText_Cancel, 4, 76, 0, 2, FONT_SMALL);
     }
     else
     {
