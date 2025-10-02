@@ -19,6 +19,7 @@
 #include "graphics.h"
 #include "international_string_util.h"
 #include "item.h"
+#include "item_icon.h"
 #include "link.h"
 #include "m4a.h"
 #include "malloc.h"
@@ -129,6 +130,7 @@ enum BWSummarySprites
     SPRITE_ARR_ID_GENDER,
     // all sprites below are considered "page-specific" and will be hidden when switching pages
     SPRITE_ARR_ID_POKERUS_CURED,
+    SPRITE_ARR_ID_ITEM,
     SPRITE_ARR_ID_SHINY,
     SPRITE_ARR_ID_FRIENDSHIP,
     SPRITE_ARR_ID_CATEGORY,
@@ -343,6 +345,8 @@ static void StopPokemonAnimations(void);
 static void CreateMonMarkingsSprite(struct Pokemon *);
 static void RemoveAndCreateMonMarkingsSprite(struct Pokemon *);
 static void CreateCaughtBallSprite(struct Pokemon *);
+static void CreateHeldItemIconSprite(s16, s16);
+static void DestroyHeldItemIconSprite(void);
 static void CreateSetStatusSprite(void);
 static void CreateMoveSelectorSprites(u8);
 static void SpriteCB_MoveSelector(struct Sprite *);
@@ -388,6 +392,7 @@ static const u8 sStatsHPLayout[]                            = _("{DYNAMIC 0}/{DY
 static const u8 sStatsHPIVEVLayout[]                        = _("{DYNAMIC 0}");
 static const u8 sStatsNonHPLayout[]                         = _("{DYNAMIC 0}\n{DYNAMIC 1}\n{DYNAMIC 2}\n{DYNAMIC 3}\n{DYNAMIC 4}");
 static const u8 sMovesPPLayout[]                            = _("{DYNAMIC 0}/{DYNAMIC 1}");
+static const u8 sText_Empty[]                               = _("");
 
 #if BW_SUMMARY_DECAP == TRUE
 static const u8 sText_Cancel[]                              = _("Cancel");
@@ -407,6 +412,7 @@ static const u8 sText_NextLv[]                              = _("Next {LV}");
 static const u8 sText_Next[]                                = _("Next");
 static const u8 sText_RentalPkmn[]                          = _("Rental Pokémon");
 static const u8 sText_None[]                                = _("None");
+
 #else
 static const u8 sText_Cancel[]                              = _("CANCEL");
 static const u8 sText_Switch[]                              = _("SWITCH");
@@ -656,10 +662,10 @@ static const struct WindowTemplate sPageInfoTemplate[] =
 {
     [PSS_DATA_WINDOW_INFO_ITEM] = {
         .bg = 0,
-        .tilemapLeft = 10,
+        .tilemapLeft = 1,
         .tilemapTop = 12,
-        .width = 10,
-        .height = 3,
+        .width = 18,
+        .height = 7,
         .paletteNum = 6,
         .baseBlock = 335,
     },
@@ -670,7 +676,7 @@ static const struct WindowTemplate sPageInfoTemplate[] =
         .width = 12,
         .height = 2,
         .paletteNum = 6,
-        .baseBlock = 365,
+        .baseBlock = 461,
     },
     [PSS_DATA_WINDOW_INFO_MEMO] = {
         .bg = 0,
@@ -679,7 +685,7 @@ static const struct WindowTemplate sPageInfoTemplate[] =
         .width = 26,
         .height = 7,
         .paletteNum = 6,
-        .baseBlock = 389,
+        .baseBlock = 485,
     },
     [PSS_DATA_WINDOW_INFO_SPECIES] = {
         .bg = 0,
@@ -688,7 +694,7 @@ static const struct WindowTemplate sPageInfoTemplate[] =
         .width = 9,
         .height = 3,
         .paletteNum = 6,
-        .baseBlock = 571,
+        .baseBlock = 667,
     },
 };
 static const struct WindowTemplate sPageSkillsTemplate[] =
@@ -808,6 +814,7 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
 #define TAG_MON_SHADOW 30010
 #define TAG_RELEARN_PROMPT 30011
 #define TAG_GENDER_ICON 30012
+#define TAG_HELD_ITEM_ICON 30013
 
 enum BWCategoryIcon
 {
@@ -2659,6 +2666,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
         DestroySpriteAndFreeResources(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]]);
         if (BW_SUMMARY_MON_SHADOWS)
             DestroySpriteAndFreeResources(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]]);
+        DestroyHeldItemIconSprite();
         break;
     case 2:
         DestroySpriteAndFreeResources(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL]]);
@@ -2740,6 +2748,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
                 ShowCancelOrRenamePrompt();
                 PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_CANCEL);  
             }
+            CreateHeldItemIconSprite(72, 112);
         } 
         else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
         {
@@ -3742,7 +3751,7 @@ static void CreateGenderSprite(struct Pokemon *mon, u16 species)
     if (*spriteId == SPRITE_NONE)
     {
         LoadGenderGfx();
-        *spriteId = CreateSprite(&sSpriteTemplate_Gender, 232, 25, 6);
+        *spriteId = CreateSprite(&sSpriteTemplate_Gender, 230, 25, 6);
     }
 
     if (species != SPECIES_NIDORAN_M && species != SPECIES_NIDORAN_F)
@@ -4148,7 +4157,7 @@ static void PrintMonAbilityName(void)
 static void PrintMonAbilityDescription(void)
 {
     u16 ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
-    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 3, 19, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 0, 17, 0, 0, FONT_NARROW);
 }
 
 static void BufferMonTrainerMemo(void)
@@ -4390,26 +4399,36 @@ static void Task_PrintSkillsPage(u8 taskId)
 static void PrintHeldItemName(void)
 {
     const u8 *text;
+    const u8 *description;
+    u8 desc[200];
     u32 fontId;
+    u8 windowId = AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM);
 
     if (sMonSummaryScreen->summary.item == ITEM_ENIGMA_BERRY_E_READER
         && IsMultiBattle() == TRUE
         && (sMonSummaryScreen->curMonIndex == 1 || sMonSummaryScreen->curMonIndex == 4 || sMonSummaryScreen->curMonIndex == 5))
     {
         text = GetItemName(ITEM_ENIGMA_BERRY_E_READER);
+        description = GetItemDescription(ITEM_ENIGMA_BERRY_E_READER);
     }
     else if (sMonSummaryScreen->summary.item == ITEM_NONE)
     {
-        text = sText_None;
+        text = sText_Empty;
+        description = sText_Empty;
     }
     else
     {
         CopyItemName(sMonSummaryScreen->summary.item, gStringVar1);
         text = gStringVar1;
+        description = GetItemDescription(sMonSummaryScreen->summary.item);
     }
 
-    fontId = GetFontIdToFit(text, FONT_NARROW, 0, WindowTemplateWidthPx(&sPageInfoTemplate[PSS_DATA_WINDOW_INFO_ITEM]) - 8);
-    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM), text, 4, 6, 0, 0, fontId);
+    fontId = GetFontIdToFit(text, FONT_NARROW, 0, 70);
+    // fontId = GetFontIdToFit(text, FONT_NARROW, 0, WindowTemplateWidthPx(&sPageInfoTemplate[PSS_DATA_WINDOW_INFO_ITEM]) - 8);
+    PrintTextOnWindowWithFont(windowId, text, 76, 6, 0, 0, fontId);
+    
+    FormatTextByWidth(desc, 144, FONT_NARROW, description, GetFontAttribute(FONT_NARROW, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, desc, 0, 24, 0, 0, FONT_NARROW);
 }
 
 static void UNUSED PrintRibbonCount(void)
@@ -4856,9 +4875,9 @@ static void PrintMoveDetails(u16 move)
             if (BW_SUMMARY_AUTO_FORMAT_MOVE_DESCRIPTIONS)
             {
                 if (gMovesInfo[move].effect != EFFECT_PLACEHOLDER)
-                    FormatTextByWidth(desc, 119, FONT_NARROW, gMovesInfo[move].description, GetFontAttribute(FONT_NARROW, FONTATTR_LETTER_SPACING));
+                    FormatTextByWidth(desc, 136, FONT_NARROW, gMovesInfo[move].description, GetFontAttribute(FONT_NARROW, FONTATTR_LETTER_SPACING));
                 else
-                    FormatTextByWidth(desc, 119, FONT_NARROW, gNotDoneYetDescription, GetFontAttribute(FONT_NARROW, FONTATTR_LETTER_SPACING));
+                    FormatTextByWidth(desc, 136, FONT_NARROW, gNotDoneYetDescription, GetFontAttribute(FONT_NARROW, FONTATTR_LETTER_SPACING));
 
                 PrintTextOnWindowWithFont(windowId, desc, 0, 7, 0, 0, FONT_NARROW);
             }
@@ -4917,9 +4936,9 @@ static void PrintNewMoveDetailsOrCancelText(void)
         u16 move = sMonSummaryScreen->newMove;
 
         if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES)
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 10, FONT_SMALL, WindowWidthPx(windowId1) - 3);
+            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 0, FONT_SMALL, WindowWidthPx(windowId1) - 3);
         else
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 10, FONT_SMALL, WindowWidthPx(windowId1) - 3);
+            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 0, FONT_SMALL, WindowWidthPx(windowId1) - 3);
 
         ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[move].pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
         DynamicPlaceholderTextUtil_Reset();
@@ -5094,6 +5113,7 @@ static void TrySetInfoPageIcons(void)
     { 
         SetPokerusCuredSprite();
         SetShinySprite();
+        CreateHeldItemIconSprite(72, 112);
         // // Hold off on printing friendship
         if (BW_SUMMARY_SHOW_FRIENDSHIP)
             SetFriendshipSprite();
@@ -5435,7 +5455,7 @@ static void SetShinySprite(void)
 {
     struct Pokemon *mon;
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] == SPRITE_NONE)
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 27, 90, 6);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 24, 90, 6);
 
     mon = &sMonSummaryScreen->currentMon;
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY]].invisible = !IsMonShiny(mon);
@@ -5473,6 +5493,41 @@ static void CreateCaughtBallSprite(struct Pokemon *mon)
     sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL] = CreateSprite(&gBallSpriteTemplates[ball], 118, 24, 6);
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL]].callback = SpriteCallbackDummy;
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL]].oam.priority = 1;
+}
+
+static void CreateHeldItemIconSprite(s16 x, s16 y)
+{
+    u16 itemId = sMonSummaryScreen->summary.item;
+    u8 spriteId;
+    
+    // Always destroy old sprite first
+    DestroyHeldItemIconSprite();
+    
+    // Only create new sprite if mon has an item
+    if (itemId == ITEM_NONE)
+        return;
+    
+    spriteId = AddItemIconSprite(TAG_HELD_ITEM_ICON, TAG_HELD_ITEM_ICON, itemId);
+    
+    if (spriteId != MAX_SPRITES)
+    {
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_ITEM] = spriteId;
+        gSprites[spriteId].x = x;
+        gSprites[spriteId].y = y;
+    }
+}
+
+static void DestroyHeldItemIconSprite(void)
+{
+    u8 spriteId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_ITEM];
+    
+    if (spriteId != SPRITE_NONE)
+    {
+        FreeSpriteTilesByTag(TAG_HELD_ITEM_ICON);
+        FreeSpritePaletteByTag(TAG_HELD_ITEM_ICON);
+        DestroySprite(&gSprites[spriteId]);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_ITEM] = SPRITE_NONE;
+    }
 }
 
 static void CreateSetStatusSprite(void)
