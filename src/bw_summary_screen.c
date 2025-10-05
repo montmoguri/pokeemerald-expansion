@@ -79,27 +79,26 @@ enum BWSkillsPageState
 
 // Button control text (upper right)
 #define PSS_LABEL_WINDOW_PROMPT_CANCEL 4 // Also handles the "rename" prompt if P_SUMMARY_SCREEN_RENAME is true
-#define PSS_LABEL_WINDOW_PROMPT_INFO 5
-#define PSS_LABEL_WINDOW_PROMPT_SWITCH 6
+#define PSS_LABEL_WINDOW_PROMPT_SWITCH 5
 
 // Info screen
-#define PSS_LABEL_WINDOW_POKEMON_INFO_TYPE 7
+#define PSS_LABEL_WINDOW_POKEMON_INFO_TYPE 6
 
 // Skills screen
-#define PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP 8 // EXP Next Level
+#define PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP 7 // EXP Next Level
 
 // Moves screen
-#define PSS_LABEL_WINDOW_MOVES_POWER_ACC 9 // Also contains the power and accuracy values
+#define PSS_LABEL_WINDOW_MOVES_POWER_ACC 8 // Also contains the power and accuracy values
 
 // Above/below the pokemon's portrait (right)
-#define PSS_LABEL_WINDOW_PORTRAIT_INFO 10
+#define PSS_LABEL_WINDOW_PORTRAIT_INFO 9
 
 // additional button prompts for IVs and EVs
-#define PSS_LABEL_WINDOW_PROMPT_IVS 11
-#define PSS_LABEL_WINDOW_PROMPT_EVS 12
-#define PSS_LABEL_WINDOW_PROMPT_STATS 13
+#define PSS_LABEL_WINDOW_PROMPT_IVS 10
+#define PSS_LABEL_WINDOW_PROMPT_EVS 11
+#define PSS_LABEL_WINDOW_PROMPT_STATS 12
 
-#define PSS_LABEL_WINDOW_END 14
+#define PSS_LABEL_WINDOW_END 13
 
 // Dynamic fields for the Pokémon Info page
 #define PSS_DATA_WINDOW_INFO_ITEM 0
@@ -310,7 +309,7 @@ static void PrintEggOTID(void);
 static void PrintEggState(void);
 static void PrintEggMemo(void);
 static void Task_PrintSkillsPage(u8);
-static void PrintHeldItemName(void);
+static void PrintHeldItemInfo(void);
 static void PrintSkillsPageText(void);
 static void PrintRibbonCount(void);
 static void PrintStatLabels(void);
@@ -558,15 +557,6 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .paletteNum = 6,
         .baseBlock = 89,
     },
-    [PSS_LABEL_WINDOW_PROMPT_INFO] = {
-        .bg = 0,
-        .tilemapLeft = 22,
-        .tilemapTop = 0,
-        .width = 8,
-        .height = 2,
-        .paletteNum = 6,
-        .baseBlock = 107,
-    },
     [PSS_LABEL_WINDOW_PROMPT_SWITCH] = {
         .bg = 0,
         .tilemapLeft = 22,
@@ -574,7 +564,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 8,
         .height = 2,
         .paletteNum = 6,
-        .baseBlock = 123,
+        .baseBlock = 107,
     },
     [PSS_LABEL_WINDOW_POKEMON_INFO_TYPE] = {
         .bg = 0,
@@ -583,7 +573,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 18,
         .height = 2,
         .paletteNum = 6,
-        .baseBlock = 139,
+        .baseBlock = 123,
     },
     [PSS_LABEL_WINDOW_POKEMON_SKILLS_EXP] = {
         .bg = 0,
@@ -592,7 +582,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 11,
         .height = 4,
         .paletteNum = 6,
-        .baseBlock = 175,
+        .baseBlock = 159,
     },
     [PSS_LABEL_WINDOW_MOVES_POWER_ACC] = {
         .bg = 0,
@@ -601,7 +591,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 6,
         .height = 5,
         .paletteNum = 6,
-        .baseBlock = 219,
+        .baseBlock = 203,
     },
     [PSS_LABEL_WINDOW_PORTRAIT_INFO] = {
         .bg = 0,
@@ -610,7 +600,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 13,
         .height = 2,
         .paletteNum = 6,
-        .baseBlock = 249,
+        .baseBlock = 233,
     },
     [PSS_LABEL_WINDOW_PROMPT_IVS] = {
         .bg = 0,
@@ -619,7 +609,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 10,
         .height = 2,
         .paletteNum = 6,
-        .baseBlock = 275,
+        .baseBlock = 259,
     },
     [PSS_LABEL_WINDOW_PROMPT_EVS] = {
         .bg = 0,
@@ -628,7 +618,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 10,
         .height = 2,
         .paletteNum = 6,
-        .baseBlock = 295,
+        .baseBlock = 279,
     },
     [PSS_LABEL_WINDOW_PROMPT_STATS] = {
         .bg = 0,
@@ -637,7 +627,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
         .width = 10,
         .height = 2,
         .paletteNum = 6,
-        .baseBlock = 315,
+        .baseBlock = 299,
     },
     [PSS_LABEL_WINDOW_END] = DUMMY_WIN_TEMPLATE
 };
@@ -3014,7 +3004,6 @@ static void SwitchToMoveSelection(u8 taskId)
 
     if (!sMonSummaryScreen->lockMovesFlag)
     {
-        ClearWindowTilemap(PSS_LABEL_WINDOW_PROMPT_INFO);
         if (ShouldShowMoveRelearner())
             HideMoveRelearner();
         HideInfoPrompt();
@@ -3119,7 +3108,6 @@ static void CloseMoveSelectMode(u8 taskId)
 {
     DestroyMoveSelectorSprites(SPRITE_ARR_ID_MOVE_SELECTOR1);
     ClearWindowTilemap(PSS_LABEL_WINDOW_PROMPT_SWITCH);
-    PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_INFO);
     PrintMoveDescription(MOVE_NONE);
     if (ShouldShowMoveRelearner())
         ShowMoveRelearner();
@@ -3895,20 +3883,7 @@ static void PrintPageNamesAndStats(void)
     int iconXPos;
     int skillsLabelWidth = 78;
 
-    // PrintTextOnWindow(PSS_LABEL_WINDOW_POKEMON_INFO_TITLE, sText_PkmnInfo, 2, 1, 0, 1);
-    // PrintTextOnWindow(PSS_LABEL_WINDOW_POKEMON_SKILLS_TITLE, sText_PkmnSkills, 2, 1, 0, 1);
-    // PrintTextOnWindow(PSS_LABEL_WINDOW_BATTLE_MOVES_TITLE, sText_BattleMoves, 2, 1, 0, 1);
-    // PrintTextOnWindow(PSS_LABEL_WINDOW_CONTEST_MOVES_TITLE, sText_ContestMoves, 2, 1, 0, 1);
-
     ShowCancelOrRenamePrompt();
-
-    // stringXPos = GetStringRightAlignXOffset(FONT_NARROW, sText_Info, 62) - 2;
-    // iconXPos = stringXPos - 11;
-    // if (iconXPos < 0)
-    //     iconXPos = 0;
-    // // PrintAOrBButtonIcon(PSS_LABEL_WINDOW_PROMPT_INFO, FALSE, iconXPos);
-    // PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_INFO, BUTTON_A, iconXPos, 4);
-    // PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_INFO, sText_Info, stringXPos, 0, 0, 1, FONT_SMALL);
 
     stringXPos = GetStringRightAlignXOffset(FONT_NARROW, sText_Switch, 62) - 2;
     iconXPos = stringXPos - 11;
@@ -3999,7 +3974,6 @@ static void PutPageWindowTilemaps(u8 page)
         }
         else
         {
-            PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_INFO);
             if (ShouldShowMoveRelearner())
                 ShowMoveRelearner();
             ShowInfoPrompt();
@@ -4009,7 +3983,6 @@ static void PutPageWindowTilemaps(u8 page)
         PutWindowTilemap(PSS_LABEL_WINDOW_CONTEST_MOVES_TITLE);
         if (sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
         {
-            PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_INFO);
             if (ShouldShowMoveRelearner())
                 ShowMoveRelearner();
         }
@@ -4048,7 +4021,6 @@ static void ClearPageWindowTilemaps(u8 page)
         }
         else
         {
-            ClearWindowTilemap(PSS_LABEL_WINDOW_PROMPT_INFO);
             if (ShouldShowMoveRelearner())
                 HideMoveRelearner();
             HideInfoPrompt();
@@ -4057,7 +4029,6 @@ static void ClearPageWindowTilemaps(u8 page)
     case PSS_PAGE_CONTEST_MOVES:
         if (sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
         {
-            ClearWindowTilemap(PSS_LABEL_WINDOW_PROMPT_INFO);
             if (ShouldShowMoveRelearner())
                 HideMoveRelearner();
         }
@@ -4123,7 +4094,7 @@ static void PrintInfoPageText(void)
         PrintMonOTName();
         PrintMonOTID();
         PrintMonDexNumberSpecies();
-        PrintHeldItemName();
+        PrintHeldItemInfo();
         PrintMonNature();
         // BufferMonTrainerMemo();
         // PrintMonTrainerMemo();
@@ -4145,7 +4116,7 @@ static void Task_PrintInfoPage(u8 taskId)
         PrintMonDexNumberSpecies();
         break;
     case 4:
-        PrintHeldItemName();
+        PrintHeldItemInfo();
         break;
     case 5:
         PrintMonNature();
@@ -4404,6 +4375,8 @@ static void PrintEggState(void)
     const u8 *text;
     struct PokeSummary *sum = &sMonSummaryScreen->summary;
 
+    // FillWindowPixelBuffer(PSS_DATA_WINDOW_INFO_ITEM, PIXEL_FILL(1));
+
     if (sMonSummaryScreen->summary.sanity == TRUE)
         text = gText_EggWillTakeALongTime;
     else if (sum->friendship <= 5)
@@ -4415,7 +4388,7 @@ static void PrintEggState(void)
     else
         text = gText_EggWillTakeALongTime;
 
-    PrintTextOnWindow_BW_Font(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_MEMO), text, 16, 4, 0, 0);
+    PrintTextOnWindow_BW_Font(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM), sText_Empty, 16, 4, 0, 0);
 }
 
 static void PrintEggMemo(void)
@@ -4494,7 +4467,7 @@ static void Task_PrintSkillsPage(u8 taskId)
     data[0]++;
 }
 
-static void PrintHeldItemName(void)
+static void PrintHeldItemInfo(void)
 {
     const u8 *text;
     const u8 *description;
@@ -5068,9 +5041,12 @@ static void SwapMovesNamesPP(u8 moveIndex1, u8 moveIndex2)
 
 static void PrintHMMovesCantBeForgotten(void)
 {
+    u8 message[200];
     u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_DESCRIPTION);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
-    PrintTextOnWindow_BW_Font(windowId, gText_HMMovesCantBeForgotten2, 2, 0, 0, 0);
+
+    FormatTextByWidth(message, 136, FONT_NARROW, gText_HMMovesCantBeForgotten2, GetFontAttribute(FONT_NARROW, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, gText_HMMovesCantBeForgotten2, 0, 4, 0, 2, FONT_NARROW);
 }
 
 static void ShowCategoryIcon(u16 move)
