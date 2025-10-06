@@ -14,6 +14,7 @@
 #include "daycare.h"
 #include "decompress.h"
 #include "dynamic_placeholder_text_util.h"
+#include "egg_hatch.h"
 #include "event_data.h"
 #include "gpu_regs.h"
 #include "graphics.h"
@@ -45,6 +46,7 @@
 #include "text.h"
 #include "tv.h"
 #include "window.h"
+#include "constants/abilities.h"
 #include "constants/battle_move_effects.h"
 #include "constants/hold_effects.h"
 #include "constants/items.h"
@@ -394,6 +396,8 @@ static const u8 sStatsHPLayout[]                            = _("{DYNAMIC 0}/{DY
 static const u8 sStatsHPIVEVLayout[]                        = _("{DYNAMIC 0}");
 static const u8 sStatsNonHPLayout[]                         = _("{DYNAMIC 0}\n{DYNAMIC 1}\n{DYNAMIC 2}\n{DYNAMIC 3}\n{DYNAMIC 4}");
 static const u8 sMovesPPLayout[]                            = _("{DYNAMIC 0}/{DYNAMIC 1}");
+static const u8 sEggStepsLayout[]                           = _("{DYNAMIC 0} steps");
+
 static const u8 sText_Empty[]                               = _("");
 
 static const u8 sText_Cancel[]                              = _("Cancel");
@@ -3769,11 +3773,45 @@ static void PrintNotEggInfo(void)
     PutWindowTilemap(PSS_LABEL_WINDOW_PORTRAIT_INFO);
 }
 
+static void PrintEggStepsRemaining(void)
+{
+    u32 eggCycles = GetMonData(&sMonSummaryScreen->currentMon, MON_DATA_FRIENDSHIP);
+    u32 stepsInCurrentCycle = gSaveBlock1Ptr->daycare.stepCounter;
+    
+    #if P_EGG_CYCLE_LENGTH >= GEN_8
+        u32 stepsPerCycle = 128;
+    #elif P_EGG_CYCLE_LENGTH == GEN_5 || P_EGG_CYCLE_LENGTH == GEN_6
+        u32 stepsPerCycle = 257;
+    #elif P_EGG_CYCLE_LENGTH == GEN_4
+        u32 stepsPerCycle = 255;
+    #else // GEN_3 or GEN_7
+        u32 stepsPerCycle = 256;
+    #endif
+
+    // Handle fast-hatching abilities like Flame Body, etc.
+    u8 cyclesToSubtract = GetEggCyclesToSubtract();
+    u32 stepsRemaining;
+    
+    // Calculate how many actual step cycles are needed
+    // 1. Round up division
+    // 2. Add 1 for the last cycle (GF Jank?)
+    u32 cyclesNeeded = ((eggCycles + cyclesToSubtract - 1) / cyclesToSubtract) + 1;
+    stepsRemaining = ((cyclesNeeded) * stepsPerCycle) - stepsInCurrentCycle;
+    
+    ConvertIntToDecimalStringN(gStringVar1, stepsRemaining, STR_CONV_MODE_LEFT_ALIGN, 5);
+    DynamicPlaceholderTextUtil_SetPlaceholderPtr(0, gStringVar1);
+    DynamicPlaceholderTextUtil_ExpandPlaceholders(gStringVar1, sEggStepsLayout);
+
+    u8 stringXPos = GetStringRightAlignXOffset(FONT_NARROW, gStringVar1, 80) + 24;
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar1, stringXPos, 1, 0, 1, FONT_NARROW);
+}
+
 static void PrintEggInfo(void)
 {
     // GetMonNickname(&sMonSummaryScreen->currentMon, gStringVar1);
     StringCopy(gStringVar1, sText_Egg);
     PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar1, 4, 1, 0, 1, FONT_NARROW);
+    PrintEggStepsRemaining();
     PutWindowTilemap(PSS_LABEL_WINDOW_PORTRAIT_INFO);
 }
 
@@ -4388,7 +4426,8 @@ static void PrintEggState(void)
     else
         text = gText_EggWillTakeALongTime;
 
-    PrintTextOnWindow_BW_Font(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM), sText_Empty, 16, 4, 0, 0);
+    // PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM), text, 16, 4, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_ITEM), sText_Empty, 16, 4, 0, 0, FONT_NARROW);
 }
 
 static void PrintEggMemo(void)
