@@ -129,6 +129,7 @@ enum BWSummarySprites
     SPRITE_ARR_ID_BALL,
     SPRITE_ARR_ID_STATUS,
     SPRITE_ARR_ID_GENDER,
+    SPRITE_ARR_ID_GIGANTAMAX,
     // all sprites below are considered "page-specific" and will be hidden when switching pages
     SPRITE_ARR_ID_POKERUS_CURED,
     SPRITE_ARR_ID_ITEM,
@@ -284,6 +285,7 @@ static void PrintNotEggInfo(void);
 static void PrintEggInfo(void);
 static void LoadGenderGfx(void);
 static void CreateGenderSprite(struct Pokemon *mon, u16 species);
+static void CreateGigantamaxSprite(void);
 // static void PrintGenderSymbol(struct Pokemon *, u16);
 static void PrintPageNamesAndStats(void);
 static void PutPageWindowTilemaps(u8);
@@ -350,7 +352,7 @@ static void RemoveAndCreateMonMarkingsSprite(struct Pokemon *);
 static void CreateCaughtBallSprite(struct Pokemon *);
 static void CreateHeldItemSprite(void);
 static void DestroyHeldItemIconSprite(void);
-static void CreateSetStatusSprite(void);
+static void CreateStatusSprite(void);
 static void CreateMoveSelectorSprites(u8);
 static void SpriteCB_MoveSelector(struct Sprite *);
 static void DestroyMoveSelectorSprites(u8);
@@ -461,6 +463,7 @@ static const u32 sFriendshipIcon_Gfx[]                      = INCBIN_U32("graphi
 // mont note: it is maaad jank, but it works, we promise
 static const u32 sRelearnPrompt_Gfx[]                       = INCBIN_U32("graphics/summary_screen/gen8/relearn_prompt.4bpp.lz");
 static const u32 sInfoPrompt_Gfx[]                          = INCBIN_U32("graphics/summary_screen/gen8/info_prompt.4bpp.lz");
+static const u32 sGigantamaxIcon_Gfx[]                      = INCBIN_U32("graphics/summary_screen/gen8/gigantamax.4bpp.lz");
 
 #if BW_SUMMARY_BW_STATUS_ICONS == TRUE
 static const u32 sStatusGfx_Icons[] = INCBIN_U32("graphics/summary_screen/bw/status_icons.4bpp.lz");
@@ -787,12 +790,13 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
 #define TAG_CATEGORY_ICONS 30006
 #define TAG_STAT_GRADES 30007
 #define TAG_FRIENDSHIP_ICON 30008
-#define TAG_TERA_TYPE 30009
-#define TAG_MON_SHADOW 30010
-#define TAG_RELEARN_PROMPT 30011
-#define TAG_INFO_PROMPT 30012
-#define TAG_GENDER_ICON 30013
-#define TAG_HELD_ITEM_ICON 30014
+#define TAG_GIGANTAMAX_ICON 30009
+#define TAG_TERA_TYPE 30010
+#define TAG_MON_SHADOW 30011
+#define TAG_RELEARN_PROMPT 30012
+#define TAG_INFO_PROMPT 30013
+#define TAG_GENDER_ICON 30014
+#define TAG_HELD_ITEM_ICON 30015
 
 enum BWCategoryIcon
 {
@@ -1539,7 +1543,7 @@ static const union AnimCmd *const sSpriteAnimTable_MoveSelector[] = {
 static const struct CompressedSpriteSheet sMoveSelectorSpriteSheet =
 {
     .data = sSummaryMoveSelect_Gfx_Gen8,
-    .size = 16*192,
+    .size = 16*192/2,
     .tag = TAG_MOVE_SELECTOR
 };
 
@@ -1657,34 +1661,6 @@ static const struct SpriteTemplate sSpriteTemplate_StatusCondition =
     .callback = SpriteCallbackDummy
 };
 
-static const struct CompressedSpriteSheet sGenderIconsSpriteSheet =
-{
-    .data = sGenderIcons_Gfx,
-    .size = 0x200,
-    .tag = TAG_GENDER_ICON
-};
-
-static const struct SpritePalette sGenderIconsSpritePalette =
-{
-    .data = sGenderIcons_Pal,
-    .tag = TAG_GENDER_ICON
-};
-
-static const union AnimCmd sSpriteAnim_Female[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_Male[] = {
-    ANIMCMD_FRAME(4, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_Gender[] = {
-    sSpriteAnim_Female,
-    sSpriteAnim_Male,
-};
-
 static const struct OamData sOamData_Gender =
 {
     .y = 0,
@@ -1702,6 +1678,33 @@ static const struct OamData sOamData_Gender =
     .affineParam = 0,
 };
 
+static const union AnimCmd sSpriteAnim_Female[] = {
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sSpriteAnim_Male[] = {
+    ANIMCMD_FRAME(4, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+
+static const union AnimCmd *const sSpriteAnimTable_Gender[] = {
+    sSpriteAnim_Female,
+    sSpriteAnim_Male,
+};
+
+static const struct CompressedSpriteSheet sGenderIconsSpriteSheet =
+{
+    .data = sGenderIcons_Gfx,
+    .size = 0x200,
+    .tag = TAG_GENDER_ICON
+};
+
+static const struct SpritePalette sGenderIconsSpritePalette =
+{
+    .data = sGenderIcons_Pal,
+    .tag = TAG_GENDER_ICON
+};
 
 static const struct SpriteTemplate sSpriteTemplate_Gender =
 {
@@ -1734,7 +1737,7 @@ static const struct OamData sOamData_ShinyIcon =
 static const struct CompressedSpriteSheet sShinyIconSpriteSheet =
 {
     .data = sShinyIcon_Gfx_BW,
-    .size = 16*16,
+    .size = 8*8/2,
     .tag = TAG_MON_SHINY_ICON
 };
 
@@ -1743,6 +1746,41 @@ static const struct SpriteTemplate sSpriteTemplate_ShinyIcon =
     .tileTag = TAG_MON_SHINY_ICON,
     .paletteTag = TAG_MON_MARKINGS,
     .oam = &sOamData_ShinyIcon,
+    .anims = gDummySpriteAnimTable,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCallbackDummy
+};
+
+static const struct OamData sOamData_GigantamaxIcon =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(16x16),
+    .x = 0,
+    .matrixNum = 0,
+    .size = SPRITE_SIZE(16x16),
+    .tileNum = 0,
+    .priority = 2,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const struct CompressedSpriteSheet sGigantamaxIconSpriteSheet =
+{
+    .data = sGigantamaxIcon_Gfx,
+    .size = (16*16)/2,
+    .tag = TAG_GIGANTAMAX_ICON
+};
+
+static const struct SpriteTemplate sSpriteTemplate_GigantamaxIcon =
+{
+    .tileTag = TAG_GIGANTAMAX_ICON,
+    .paletteTag = TAG_GENDER_ICON,
+    .oam = &sOamData_GigantamaxIcon,
     .anims = gDummySpriteAnimTable,
     .images = NULL,
     .affineAnims = gDummySpriteAffineAnimTable,
@@ -2039,7 +2077,7 @@ static bool8 LoadGraphics(void)
         gMain.state++;
         break;
     case 19:
-        CreateSetStatusSprite();
+        CreateStatusSprite();
         gMain.state++;
         break;
     case 20:
@@ -2047,34 +2085,39 @@ static bool8 LoadGraphics(void)
         gMain.state++;
         break;
     case 21:
+        if(BW_SUMMARY_SHOW_GIGANTAMAX)
+            CreateGigantamaxSprite();
+        gMain.state++;
+        break;
+    case 22:
         if (sMonSummaryScreen->summary.isEgg)
             LimitEggSummaryPageDisplay();
             // ScheduleBgCopyTilemapToVram(2);
 
         gMain.state++;
         break;
-    case 22:
+    case 23:
         SetTypeIcons();
         TrySetInfoPageIcons();
         gMain.state++;
         break;
-    case 23:
+    case 24:
         if (sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
             CreateTask(Task_HandleInput, 0);
         else
             CreateTask(Task_SetHandleReplaceMoveInput, 0);
         gMain.state++;
         break;
-    case 24:
+    case 25:
         BlendPalettes(PALETTES_ALL, 16, 0);
         gMain.state++;
         break;
-    case 25:
+    case 26:
         BeginNormalPaletteFade(PALETTES_ALL, 0, 16, 0, RGB_BLACK);
         gPaletteFade.bufferTransferDisabled = 0;
         gMain.state++;
         break;
-    case 26:
+    case 27:
         if (sMonSummaryScreen->mode == SUMMARY_MODE_RELEARNER_BATTLE)
         {
             ShowInfoPrompt();
@@ -2235,15 +2278,20 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 23:
+        if (BW_SUMMARY_SHOW_GIGANTAMAX)
+            LoadCompressedSpriteSheet(&sGigantamaxIconSpriteSheet);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 24:
         if (BW_SUMMARY_SHOW_TERA_TYPE)
             LoadCompressedSpriteSheet(&sSpriteSheet_TeraType);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 24:
+    case 25:
         LoadCompressedSpriteSheet(&sSpriteSheet_InfoPrompt);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 25:
+    case 26:
         if (P_SUMMARY_SCREEN_MOVE_RELEARNER)
             LoadCompressedSpriteSheet(&sSpriteSheet_RelearnPrompt);
         sMonSummaryScreen->switchCounter = 0;
@@ -2746,10 +2794,13 @@ static void Task_ChangeSummaryMon(u8 taskId)
         CreateCaughtBallSprite(&sMonSummaryScreen->currentMon);
         break;
     case 7:
-        // Moved to case 10 to avoid printing status before prior mon level clears (~5 frames overlap)
         CreateGenderSprite(&sMonSummaryScreen->currentMon, sMonSummaryScreen->summary.species);
         break;
     case 8:
+        if (BW_SUMMARY_SHOW_GIGANTAMAX)
+            CreateGigantamaxSprite();
+        break;
+    case 9:
         sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &data[1], FALSE);
 
         if (BW_SUMMARY_MON_SHADOWS)
@@ -2771,15 +2822,15 @@ static void Task_ChangeSummaryMon(u8 taskId)
         TryDrawExperienceProgressBar();
         data[1] = 0;
         break;
-    case 9:
+    case 10:
         SetTypeIcons();
         TrySetInfoPageIcons();
         break;
-    case 10:
+    case 11:
         PrintMonPortraitInfo();
         HandleStatusSprite(&sMonSummaryScreen->currentMon); // Moved here from case 7
         break;
-    case 11:
+    case 12:
         PrintPageSpecificText(sMonSummaryScreen->currPageIndex);
         if (sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO)
         { 
@@ -2806,11 +2857,11 @@ static void Task_ChangeSummaryMon(u8 taskId)
                 DrawNextSkillsButtonPrompt(SKILL_STATE_IVS);
         }
         break;
-    case 12:
+    case 13:
         if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS && BW_SUMMARY_IV_EV_DISPLAY == BW_IV_EV_GRADED)
             ShowGradeIcons(SKILL_STATE_IVS);
         break;
-    case 13:
+    case 14:
         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].sDelayAnim = 0;
         if (BW_SUMMARY_MON_SHADOWS)
             gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sDelayAnim = 0;
@@ -3750,7 +3801,7 @@ static void PrintNotEggInfo(void)
 
     // print nickname
     GetMonNickname(mon, gStringVar1);
-    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar1, 4, 1, 0, 1, FONT_NARROW);
+    PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar1, 6, 1, 0, 1, FONT_NARROW);
     // PrintTextOnWindowToFitPx(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar1, 0, 1, 0, 1, WindowWidthPx(PSS_LABEL_WINDOW_PORTRAIT_INFO) - 48);
     // increased from - 9 to - 15 to force narrow font for long names so they don't overlap with gender symbol
 
@@ -5573,6 +5624,32 @@ static void SetShinySprite(void)
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY]].invisible = !IsMonShiny(mon);
 }
 
+bool8 MonHasGigantamaxFactor(struct Pokemon *mon)
+{
+    return GetMonData(mon, MON_DATA_GIGANTAMAX_FACTOR, NULL);
+}
+
+static void CreateGigantamaxSprite(void)
+{   
+    struct Pokemon *mon = &sMonSummaryScreen->currentMon;
+    u8 *spriteId = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_GIGANTAMAX];
+
+    if (*spriteId == SPRITE_NONE)
+        *spriteId = CreateSprite(&sSpriteTemplate_GigantamaxIcon, 114, 17, 6);
+
+    gSprites[*spriteId].invisible = !MonHasGigantamaxFactor(mon);
+}
+
+static void HandleGigantamaxSprite(struct Pokemon *mon)
+{
+    u8 spriteId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_GIGANTAMAX];
+    
+    if (spriteId != SPRITE_NONE && spriteId != MAX_SPRITES)
+    {
+        gSprites[spriteId].invisible = !MonHasGigantamaxFactor(mon);
+    }
+}
+
 static void SetFriendshipSprite(void)
 {
     u8 level = FRIENDSHIP_LEVEL_0;
@@ -5642,7 +5719,7 @@ static void DestroyHeldItemIconSprite(void)
     }
 }
 
-static void CreateSetStatusSprite(void)
+static void CreateStatusSprite(void)
 {
     u8 *spriteId = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_STATUS];
     u8 statusAnim;
@@ -5879,7 +5956,7 @@ static void ShowCancelOrRenamePrompt(void)
         iconXPos = stringXPos - 11;
         if (iconXPos < 0)
             iconXPos = 0;
-        PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_CANCEL, BUTTON_A, iconXPos, 4);
+        PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_CANCEL, BUTTON_B, iconXPos, 4);
         PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_CANCEL, promptText, stringXPos, 0, 0, 1, FONT_SMALL);
     }
 }
