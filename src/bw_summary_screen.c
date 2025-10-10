@@ -701,7 +701,7 @@ static const struct WindowTemplate sPageMovesTemplate[] = // This is used for bo
         .tilemapTop = 3,
         .width = 19,
         .height = 12,
-        .paletteNum = 6,
+        .paletteNum = 8,
         .baseBlock = 346,
     },
     [PSS_DATA_WINDOW_MOVE_DESCRIPTION] = {
@@ -4493,7 +4493,7 @@ static void Task_PrintBattleMoves(u8 taskId)
 static void PrintMoveNameAndPP(u8 moveIndex)
 {
     u8 pp;
-    // int ppState; // todo: figure out palettes compatible with dark bg
+    int ppState; // todo: figure out palettes compatible with dark bg
     const u8 *text;
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
     u8 moveNameWindowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
@@ -4502,7 +4502,7 @@ static void PrintMoveNameAndPP(u8 moveIndex)
 
     if (move != 0)
     {
-        PrintTextOnWindowToFitPx_WithFont(moveNameWindowId, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 0, FONT_SMALL, WindowWidthPx(moveNameWindowId) - 3);
+        PrintTextOnWindowToFitPx_WithFont(moveNameWindowId, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, WindowWidthPx(moveNameWindowId) - 3);
         pp = CalculatePPWithBonus(move, summary->ppBonuses, moveIndex);
         ConvertIntToDecimalStringN(gStringVar1, summary->pp[moveIndex], STR_CONV_MODE_RIGHT_ALIGN, 2);
         ConvertIntToDecimalStringN(gStringVar2, pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
@@ -4511,16 +4511,16 @@ static void PrintMoveNameAndPP(u8 moveIndex)
         DynamicPlaceholderTextUtil_SetPlaceholderPtr(1, gStringVar2);
         DynamicPlaceholderTextUtil_ExpandPlaceholders(gStringVar4, sMovesPPLayout);
         text = gStringVar4;
-        // ppState = GetCurrentPpToMaxPpState(summary->pp[moveIndex], pp) + 9;
+        ppState = GetCurrentPpToMaxPpState(summary->pp[moveIndex], pp);
     }
     else
     {
-        PrintTextOnWindow(moveNameWindowId, gText_OneDash, 4, moveIndex * 18 + 4, 0, 0);
+        PrintTextOnWindow(moveNameWindowId, gText_OneDash, 4, moveIndex * 18 + 4, 0, 4);
         text = gText_TwoDashes;
-        // ppState = 12;
+        ppState = 3;
     }
 
-    PrintTextOnWindowWithFont(moveNameWindowId, text, 121, moveIndex * 18 + 4, 0, 10, FONT_SMALL);
+    PrintTextOnWindowWithFont(moveNameWindowId, text, 121, moveIndex * 18 + 4, 0, ppState, FONT_SMALL);
 }
 
 static void PrintMovePowerAndAccuracy(u16 moveIndex)
@@ -4616,7 +4616,7 @@ static void PrintNewMoveDetailsOrCancelText(void)
     if (sMonSummaryScreen->newMove == MOVE_NONE)
     {
 
-        PrintTextOnWindowWithFont(windowId1, sText_Cancel, 4, 4 * 18 + 4, 0, 2, FONT_SMALL);
+        PrintTextOnWindowWithFont(windowId1, sText_Cancel, 4, 4 * 18 + 4, 0, 5, FONT_SMALL);
     }
     else
     {
