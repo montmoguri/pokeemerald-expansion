@@ -976,7 +976,7 @@ static void Task_EvolutionScene(u8 taskId)
                 FreeAllWindowBuffers();
                 if (SWSH_SUMMARY_SCREEN)
                 {
-                    ShowSelectMovePokemonSummaryScreen_BW(gPlayerParty, gTasks[taskId].tPartyId,
+                    ShowSelectMovePokemonSummaryScreen_SwSh(gPlayerParty, gTasks[taskId].tPartyId,
                                 gPlayerPartyCount - 1, CB2_EvolutionSceneLoadGraphics,
                                 gMoveToLearn);
                 }
@@ -1369,7 +1369,7 @@ static void Task_TradeEvolutionScene(u8 taskId)
 
                 if (SWSH_SUMMARY_SCREEN)
                 {
-                    ShowSelectMovePokemonSummaryScreen_BW(gPlayerParty, gTasks[taskId].tPartyId,
+                    ShowSelectMovePokemonSummaryScreen_SwSh(gPlayerParty, gTasks[taskId].tPartyId,
                                 gPlayerPartyCount - 1, CB2_TradeEvolutionSceneLoadGraphics,
                                 gMoveToLearn);
                 }

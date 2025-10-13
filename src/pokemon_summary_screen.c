@@ -2697,7 +2697,7 @@ static void Task_HandleInputCantForgetHMsMoves(u8 taskId)
 u8 GetMoveSlotToReplace(void)
 {
     if (SWSH_SUMMARY_SCREEN)
-        return GetMoveSlotToReplace_BW();
+        return GetMoveSlotToReplace_SwSh();
     else
         return sMoveSlotToReplace;
 }
@@ -4475,7 +4475,7 @@ static void SpriteCB_Pokemon(struct Sprite *sprite)
 void SummaryScreen_SetAnimDelayTaskId(u8 taskId)
 {
     if (SWSH_SUMMARY_SCREEN)
-        SummaryScreen_SetAnimDelayTaskId_BW(taskId);
+        SummaryScreen_SetAnimDelayTaskId_SwSh(taskId);
     else
         sAnimDelayTaskId = taskId;
 }
