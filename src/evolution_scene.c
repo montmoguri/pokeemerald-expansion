@@ -974,7 +974,7 @@ static void Task_EvolutionScene(u8 taskId)
             if (!gPaletteFade.active)
             {
                 FreeAllWindowBuffers();
-                if (BW_SUMMARY_SCREEN)
+                if (SWSH_SUMMARY_SCREEN)
                 {
                     ShowSelectMovePokemonSummaryScreen_BW(gPlayerParty, gTasks[taskId].tPartyId,
                                 gPlayerPartyCount - 1, CB2_EvolutionSceneLoadGraphics,
@@ -1367,7 +1367,7 @@ static void Task_TradeEvolutionScene(u8 taskId)
                 Free(GetBgTilemapBuffer(0));
                 FreeAllWindowBuffers();
 
-                if (BW_SUMMARY_SCREEN)
+                if (SWSH_SUMMARY_SCREEN)
                 {
                     ShowSelectMovePokemonSummaryScreen_BW(gPlayerParty, gTasks[taskId].tPartyId,
                                 gPlayerPartyCount - 1, CB2_TradeEvolutionSceneLoadGraphics,

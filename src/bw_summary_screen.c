@@ -56,7 +56,7 @@
 #include "constants/rgb.h"
 #include "constants/songs.h"
 
-#if BW_SUMMARY_SCREEN == TRUE
+#if SWSH_SUMMARY_SCREEN == TRUE
 enum BWPSSEffect
 {
     PSS_EFFECT_BATTLE,
@@ -398,6 +398,12 @@ static const u8 sText_PkmnSkills[]                          = _("Skills");
 static const u8 sText_BattleMoves[]                         = _("Moves");
 static const u8 sText_Rename[]                              = _("Rename");
 static const u8 sText_Info[]                                = _("Info");
+static const u8 sText_HP_Title[]                            = _("HP");
+static const u8 sText_Attack_Title[]                        = _("Atk");
+static const u8 sText_Defense_Title[]                       = _("Def");
+static const u8 sText_SpAtk_Title[]                         = _("SpA");
+static const u8 sText_SpDef_Title[]                         = _("SpD");
+static const u8 sText_Speed_Title[]                         = _("Spe");
 static const u8 sText_ViewIVs[]                             = _("View IV");
 static const u8 sText_ViewEVs[]                             = _("View EV");
 static const u8 sText_ViewStats[]                           = _("View Stats");
@@ -422,47 +428,40 @@ const u16 sSummaryScreen_PPTextPalette_BW[]                 = INCBIN_U16("graphi
 
 // sprite gfx
 static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
-    INCBIN_U8("graphics/summary_screen/gen8/a_button.4bpp"),
-    INCBIN_U8("graphics/summary_screen/gen8/b_button.4bpp"),
-    INCBIN_U8("graphics/summary_screen/gen8/start_button.4bpp"),
+    INCBIN_U8("graphics/summary_screen/swsh/a_button.4bpp"),
+    INCBIN_U8("graphics/summary_screen/swsh/b_button.4bpp"),
+    INCBIN_U8("graphics/summary_screen/swsh/start_button.4bpp"),
 };
 
 #if BW_SUMMARY_BW_TYPE_ICONS == TRUE
-static const u32 sMoveTypes_Gfx_BW[]                        = INCBIN_U32("graphics/types_bw/move_types_bw.4bpp.lz");
-static const u16 sMoveTypes_Pal_BW[]                        = INCBIN_U16("graphics/types_bw/move_types_bw.gbapal");
+static const u32 sMoveTypes_Gfx_SwSh[]                        = INCBIN_U32("graphics/types_swsh_summary_screen/move_types.4bpp.lz");
+static const u16 sMoveTypes_Pal_SwSh[]                        = INCBIN_U16("graphics/types_swsh_summary_screen/move_types.gbapal");
 #endif
 static const u32 sTeraTypes_Gfx[]                           = INCBIN_U32("graphics/types_bw/tera/tera_types_bw.4bpp.lz");
-static const u32 sSummaryMoveSelect_Gfx_BW[]                = INCBIN_U32("graphics/summary_screen/bw/move_select.4bpp.lz");
-static const u16 sSummaryMoveSelect_Pal_BW[]                = INCBIN_U16("graphics/summary_screen/bw/move_select.gbapal");
-static const u32 sSummaryMoveSelect_Gfx_Gen8[]              = INCBIN_U32("graphics/summary_screen/gen8/move_select.4bpp.lz");
-static const u16 sSummaryMoveSelect_Pal_Gen8[]              = INCBIN_U16("graphics/summary_screen/gen8/move_select.gbapal");
+static const u32 sSummaryMoveSelect_Gfx[]                   = INCBIN_U32("graphics/summary_screen/swsh/move_select.4bpp.lz");
+static const u16 sSummaryMoveSelect_Pal[]                   = INCBIN_U16("graphics/summary_screen/swsh/move_select.gbapal");
 static const u16 sMarkings_Pal_BW[]                         = INCBIN_U16("graphics/summary_screen/bw/markings.gbapal");
 static const u32 sShinyIcon_Gfx_BW[]                        = INCBIN_U32("graphics/summary_screen/bw/shiny_icon.4bpp.lz");
 static const u32 sPokerusCuredIcon_Gfx_BW[]                 = INCBIN_U32("graphics/summary_screen/bw/pokerus_cured_icon.4bpp.lz");
-static const u16 sCategoryIcons_Pal[]                       = INCBIN_U16("graphics/summary_screen/gen8/category_icons.gbapal");
-static const u32 sCategoryIcons_Gfx[]                       = INCBIN_U32("graphics/summary_screen/gen8/category_icons.4bpp.lz");
+static const u16 sCategoryIcons_Pal[]                       = INCBIN_U16("graphics/summary_screen/swsh/category_icons.gbapal");
+static const u32 sCategoryIcons_Gfx[]                       = INCBIN_U32("graphics/summary_screen/swsh/category_icons.4bpp.lz");
 static const u16 sStatGrades_Pal[]                          = INCBIN_U16("graphics/summary_screen/bw/stat_grades.gbapal");
 static const u32 sStatGrades_Gfx[]                          = INCBIN_U32("graphics/summary_screen/bw/stat_grades.4bpp.lz");
 static const u16 sFriendshipIcon_Pal[]                      = INCBIN_U16("graphics/summary_screen/bw/heart.gbapal");
 static const u32 sFriendshipIcon_Gfx[]                      = INCBIN_U32("graphics/summary_screen/bw/heart.4bpp.lz");
 // rave note: yeah I know doing this with a sprite is mad jank, but I promise I have my reasons
 // mont note: it is maaad jank, but it works, we promise
-static const u32 sRelearnPrompt_Gfx[]                       = INCBIN_U32("graphics/summary_screen/gen8/relearn_prompt.4bpp.lz");
-static const u32 sInfoPrompt_Gfx[]                          = INCBIN_U32("graphics/summary_screen/gen8/info_prompt.4bpp.lz");
-static const u32 sGigantamaxIcon_Gfx[]                      = INCBIN_U32("graphics/summary_screen/gen8/gigantamax.4bpp.lz");
+static const u32 sRelearnPrompt_Gfx[]                       = INCBIN_U32("graphics/summary_screen/swsh/relearn_prompt.4bpp.lz");
+static const u32 sInfoPrompt_Gfx[]                          = INCBIN_U32("graphics/summary_screen/swsh/info_prompt.4bpp.lz");
+static const u32 sGigantamaxIcon_Gfx[]                      = INCBIN_U32("graphics/summary_screen/swsh/gigantamax.4bpp.lz");
 
-#if BW_SUMMARY_BW_STATUS_ICONS == TRUE
-static const u32 sStatusGfx_Icons[] = INCBIN_U32("graphics/summary_screen/bw/status_icons.4bpp.lz");
-static const u16 sStatusPal_Icons[] = INCBIN_U16("graphics/summary_screen/bw/status_icons.gbapal");
+#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
+static const u32 sStatusGfx_Icons[] = INCBIN_U32("graphics/summary_screen/swsh/status_icons.4bpp.lz");
+static const u16 sStatusPal_Icons[] = INCBIN_U16("graphics/summary_screen/swsh/status_icons.gbapal");
 #endif
 
-#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
-static const u32 sStatusIcons_Gfx_Gen8[] = INCBIN_U32("graphics/summary_screen/gen8/status_icons.4bpp.lz");
-static const u16 sStatusIcons_Pal_Gen8[] = INCBIN_U16("graphics/summary_screen/gen8/status_icons.gbapal");
-#endif
-
-static const u32 sGenderIcons_Gfx[] = INCBIN_U32("graphics/summary_screen/gen8/gender_icons.4bpp.lz");
-static const u16 sGenderIcons_Pal[] = INCBIN_U16("graphics/summary_screen/gen8/gender_icons.gbapal");
+static const u32 sGenderGfx_Icons[] = INCBIN_U32("graphics/summary_screen/swsh/gender_icons.4bpp.lz");
+static const u16 sGenderPal_Icons[] = INCBIN_U16("graphics/summary_screen/swsh/gender_icons.gbapal");
 
 
 static const struct BgTemplate sBgTemplates[] =
@@ -1235,7 +1234,7 @@ static const union AnimCmd *const sSpriteAnimTable_MoveTypes[NUMBER_OF_MON_TYPES
 static const struct CompressedSpriteSheet sSpriteSheet_MoveTypes =
 {
 #if BW_SUMMARY_BW_TYPE_ICONS == TRUE
-    .data = sMoveTypes_Gfx_BW,
+    .data = sMoveTypes_Gfx_SwSh,
 #else
     .data = gMoveTypes_Gfx,
 #endif
@@ -1473,14 +1472,14 @@ static const union AnimCmd *const sSpriteAnimTable_MoveSelector[] = {
 
 static const struct CompressedSpriteSheet sMoveSelectorSpriteSheet =
 {
-    .data = sSummaryMoveSelect_Gfx_Gen8,
+    .data = sSummaryMoveSelect_Gfx,
     .size = 16*192/2,
     .tag = TAG_MOVE_SELECTOR
 };
 
 static const struct SpritePalette sMoveSelectorSpritePal =
 {
-    .data = sSummaryMoveSelect_Pal_Gen8,
+    .data = sSummaryMoveSelect_Pal,
     .tag = TAG_MOVE_SELECTOR
 };
 
@@ -1559,11 +1558,10 @@ static const union AnimCmd *const sSpriteAnimTable_StatusCondition[] = {
 
 static const struct CompressedSpriteSheet sStatusIconsSpriteSheet =
 {
-#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
-    .data = sStatusIcons_Gfx_Gen8,
-#elif BW_SUMMARY_BW_STATUS_ICONS == TRUE
+#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
     .data = sStatusGfx_Icons,
-#eIcons_Pala = gStatusGfx_Icons,
+#else
+    .data = gStatusGfx_Icons,
 #endif
     .size = 0x400,
     .tag = TAG_MON_STATUS
@@ -1571,9 +1569,7 @@ static const struct CompressedSpriteSheet sStatusIconsSpriteSheet =
 
 static const struct SpritePalette sStatusIconsSpritePalette =
 {
-#if BW_SUMMARY_GEN8_STATUS_ICONS == TRUE
-    .data = sStatusIcons_Pal_Gen8,
-#elif BW_SUMMARY_BW_STATUS_ICONS == TRUE
+#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
     .data = sStatusPal_Icons,
 #else
     .data = gStatusPal_Icons,
@@ -1626,14 +1622,14 @@ static const union AnimCmd *const sSpriteAnimTable_Gender[] = {
 
 static const struct CompressedSpriteSheet sGenderIconsSpriteSheet =
 {
-    .data = sGenderIcons_Gfx,
+    .data = sGenderGfx_Icons,
     .size = 0x200,
     .tag = TAG_GENDER_ICON
 };
 
 static const struct SpritePalette sGenderIconsSpritePalette =
 {
-    .data = sGenderIcons_Pal,
+    .data = sGenderPal_Icons,
     .tag = TAG_GENDER_ICON
 };
 
@@ -2183,7 +2179,7 @@ static bool8 DecompressGraphics(void)
         break;
     case 20:
     #if BW_SUMMARY_BW_TYPE_ICONS == TRUE
-        LoadPalette(sMoveTypes_Pal_BW, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
+        LoadPalette(sMoveTypes_Pal_SwSh, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
     #else
         LoadPalette(gMoveTypes_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
     #endif
@@ -2436,7 +2432,7 @@ static void Task_HandleInput(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
     u8 defaultSkillsState = (BW_SUMMARY_IV_EV_DISPLAY == BW_IV_EV_GRADED) ? SKILL_STATE_IVS : SKILL_STATE_STATS;
-
+    
     if (MenuHelpers_ShouldWaitForLinkRecv() != TRUE && !gPaletteFade.active)
     {
         if (JOY_NEW(DPAD_UP))
@@ -4322,10 +4318,7 @@ static void BufferHPStats(void)
 static void PrintHPStats(u8 mode)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
-    if (mode == SKILL_STATE_STATS)
-        PrintTextOnWindow(windowId, gStringVar4, 36, 0, 0, 0);
-    else
-        PrintTextOnWindow(windowId, gStringVar4, 36, 0, 0, 0);
+    PrintTextOnWindowWithFont(windowId, gStringVar4, 36, 0, 0, 0, FONT_SMALL);
 }
 
 
@@ -4344,13 +4337,11 @@ static void PrintNonHPStats(void)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
     
-    // Don't print stat labels here anymore - PrintStatLabels handles it
-    // Just print the stat values
-    PrintTextOnWindow(windowId, gStringVar1, 129, 0, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 57, 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 129, 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 57, 32, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 129, 32, 0, 0);
+    PrintTextOnWindowWithFont(windowId, gStringVar1, 129, 0, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, gStringVar2, 57, 16, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, gStringVar3, 129, 16, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, gStringVar4, 57, 32, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, sStringVar5, 129, 32, 0, 0, FONT_SMALL);
 }
 
 static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 x, u8 y, 
@@ -4390,14 +4381,14 @@ static void PrintStatLabels(void)
     u8 natureDownStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statDown;
 
     // Print HP label
-    PrintTextOnWindowWithFont(windowId, gText_HP_Title, 8, 0, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, sText_HP_Title, 8, 0, 0, 0, FONT_SMALL);
     
     // Print non-HP stat labels (colored)
-    PrintColoredStatLabel(windowId, STAT_ATK, gText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_DEF, gText_Defense_Title, 8, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPATK, gText_SpAtk_Title, 80, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPDEF, gText_SpDef_Title, 8, 32, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPEED, gText_Speed_Title, 80, 32, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_ATK, sText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_DEF, sText_Defense_Title, 8, 16, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPATK, sText_SpAtk_Title, 80, 16, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPDEF, sText_SpDef_Title, 8, 32, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPEED, sText_Speed_Title, 80, 32, natureUpStat, natureDownStat, coloredLabel);
 }
 
 static void PrintExpPointsNextLevel(void)
