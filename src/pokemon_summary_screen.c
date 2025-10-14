@@ -7,7 +7,7 @@
 #include "battle_tent.h"
 #include "battle_factory.h"
 #include "bg.h"
-#include "bw_summary_screen.h"
+#include "swsh_summary_screen.h"
 #include "contest.h"
 #include "contest_effect.h"
 #include "data.h"

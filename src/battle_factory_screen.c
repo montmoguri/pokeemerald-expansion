@@ -2,7 +2,7 @@
 #include "battle.h"
 #include "battle_factory_screen.h"
 #include "battle_factory.h"
-#include "bw_summary_screen.h"
+#include "swsh_summary_screen.h"
 #include "sprite.h"
 #include "event_data.h"
 #include "overworld.h"

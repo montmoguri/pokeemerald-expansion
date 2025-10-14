@@ -9,7 +9,7 @@
 #include "battle_pyramid.h"
 #include "battle_pyramid_bag.h"
 #include "bg.h"
-#include "bw_summary_screen.h"
+#include "swsh_summary_screen.h"
 #include "contest.h"
 #include "data.h"
 #include "decompress.h"

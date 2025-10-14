@@ -1,7 +1,7 @@
 #include "global.h"
 #include "malloc.h"
 #include "bg.h"
-#include "bw_summary_screen.h"
+#include "swsh_summary_screen.h"
 #include "data.h"
 #include "decompress.h"
 #include "dma3.h"

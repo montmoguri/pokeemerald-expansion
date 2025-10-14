@@ -3,7 +3,7 @@
 #include "battle_anim.h"
 #include "battle_interface.h"
 #include "bg.h"
-#include "bw_summary_screen.h"
+#include "swsh_summary_screen.h"
 #include "cable_club.h"
 #include "data.h"
 #include "daycare.h"

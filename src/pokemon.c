@@ -11,7 +11,7 @@
 #include "battle_setup.h"
 #include "battle_tower.h"
 #include "battle_z_move.h"
-#include "bw_summary_screen.h"
+#include "swsh_summary_screen.h"
 #include "data.h"
 #include "dexnav.h"
 #include "event_data.h"

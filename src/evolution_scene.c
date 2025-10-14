@@ -3,7 +3,7 @@
 #include "battle.h"
 #include "battle_message.h"
 #include "bg.h"
-#include "bw_summary_screen.h"
+#include "swsh_summary_screen.h"
 #include "data.h"
 #include "decompress.h"
 #include "evolution_scene.h"
