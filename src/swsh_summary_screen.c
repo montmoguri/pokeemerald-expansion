@@ -4125,7 +4125,7 @@ static void BufferHPStats(void)
 static void PrintHPStats(u8 mode)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
-    PrintTextOnWindowWithFont(windowId, gStringVar4, 36, 0, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, gStringVar4, 36, 0, 0, 0, FONT_NARROW);
 }
 
 
@@ -4144,11 +4144,11 @@ static void PrintNonHPStats(void)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
     
-    PrintTextOnWindowWithFont(windowId, gStringVar1, 129, 0, 0, 0, FONT_SMALL);
-    PrintTextOnWindowWithFont(windowId, gStringVar2, 57, 16, 0, 0, FONT_SMALL);
-    PrintTextOnWindowWithFont(windowId, gStringVar3, 129, 16, 0, 0, FONT_SMALL);
-    PrintTextOnWindowWithFont(windowId, gStringVar4, 57, 32, 0, 0, FONT_SMALL);
-    PrintTextOnWindowWithFont(windowId, sStringVar5, 129, 32, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, gStringVar1, 129, 0, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, gStringVar2, 57, 16, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, gStringVar3, 129, 16, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, gStringVar4, 57, 32, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, sStringVar5, 129, 32, 0, 0, FONT_NARROW);
 }
 
 static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 x, u8 y, 
@@ -4173,7 +4173,7 @@ static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 
     }
     
     StringCopy(coloredLabel, color);
-    StringAppend(coloredLabel, text);
+    StringAppend(coloredLabel, text); 
     PrintTextOnWindowWithFont(windowId, coloredLabel, x, y, 0, 0, FONT_NARROW);
 }
 
