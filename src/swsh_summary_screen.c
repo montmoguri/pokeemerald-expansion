@@ -391,24 +391,11 @@ static const u8 sEggStepsLayout[]                   = _("{DYNAMIC 0} steps");
 static const u8 sText_Empty[]                       = _("");
 static const u8 sText_Cancel[]                      = _("Cancel");
 static const u8 sText_Switch[]                      = _("Switch");
-static const u8 sText_PkmnInfo[]                    = _("Info");
-static const u8 sText_PkmnSkills[]                  = _("Skills");
-static const u8 sText_BattleMoves[]                 = _("Moves");
 static const u8 sText_Rename[]                      = _("Rename");
-static const u8 sText_Info[]                        = _("Info");
-static const u8 sText_HP_Title[]                    = _("HP");
-static const u8 sText_Attack_Title[]                = _("Atk");
-static const u8 sText_Defense_Title[]               = _("Def");
-static const u8 sText_SpAtk_Title[]                 = _("SpA");
-static const u8 sText_SpDef_Title[]                 = _("SpD");
-static const u8 sText_Speed_Title[]                 = _("Spe");
 static const u8 sText_ViewIVs[]                     = _("View IV");
 static const u8 sText_ViewEVs[]                     = _("View EV");
 static const u8 sText_ViewStats[]                   = _("View Stats");
-static const u8 sText_ViewIVs_Graded[]              = _("See Innate");
-static const u8 sText_ViewEVs_Graded[]              = _("See Effort");
 static const u8 sText_Exp[]                         = _("Exp.");
-static const u8 sText_NextLv[]                      = _("Next {LV}");
 static const u8 sText_Next[]                        = _("Next");
 static const u8 sText_RentalPkmn[]                  = _("Rental Pokémon");
 static const u8 sText_None[]                        = _("None");
@@ -4188,14 +4175,14 @@ static void PrintStatLabels(void)
     u8 natureDownStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statDown;
 
     // Print HP label
-    PrintTextOnWindowWithFont(windowId, sText_HP_Title, 8, 0, 0, 0, FONT_NARROW);
+    PrintTextOnWindowWithFont(windowId, gText_HP_Title, 8, 0, 0, 0, FONT_NARROW);
     
     // Print non-HP stat labels (colored)
-    PrintColoredStatLabel(windowId, STAT_ATK, sText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_DEF, sText_Defense_Title, 8, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPATK, sText_SpAtk_Title, 80, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPDEF, sText_SpDef_Title, 8, 32, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPEED, sText_Speed_Title, 80, 32, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_ATK, gText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_DEF, gText_Defense_Title, 8, 16, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPATK, gText_SpAtk_Title, 80, 16, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPDEF, gText_SpDef_Title, 8, 32, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPEED, gText_Speed_Title, 80, 32, natureUpStat, natureDownStat, coloredLabel);
 }
 
 static void PrintExpPointsNextLevel(void)
