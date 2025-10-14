@@ -380,49 +380,49 @@ static void CB2_PssChangePokemonNickname(void);
 
 // const rom data
 
-static const u8 sMemoNatureTextColor[]                      = _("{COLOR DYNAMIC_COLOR2}{SHADOW DYNAMIC_COLOR3}");
-static const u8 sMemoMiscTextColor[]                        = _("{COLOR WHITE}{SHADOW DARK_GRAY}");
-static const u8 sStatsHPLayout[]                            = _("{DYNAMIC 0}/{DYNAMIC 1}");
-static const u8 sStatsHPIVEVLayout[]                        = _("{DYNAMIC 0}");
-static const u8 sStatsNonHPLayout[]                         = _("{DYNAMIC 0}\n{DYNAMIC 1}\n{DYNAMIC 2}\n{DYNAMIC 3}\n{DYNAMIC 4}");
-static const u8 sMovesPPLayout[]                            = _("{DYNAMIC 0}/{DYNAMIC 1}");
-static const u8 sEggStepsLayout[]                           = _("{DYNAMIC 0} steps");
+static const u8 sMemoNatureTextColor[]              = _("{COLOR DYNAMIC_COLOR2}{SHADOW DYNAMIC_COLOR3}");
+static const u8 sMemoMiscTextColor[]                = _("{COLOR WHITE}{SHADOW DARK_GRAY}");
+static const u8 sStatsHPLayout[]                    = _("{DYNAMIC 0}/{DYNAMIC 1}");
+static const u8 sStatsHPIVEVLayout[]                = _("{DYNAMIC 0}");
+static const u8 sStatsNonHPLayout[]                 = _("{DYNAMIC 0}\n{DYNAMIC 1}\n{DYNAMIC 2}\n{DYNAMIC 3}\n{DYNAMIC 4}");
+static const u8 sMovesPPLayout[]                    = _("{DYNAMIC 0}/{DYNAMIC 1}");
+static const u8 sEggStepsLayout[]                   = _("{DYNAMIC 0} steps");
 
-static const u8 sText_Empty[]                               = _("");
-static const u8 sText_Cancel[]                              = _("Cancel");
-static const u8 sText_Switch[]                              = _("Switch");
-static const u8 sText_PkmnInfo[]                            = _("Info");
-static const u8 sText_PkmnSkills[]                          = _("Skills");
-static const u8 sText_BattleMoves[]                         = _("Moves");
-static const u8 sText_Rename[]                              = _("Rename");
-static const u8 sText_Info[]                                = _("Info");
-static const u8 sText_HP_Title[]                            = _("HP");
-static const u8 sText_Attack_Title[]                        = _("Atk");
-static const u8 sText_Defense_Title[]                       = _("Def");
-static const u8 sText_SpAtk_Title[]                         = _("SpA");
-static const u8 sText_SpDef_Title[]                         = _("SpD");
-static const u8 sText_Speed_Title[]                         = _("Spe");
-static const u8 sText_ViewIVs[]                             = _("View IV");
-static const u8 sText_ViewEVs[]                             = _("View EV");
-static const u8 sText_ViewStats[]                           = _("View Stats");
-static const u8 sText_ViewIVs_Graded[]                      = _("See Innate");
-static const u8 sText_ViewEVs_Graded[]                      = _("See Effort");
-static const u8 sText_Exp[]                                 = _("Exp.");
-static const u8 sText_NextLv[]                              = _("Next {LV}");
-static const u8 sText_Next[]                                = _("Next");
-static const u8 sText_RentalPkmn[]                          = _("Rental Pokémon");
-static const u8 sText_None[]                                = _("None");
-static const u8 sText_Egg[]                                 = _("Egg");
+static const u8 sText_Empty[]                       = _("");
+static const u8 sText_Cancel[]                      = _("Cancel");
+static const u8 sText_Switch[]                      = _("Switch");
+static const u8 sText_PkmnInfo[]                    = _("Info");
+static const u8 sText_PkmnSkills[]                  = _("Skills");
+static const u8 sText_BattleMoves[]                 = _("Moves");
+static const u8 sText_Rename[]                      = _("Rename");
+static const u8 sText_Info[]                        = _("Info");
+static const u8 sText_HP_Title[]                    = _("HP");
+static const u8 sText_Attack_Title[]                = _("Atk");
+static const u8 sText_Defense_Title[]               = _("Def");
+static const u8 sText_SpAtk_Title[]                 = _("SpA");
+static const u8 sText_SpDef_Title[]                 = _("SpD");
+static const u8 sText_Speed_Title[]                 = _("Spe");
+static const u8 sText_ViewIVs[]                     = _("View IV");
+static const u8 sText_ViewEVs[]                     = _("View EV");
+static const u8 sText_ViewStats[]                   = _("View Stats");
+static const u8 sText_ViewIVs_Graded[]              = _("See Innate");
+static const u8 sText_ViewEVs_Graded[]              = _("See Effort");
+static const u8 sText_Exp[]                         = _("Exp.");
+static const u8 sText_NextLv[]                      = _("Next {LV}");
+static const u8 sText_Next[]                        = _("Next");
+static const u8 sText_RentalPkmn[]                  = _("Rental Pokémon");
+static const u8 sText_None[]                        = _("None");
+static const u8 sText_Egg[]                         = _("Egg");
 
 // bg gfx
-const u32 sSummaryScreen_Gfx[]                           = INCBIN_U32("graphics/summary_screen/swsh/tiles.4bpp.lz");
-const u16 sSummaryScreen_Pal[]                           = INCBIN_U16("graphics/summary_screen/swsh/tiles.gbapal");
-const u32 sSummaryPage_ScrollBG_Tilemap[]                = INCBIN_U32("graphics/summary_screen/swsh/scroll_bg.bin.lz");
-const u32 sSummaryPage_Info_Tilemap[]                    = INCBIN_U32("graphics/summary_screen/swsh/page_info.bin.lz");
-const u32 sSummaryPage_Skills_Tilemap[]                  = INCBIN_U32("graphics/summary_screen/swsh/page_skills.bin.lz");
-const u32 sSummaryPage_BattleMoves_Tilemap[]             = INCBIN_U32("graphics/summary_screen/swsh/page_battle_moves.bin.lz");
-const u32 sSummaryEffect_Battle_Tilemap[]                = INCBIN_U32("graphics/summary_screen/swsh/effect_battle.bin.lz");
-const u16 sSummaryScreen_PPTextPalette[]                 = INCBIN_U16("graphics/summary_screen/swsh/text_pp.gbapal");
+const u32 sSummaryScreen_Gfx[]                      = INCBIN_U32("graphics/summary_screen/swsh/tiles.4bpp.lz");
+const u16 sSummaryScreen_Pal[]                      = INCBIN_U16("graphics/summary_screen/swsh/tiles.gbapal");
+const u32 sSummaryPage_ScrollBG_Tilemap[]           = INCBIN_U32("graphics/summary_screen/swsh/scroll_bg.bin.lz");
+const u32 sSummaryPage_Info_Tilemap[]               = INCBIN_U32("graphics/summary_screen/swsh/page_info.bin.lz");
+const u32 sSummaryPage_Skills_Tilemap[]             = INCBIN_U32("graphics/summary_screen/swsh/page_skills.bin.lz");
+const u32 sSummaryPage_BattleMoves_Tilemap[]        = INCBIN_U32("graphics/summary_screen/swsh/page_battle_moves.bin.lz");
+const u32 sSummaryEffect_Battle_Tilemap[]           = INCBIN_U32("graphics/summary_screen/swsh/effect_battle.bin.lz");
+const u16 sSummaryScreen_PPTextPalette[]            = INCBIN_U16("graphics/summary_screen/swsh/text_pp.gbapal");
 
 // sprite gfx
 static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
@@ -439,29 +439,28 @@ static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
         static const u16 sMoveTypes_Pal[] = INCBIN_U16("graphics/types_swsh_summary_screen/move_types.gbapal");
     #endif
 #endif
-static const u32 sTeraTypes_Gfx[]                           = INCBIN_U32("graphics/types_swsh_summary_screen/tera/tera_types_swsh.4bpp.lz");
-static const u32 sSummaryMoveSelect_Gfx[]                   = INCBIN_U32("graphics/summary_screen/swsh/move_select.4bpp.lz");
-static const u16 sSummaryMoveSelect_Pal[]                   = INCBIN_U16("graphics/summary_screen/swsh/move_select.gbapal");
-static const u16 sMarkings_Pal[]                         = INCBIN_U16("graphics/summary_screen/swsh/markings.gbapal");
-static const u32 sShinyIcon_Gfx[]                        = INCBIN_U32("graphics/summary_screen/swsh/shiny_icon.4bpp.lz");
-static const u32 sPokerusCuredIcon_Gfx[]                 = INCBIN_U32("graphics/summary_screen/swsh/pokerus_cured_icon.4bpp.lz");
-static const u16 sCategoryIcons_Pal[]                       = INCBIN_U16("graphics/summary_screen/swsh/category_icons.gbapal");
-static const u32 sCategoryIcons_Gfx[]                       = INCBIN_U32("graphics/summary_screen/swsh/category_icons.4bpp.lz");
-static const u16 sFriendshipIcon_Pal[]                      = INCBIN_U16("graphics/summary_screen/swsh/heart.gbapal");
-static const u32 sFriendshipIcon_Gfx[]                      = INCBIN_U32("graphics/summary_screen/swsh/heart.4bpp.lz");
+static const u32 sTeraTypes_Gfx[]                   = INCBIN_U32("graphics/types_swsh_summary_screen/tera/tera_types_swsh.4bpp.lz");
+static const u32 sSummaryMoveSelect_Gfx[]           = INCBIN_U32("graphics/summary_screen/swsh/move_select.4bpp.lz");
+static const u16 sSummaryMoveSelect_Pal[]           = INCBIN_U16("graphics/summary_screen/swsh/move_select.gbapal");
+static const u16 sMarkings_Pal[]                    = INCBIN_U16("graphics/summary_screen/swsh/markings.gbapal");
+static const u32 sShinyIcon_Gfx[]                   = INCBIN_U32("graphics/summary_screen/swsh/shiny_icon.4bpp.lz");
+static const u32 sPokerusCuredIcon_Gfx[]            = INCBIN_U32("graphics/summary_screen/swsh/pokerus_cured_icon.4bpp.lz");
+static const u32 sGenderGfx_Icons[]                 = INCBIN_U32("graphics/summary_screen/swsh/gender_icons.4bpp.lz");
+static const u16 sGenderPal_Icons[]                 = INCBIN_U16("graphics/summary_screen/swsh/gender_icons.gbapal");
+static const u16 sCategoryIcons_Pal[]               = INCBIN_U16("graphics/summary_screen/swsh/category_icons.gbapal");
+static const u32 sCategoryIcons_Gfx[]               = INCBIN_U32("graphics/summary_screen/swsh/category_icons.4bpp.lz");
+static const u16 sFriendshipIcon_Pal[]              = INCBIN_U16("graphics/summary_screen/swsh/heart.gbapal");
+static const u32 sFriendshipIcon_Gfx[]              = INCBIN_U32("graphics/summary_screen/swsh/heart.4bpp.lz");
 // rave note: yeah I know doing this with a sprite is mad jank, but I promise I have my reasons
 // mont note: it is maaad jank, but it works, we promise
-static const u32 sRelearnPrompt_Gfx[]                       = INCBIN_U32("graphics/summary_screen/swsh/relearn_prompt.4bpp.lz");
-static const u32 sInfoPrompt_Gfx[]                          = INCBIN_U32("graphics/summary_screen/swsh/info_prompt.4bpp.lz");
-static const u32 sGigantamaxIcon_Gfx[]                      = INCBIN_U32("graphics/summary_screen/swsh/gigantamax.4bpp.lz");
+static const u32 sRelearnPrompt_Gfx[]               = INCBIN_U32("graphics/summary_screen/swsh/relearn_prompt.4bpp.lz");
+static const u32 sInfoPrompt_Gfx[]                  = INCBIN_U32("graphics/summary_screen/swsh/info_prompt.4bpp.lz");
+static const u32 sGigantamaxIcon_Gfx[]              = INCBIN_U32("graphics/summary_screen/swsh/gigantamax.4bpp.lz");
 
 #if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
-static const u32 sStatusGfx_Icons[] = INCBIN_U32("graphics/summary_screen/swsh/status_icons.4bpp.lz");
-static const u16 sStatusPal_Icons[] = INCBIN_U16("graphics/summary_screen/swsh/status_icons.gbapal");
+static const u32 sStatusGfx_Icons[]                 = INCBIN_U32("graphics/summary_screen/swsh/status_icons.4bpp.lz");
+static const u16 sStatusPal_Icons[]                 = INCBIN_U16("graphics/summary_screen/swsh/status_icons.gbapal");
 #endif
-
-static const u32 sGenderGfx_Icons[] = INCBIN_U32("graphics/summary_screen/swsh/gender_icons.4bpp.lz");
-static const u16 sGenderPal_Icons[] = INCBIN_U16("graphics/summary_screen/swsh/gender_icons.gbapal");
 
 
 static const struct BgTemplate sBgTemplates[] =
@@ -4175,7 +4174,7 @@ static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 
     
     StringCopy(coloredLabel, color);
     StringAppend(coloredLabel, text);
-    PrintTextOnWindowWithFont(windowId, coloredLabel, x, y, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, coloredLabel, x, y, 0, 0, FONT_NARROW);
 }
 
 // Add a function to just print the stat labels
@@ -4189,7 +4188,7 @@ static void PrintStatLabels(void)
     u8 natureDownStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statDown;
 
     // Print HP label
-    PrintTextOnWindowWithFont(windowId, sText_HP_Title, 8, 0, 0, 0, FONT_SMALL);
+    PrintTextOnWindowWithFont(windowId, sText_HP_Title, 8, 0, 0, 0, FONT_NARROW);
     
     // Print non-HP stat labels (colored)
     PrintColoredStatLabel(windowId, STAT_ATK, sText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
@@ -4846,7 +4845,7 @@ static void SetPokerusCuredSprite(void)
 {
     struct Pokemon *mon = &sMonSummaryScreen->currentMon;
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_POKERUS_CURED] == SPRITE_NONE)
-    sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_POKERUS_CURED] = CreateSprite(&sSpriteTemplate_PokerusCuredIcon, 40, 102, 0);
+    sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_POKERUS_CURED] = CreateSprite(&sSpriteTemplate_PokerusCuredIcon, 117, 87, 0);
 
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_POKERUS_CURED]].invisible = (CheckPartyPokerus(mon, 0) || !CheckPartyHasHadPokerus(mon, 0));
 }
