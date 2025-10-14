@@ -1870,6 +1870,18 @@ void SetBattleMonMoveSlot(struct BattlePokemon *mon, u16 move, u8 slot)
     mon->pp[slot] = GetMovePP(move);
 }
 
+void GiveLeadPokerus(void)
+{
+    u8 pokerus = 0xF;
+    SetMonData(&gPlayerParty[0], MON_DATA_POKERUS, &pokerus);
+}
+
+void CureLeadPokerus(void)
+{
+    u8 pokerus = 0xF0;
+    SetMonData(&gPlayerParty[0], MON_DATA_POKERUS, &pokerus);
+}
+
 void GiveMonInitialMoveset(struct Pokemon *mon)
 {
     GiveBoxMonInitialMoveset(&mon->box);

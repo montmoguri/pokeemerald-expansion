@@ -202,6 +202,8 @@ gSpecials::
 	def_special GetDaycareMonNicknames
 	def_special GetDaycareState
 	def_special RejectEggFromDayCare
+	def_special GiveLeadPokerus
+	def_special CureLeadPokerus
 	def_special GiveEggFromDaycare
 	def_special SetDaycareCompatibilityString
 	def_special GetSelectedMonNicknameAndSpecies
