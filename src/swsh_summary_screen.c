@@ -48,6 +48,7 @@
 #include "window.h"
 #include "constants/abilities.h"
 #include "constants/battle_move_effects.h"
+#include "constants/characters.h"
 #include "constants/hold_effects.h"
 #include "constants/items.h"
 #include "constants/moves.h"
@@ -357,6 +358,7 @@ static void SetPokerusCuredSprite(void);
 static void HandleStatusSprite(struct Pokemon *);
 static u8 AddWindowFromTemplateList(const struct WindowTemplate*, u8);
 static void ClearCancelText(void);
+static bool32 ShouldRemoveHyphen(const u8*, const u8*, const u8*);
 static void FormatTextByWidth(u8*, s32, u8, const u8*, s16);
 static void Task_ShowEffectTilemap(u8);
 static void Task_HideEffectTilemap(u8);
@@ -5059,18 +5061,47 @@ static void FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str
     u8 *end, *ptr, *curLine, *lastSpace;
 
     end = result;
-    // copy string, replacing all space and line breaks with EOS
+    // copy string, replacing spaces and line breaks with EOS
+    // EXCEPT: if newline follows a hyphen, skip the newline without adding EOS
     while (*str != EOS)
     {
         if (*str == CHAR_SPACE || *str == CHAR_NEWLINE)
-            *end = EOS;
+        {
+            // Skip newline after hyphen, otherwise mark as break point
+            if (!(*str == CHAR_NEWLINE && end > result && *(end - 1) == CHAR_HYPHEN))
+            {
+                *end = EOS;
+                end++;
+            }
+        }
         else
+        {
+            // Regular character - copy it
             *end = *str;
-
-        end++;
+            end++;
+        }
+        
         str++;
     }
     *end = EOS; // now end points to the true end of the string
+
+    // Step 2: Remove hyphens for specific words only
+    u8 *p = result;
+    while (p < end)
+    {
+        if (*p == CHAR_HYPHEN && ShouldRemoveHyphen(p, result, end))
+        {
+            u8 *dst = p;
+            u8 *src = p + 1;
+            while (src <= end)
+                *dst++ = *src++;
+            end--;
+        }
+        else
+        {
+            p++;
+        }
+    }
 
     ptr = result;
     curLine = ptr;
@@ -5188,6 +5219,86 @@ static void CB2_PssChangePokemonNickname(void)
     DoNamingScreen(NAMING_SCREEN_NICKNAME, gStringVar2, GetMonData(&gPlayerParty[gSpecialVar_0x8004], MON_DATA_SPECIES, NULL), 
                    GetMonGender(&gPlayerParty[gSpecialVar_0x8004]), GetMonData(&gPlayerParty[gSpecialVar_0x8004], MON_DATA_PERSONALITY, NULL), 
                    CB2_ReturnToSummaryScreenFromNamingScreen);
+}
+
+// Convert ASCII character to GBA character encoding
+static u8 AsciiToGbaChar(char c)
+{
+    if (c >= 'A' && c <= 'Z')
+        return CHAR_A + (c - 'A');
+    if (c >= 'a' && c <= 'z')
+        return CHAR_a + (c - 'a');
+    if (c >= '0' && c <= '9')
+        return CHAR_0 + (c - '0');
+    return c; // For other chars, assume they match (or handle specially)
+}
+
+// Check if string at position matches ASCII pattern
+static bool32 MatchesAsciiPattern(const u8 *p, const u8 *start, const char *before, const char *after)
+{
+    // Check bounds for "before" pattern
+    size_t beforeLen = 0;
+    while (before[beforeLen]) beforeLen++;
+    
+    if (p < start + beforeLen)
+        return FALSE;
+    
+    // Check "before" pattern
+    for (size_t i = 0; i < beforeLen; i++)
+    {
+        if (p[-(s32)beforeLen + i] != AsciiToGbaChar(before[i]))
+            return FALSE;
+    }
+    
+    // Check "after" pattern
+    size_t afterLen = 0;
+    while (after[afterLen]) afterLen++;
+    
+    for (size_t i = 0; i < afterLen; i++)
+    {
+        if (p[1 + i] != AsciiToGbaChar(after[i]))
+            return FALSE;
+    }
+    
+    return TRUE;
+}
+
+// Mont note: this is REALLY overkill for just a few words, but compare Incinium Z in bag vs. held item...
+// Helper: Check if hyphen at position should be removed for specific words
+static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
+{
+    if (MatchesAsciiPattern(p, start, "Incine", "roar"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "La", "riat"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "Marsha", "dow"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "Thi", "ef"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "Elec", "tric"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "Fight", "ing"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "pro", "motes"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "Decidu", "eye"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "Sha", "ckle"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "invigor", "ating"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "Thunder", "bolt"))
+        return TRUE;
+    if (MatchesAsciiPattern(p, start, "inde", "scribable"))
+        return TRUE;
+    
+    // Poké-mon (special case with é)
+    if (p >= start + 4 && 
+        p[-4]==CHAR_P && p[-3]==CHAR_o && p[-2]==CHAR_k && p[-1]==CHAR_e_ACUTE && 
+        p[1]==CHAR_m && p[2]==CHAR_o && p[3]==CHAR_n)
+        return TRUE;
+    
+    return FALSE;
 }
 
 #endif
