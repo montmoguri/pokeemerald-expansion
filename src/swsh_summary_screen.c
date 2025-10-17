@@ -359,7 +359,7 @@ static void HandleStatusSprite(struct Pokemon *);
 static u8 AddWindowFromTemplateList(const struct WindowTemplate*, u8);
 static void ClearCancelText(void);
 static bool32 ShouldRemoveHyphen(const u8*, const u8*, const u8*);
-static void FormatTextByWidth(u8*, s32, u8, const u8*, s16);
+static u8 FormatTextByWidth(u8*, s32, u8, const u8*, s16);
 static void Task_ShowEffectTilemap(u8);
 static void Task_HideEffectTilemap(u8);
 static void ShowCategoryIcon(u16);
@@ -3984,8 +3984,8 @@ static void PrintHeldItemInfo(void)
     fontId = GetFontIdToFit(text, FONT_SHORT_NARROW, 0, 72);
     PrintTextOnWindowWithFont(windowId, text, 74, 5, 0, 0, fontId);
     
-    FormatTextByWidth(desc, 144, FONT_SHORT_NARROW, description, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
-    PrintTextOnWindow(windowId, desc, 0, 23, 0, 0);
+    fontId = FormatTextByWidth(desc, 144, FONT_SHORT_NARROW, description, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, desc, 0, 23, 1, 0, fontId);
 }
 
 static void UNUSED PrintRibbonCount(void)
@@ -4329,7 +4329,7 @@ static void PrintMovePowerAndAccuracy(u16 moveIndex)
             text = gStringVar1;
         }
 
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 0, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 2, 0, 0);
 
         if (gMovesInfo[moveIndex].accuracy == 0)
         {
@@ -4341,11 +4341,11 @@ static void PrintMovePowerAndAccuracy(u16 moveIndex)
             text = gStringVar1;
         }
 
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 19, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 22, 0, 0);
     } else {
         text = gText_ThreeDashes;
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 0, 0, 0);
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 19, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 2, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 22, 0, 0);
     }
 }
 
@@ -4367,19 +4367,20 @@ static void PrintMoveDescription(u16 move)
 
             if (SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESCRIPTIONS)
             {
+                u8 descFontId;
                 if (gMovesInfo[move].effect != EFFECT_PLACEHOLDER)
-                    FormatTextByWidth(desc, 136, FONT_SHORT_NARROW, gMovesInfo[move].description, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatTextByWidth(desc, 136, FONT_SHORT_NARROW, gMovesInfo[move].description, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
                 else
-                    FormatTextByWidth(desc, 136, FONT_SHORT_NARROW, gNotDoneYetDescription, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatTextByWidth(desc, 136, FONT_SHORT_NARROW, gNotDoneYetDescription, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
 
-                PrintTextOnWindow(windowId, desc, 0, 4, 0, 0);
+                PrintTextOnWindowWithFont(windowId, desc, 0, 4, 1, 0, descFontId);
             }
             else
             {
                 if (gMovesInfo[move].effect != EFFECT_PLACEHOLDER)
-                    PrintTextOnWindow(windowId, gMovesInfo[move].description, 0, 4, 0, 0);
+                    PrintTextOnWindow(windowId, gMovesInfo[move].description, 0, 4, 1, 0);
                 else
-                    PrintTextOnWindow(windowId, gNotDoneYetDescription, 0, 4, 0, 0);
+                    PrintTextOnWindow(windowId, gNotDoneYetDescription, 0, 4, 1, 0);
             }
 
         }
@@ -4449,14 +4450,14 @@ static void PrintHMMovesCantBeForgotten(void)
     u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_DESCRIPTION);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
 
-    FormatTextByWidth(message, 136, FONT_SHORT_NARROW, gText_HMMovesCantBeForgotten2, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
-    PrintTextOnWindow(windowId, gText_HMMovesCantBeForgotten2, 0, 4, 0, 2);
+    u8 msgFontId = FormatTextByWidth(message, 136, FONT_SHORT_NARROW, gText_HMMovesCantBeForgotten2, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, message, 0, 4, 0, 2, msgFontId);
 }
 
 static void ShowCategoryIcon(u16 move)
 {
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] == SPRITE_NONE)
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] = CreateSprite(&sSpriteTemplate_CategoryIcons, 68, 127, 0);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] = CreateSprite(&sSpriteTemplate_CategoryIcons, 68, 128, 0);
     
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY]].invisible = FALSE;
 
@@ -5055,11 +5056,17 @@ static void KeepMoveSelectorVisible(u8 firstSpriteId)
     }
 }
 
+// Helper to get the next narrower font in the chain, returns same fontId if no narrower font exists
 // Shoutout to Vexx for this :)
-static void FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
+// Returns the font ID actually used (may be narrower than requested)
+static u8 FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
 {
     u8 *end, *ptr, *curLine, *lastSpace;
+    u32 lineCount;
+    const u8 *originalStr = str;
 
+retry_with_narrower_font:
+    str = originalStr; // Reset to original string
     end = result;
     // copy string, replacing spaces and line breaks with EOS
     // EXCEPT: if newline follows a hyphen, skip the newline without adding EOS
@@ -5105,6 +5112,7 @@ static void FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str
 
     ptr = result;
     curLine = ptr;
+    lineCount = 1;
 
     while (*ptr != EOS)
         ptr++;
@@ -5120,7 +5128,7 @@ static void FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str
         if (GetStringWidth(fontId, curLine, letterSpacing) > maxWidth)
         {
             *lastSpace = CHAR_NEWLINE;
-
+            lineCount++;
             curLine = ptr;
         }
 
@@ -5128,6 +5136,28 @@ static void FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str
             ptr++;
         // now ptr is the next EOS char
     }
+    
+    // Check if the last line also fits within maxWidth
+    bool32 lastLineFits = (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
+    
+    // If we have 3+ lines OR the last line doesn't fit, try a narrower font
+    if (lineCount >= 3 || !lastLineFits)
+    {
+        // Get the next narrower font based on the font chain
+        u8 narrowerFontId = fontId;
+        if (fontId == FONT_SHORT_NARROW)
+            narrowerFontId = FONT_SHORT_NARROWER;
+        // Add more font chains here if needed
+        
+        if (narrowerFontId != fontId)
+        {
+            fontId = narrowerFontId;
+            letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
+            goto retry_with_narrower_font;
+        }
+    }
+    
+    return fontId;
 }
 
 static inline bool32 ShouldShowMoveRelearner(void)
