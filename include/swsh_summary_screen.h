@@ -7,7 +7,7 @@
 #define SWSH_SUMMARY_SCREEN                           TRUE
 
 // constants
-#define SWSH_MAX_MOVE_DESCRIPTION_LENGTH              60        // this only needs to be updated if you use auto-formatting
+#define SWSH_MAX_MOVE_DESCRIPTION_LENGTH              100       // this only needs to be updated if you use auto-formatting
 #define SWSH_SUMMARY_MON_IDLE_ANIMS_FRAMES            300       // number of frames between each idle anim IF SWSH_SUMMARY_MON_IDLE_ANIMS is true.
                                                                 // for reference, Emerald runs at 60FPS by default
 

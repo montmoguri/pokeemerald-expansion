@@ -429,7 +429,7 @@ static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
 
 #if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
     static const u32 sMoveTypes_Gfx[] = INCBIN_U32("graphics/types_swsh_summary_screen/move_types.4bpp.lz");
-    #if SWSH_SUMMARY_TYPE_ICONS_SV_PAL == TRUE
+    #if SWSH_SUMMARY_SWSH_TYPE_ICONS_SV_PAL == TRUE
         static const u16 sMoveTypes_Pal[] = INCBIN_U16("graphics/types_swsh_summary_screen/move_types_sv.gbapal");
     #else
         static const u16 sMoveTypes_Pal[] = INCBIN_U16("graphics/types_swsh_summary_screen/move_types.gbapal");
@@ -5056,17 +5056,11 @@ static void KeepMoveSelectorVisible(u8 firstSpriteId)
     }
 }
 
-// Helper to get the next narrower font in the chain, returns same fontId if no narrower font exists
-// Shoutout to Vexx for this :)
-// Returns the font ID actually used (may be narrower than requested)
-static u8 FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
+// New helper function that performs the formatting logic
+static u8 PerformTextFormatting(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
 {
     u8 *end, *ptr, *curLine, *lastSpace;
-    u32 lineCount;
-    const u8 *originalStr = str;
-
-retry_with_narrower_font:
-    str = originalStr; // Reset to original string
+    
     end = result;
     // copy string, replacing spaces and line breaks with EOS
     // EXCEPT: if newline follows a hyphen, skip the newline without adding EOS
@@ -5112,7 +5106,7 @@ retry_with_narrower_font:
 
     ptr = result;
     curLine = ptr;
-    lineCount = 1;
+    *outLineCount = 1;
 
     while (*ptr != EOS)
         ptr++;
@@ -5128,7 +5122,7 @@ retry_with_narrower_font:
         if (GetStringWidth(fontId, curLine, letterSpacing) > maxWidth)
         {
             *lastSpace = CHAR_NEWLINE;
-            lineCount++;
+            (*outLineCount)++;
             curLine = ptr;
         }
 
@@ -5138,23 +5132,36 @@ retry_with_narrower_font:
     }
     
     // Check if the last line also fits within maxWidth
-    bool32 lastLineFits = (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
+    return (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
+}
+
+// Original FormatTextByWidth function by Vexx on Ravepossum's branch
+// Modified here to use PerformTextFormatting and try 1-font narrower if needed
+static u8 FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
+{
+    u32 lineCount;
+    bool32 lastLineFits;
     
-    // If we have 3+ lines OR the last line doesn't fit, try a narrower font
-    if (lineCount >= 3 || !lastLineFits)
+    // Try formatting with progressively narrower fonts until it fits in 2 lines or fewer
+    while (TRUE)
     {
-        // Get the next narrower font based on the font chain
+        lastLineFits = PerformTextFormatting(result, maxWidth, fontId, str, letterSpacing, &lineCount);
+        
+        // If we have 2 or fewer lines AND the last line fits, we're done
+        if (lineCount < 3 && lastLineFits)
+            break;
+        
+        // Try to get a narrower font
         u8 narrowerFontId = fontId;
         if (fontId == FONT_SHORT_NARROW)
             narrowerFontId = FONT_SHORT_NARROWER;
-        // Add more font chains here if needed
         
-        if (narrowerFontId != fontId)
-        {
-            fontId = narrowerFontId;
-            letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
-            goto retry_with_narrower_font;
-        }
+        // If no narrower font available, use what we have
+        if (narrowerFontId == fontId)
+            break;
+        
+        fontId = narrowerFontId;
+        letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
     }
     
     return fontId;
@@ -5251,7 +5258,33 @@ static void CB2_PssChangePokemonNickname(void)
                    CB2_ReturnToSummaryScreenFromNamingScreen);
 }
 
-// Convert ASCII character to GBA character encoding
+/*
+Montblanc note: 
+- The functions below are used to remove hyphens from specific words when they are split across lines.
+- For example, Incineum Z has "Incine-\n" and "roar", which the previous formatter would have rendered: "Incine-roar"
+- Is this 100% overkill for just a few words? Yes.
+- Is it worth it to read item descriptions and not see random jank? My sanity says yes.
+*/
+// Lookup table for hyphen removal - stores both parts of hyphenated words
+static const struct HyphenPattern {
+    const char *before;
+    const char *after;
+} sHyphenRemovalPatterns[] = {
+    {"Incine", "roar"},
+    {"La", "riat"},
+    {"Marsha", "dow"},
+    {"Thi", "ef"},
+    {"Elec", "tric"},
+    {"Fight", "ing"},
+    {"pro", "motes"},
+    {"Decidu", "eye"},
+    {"Sha", "ckle"},
+    {"invigor", "ating"},
+    {"Thunder", "bolt"},
+    {"inde", "scribable"},
+};
+
+// Convert ASCII char to GBA charset equivalent
 static u8 AsciiToGbaChar(char c)
 {
     if (c >= 'A' && c <= 'Z')
@@ -5260,72 +5293,59 @@ static u8 AsciiToGbaChar(char c)
         return CHAR_a + (c - 'a');
     if (c >= '0' && c <= '9')
         return CHAR_0 + (c - '0');
-    return c; // For other chars, assume they match (or handle specially)
+    return c;
 }
 
-// Check if string at position matches ASCII pattern
-static bool32 MatchesAsciiPattern(const u8 *p, const u8 *start, const char *before, const char *after)
-{
-    // Check bounds for "before" pattern
-    size_t beforeLen = 0;
-    while (before[beforeLen]) beforeLen++;
-    
-    if (p < start + beforeLen)
-        return FALSE;
-    
-    // Check "before" pattern
-    for (size_t i = 0; i < beforeLen; i++)
-    {
-        if (p[-(s32)beforeLen + i] != AsciiToGbaChar(before[i]))
-            return FALSE;
-    }
-    
-    // Check "after" pattern
-    size_t afterLen = 0;
-    while (after[afterLen]) afterLen++;
-    
-    for (size_t i = 0; i < afterLen; i++)
-    {
-        if (p[1 + i] != AsciiToGbaChar(after[i]))
-            return FALSE;
-    }
-    
-    return TRUE;
-}
-
-// Mont note: this is REALLY overkill for just a few words, but compare Incinium Z in bag vs. held item...
-// Helper: Check if hyphen at position should be removed for specific words
+// Check if hyphen at position should be removed for specific words
 static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
 {
-    if (MatchesAsciiPattern(p, start, "Incine", "roar"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "La", "riat"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "Marsha", "dow"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "Thi", "ef"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "Elec", "tric"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "Fight", "ing"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "pro", "motes"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "Decidu", "eye"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "Sha", "ckle"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "invigor", "ating"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "Thunder", "bolt"))
-        return TRUE;
-    if (MatchesAsciiPattern(p, start, "inde", "scribable"))
-        return TRUE;
+    // Check all patterns in the table
+    for (u32 i = 0; i < ARRAY_COUNT(sHyphenRemovalPatterns); i++)
+    {
+        const char *before = sHyphenRemovalPatterns[i].before;
+        const char *after = sHyphenRemovalPatterns[i].after;
+        
+        // Calculate lengths
+        u32 beforeLen = 0, afterLen = 0;
+        while (before[beforeLen]) beforeLen++;
+        while (after[afterLen]) afterLen++;
+        
+        // Check bounds
+        if (p < start + beforeLen)
+            continue;
+        
+        // Check "before" pattern
+        bool32 matches = TRUE;
+        for (u32 j = 0; j < beforeLen; j++)
+        {
+            if (p[-(s32)beforeLen + j] != AsciiToGbaChar(before[j]))
+            {
+                matches = FALSE;
+                break;
+            }
+        }
+        
+        if (!matches)
+            continue;
+        
+        // Check "after" pattern
+        for (u32 j = 0; j < afterLen; j++)
+        {
+            if (p[1 + j] != AsciiToGbaChar(after[j]))
+            {
+                matches = FALSE;
+                break;
+            }
+        }
+        
+        if (matches)
+            return TRUE;
+    }
     
-    // Poké-mon (special case with é)
+    // Special case: Poké-mon (with é)
     if (p >= start + 4 && 
-        p[-4]==CHAR_P && p[-3]==CHAR_o && p[-2]==CHAR_k && p[-1]==CHAR_e_ACUTE && 
-        p[1]==CHAR_m && p[2]==CHAR_o && p[3]==CHAR_n)
+        p[-4] == CHAR_P && p[-3] == CHAR_o && p[-2] == CHAR_k && p[-1] == CHAR_e_ACUTE && 
+        p[1] == CHAR_m && p[2] == CHAR_o && p[3] == CHAR_n)
         return TRUE;
     
     return FALSE;
