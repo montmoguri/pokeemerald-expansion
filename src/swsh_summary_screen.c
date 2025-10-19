@@ -3637,7 +3637,6 @@ static void PrintMonDexNumberSpecies(void)
     {
         PrintTextOnWindow(windowId, GetSpeciesName(summary->species2), 0, 3, 0, 0);
         
-        // not printing pokedex number
         if (dexNum != 0xFFFF)
         {
             u8 digitCount = (NATIONAL_DEX_COUNT > 999 && IsNationalPokedexEnabled()) ? 4 : 3;
@@ -3653,7 +3652,7 @@ static void PrintMonDexNumberSpecies(void)
             }
             else
             {
-                PrintTextOnWindow(windowId, gStringVar1, 76, 3, 0, 6);
+                PrintTextOnWindow(windowId, gStringVar1, 76, 3, 0, 2);
             }
         }
     }
@@ -3686,11 +3685,6 @@ static void PrintMonOTID(void)
         ConvertIntToDecimalStringN(gStringVar1, (u16)sMonSummaryScreen->summary.OTID, STR_CONV_MODE_LEADING_ZEROS, 5);
         PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_SPECIES), gStringVar1, 71, 37, 0, 0);
     }
-    // else
-    // {
-    //     StringCopy(gStringVar1, gText_FiveMarks);
-    //     PrintTextOnWindow(AddWindowFromTemplateList(sPageInfoTemplate, PSS_DATA_WINDOW_INFO_OT_OTID), gStringVar1, 66, 0, 0, 0);
-    // }
 }
 
 static void PrintMonNature(void)
@@ -4145,8 +4139,8 @@ static void PrintNonHPStats(void)
 static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 x, u8 y, 
                                   u8 natureUpStat, u8 natureDownStat, u8 *coloredLabel)
 {
-    static const u8 sTextNatureDown[] = _("{COLOR}{08}");
-    static const u8 sTextNatureUp[] = _("{COLOR}{05}");
+    static const u8 sTextNatureDown[] = _("{COLOR}{07}{SHADOW}{08}");
+    static const u8 sTextNatureUp[] = _("{COLOR}{05}{SHADOW}{06}");
     static const u8 sTextNatureNeutral[] = _("{COLOR}{01}");
     
     const u8 *color;
@@ -4304,7 +4298,7 @@ static void PrintMoveNameAndPP(u8 moveIndex)
     }
     else
     {
-        PrintTextOnWindow(moveNameWindowId, gText_OneDash, 4, moveIndex * 18 + 4, 0, 4);
+        PrintTextOnWindow(moveNameWindowId, gText_ThreeDashes, 4, moveIndex * 18 + 4, 0, 4);
         text = gText_TwoDashes;
         ppState = 3;
     }
@@ -4315,7 +4309,8 @@ static void PrintMoveNameAndPP(u8 moveIndex)
 static void PrintMovePowerAndAccuracy(u16 moveIndex)
 {
     const u8 *text;
-    FillWindowPixelRect(PSS_LABEL_WINDOW_MOVES_POWER_ACC, PIXEL_FILL(0), 2, 0, 19, 34);
+    u8 xPos;
+    FillWindowPixelRect(PSS_LABEL_WINDOW_MOVES_POWER_ACC, PIXEL_FILL(0), 0, 0, 24, 34);
 
     if (moveIndex != MOVE_NONE)
     {
@@ -4325,11 +4320,11 @@ static void PrintMovePowerAndAccuracy(u16 moveIndex)
         }
         else
         {
-            ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[moveIndex].power, STR_CONV_MODE_RIGHT_ALIGN, 3);
+            ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[moveIndex].power, STR_CONV_MODE_LEFT_ALIGN, 3);
             text = gStringVar1;
         }
-
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 2, 0, 0);
+        xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 2, 0, 0);
 
         if (gMovesInfo[moveIndex].accuracy == 0)
         {
@@ -4337,15 +4332,16 @@ static void PrintMovePowerAndAccuracy(u16 moveIndex)
         }
         else
         {
-            ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[moveIndex].accuracy, STR_CONV_MODE_RIGHT_ALIGN, 3);
+            ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[moveIndex].accuracy, STR_CONV_MODE_LEFT_ALIGN, 3);
             text = gStringVar1;
         }
-
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 22, 0, 0);
+        xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 22, 0, 0);
     } else {
         text = gText_ThreeDashes;
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 2, 0, 0);
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, 4, 22, 0, 0);
+        xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 2, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 22, 0, 0);
     }
 }
 
@@ -4846,7 +4842,7 @@ static void SetShinySprite(void)
 {
     struct Pokemon *mon = &sMonSummaryScreen->currentMon;
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] == SPRITE_NONE)
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 127, 35, 6);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY] = CreateSprite(&sSpriteTemplate_ShinyIcon, 126, 34, 6);
 
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHINY]].invisible = !IsMonShiny(mon);
 }
