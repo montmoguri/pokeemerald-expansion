@@ -44,6 +44,7 @@
 #include "strings.h"
 #include "task.h"
 #include "text.h"
+#include "trig.h"
 #include "tv.h"
 #include "window.h"
 #include "constants/abilities.h"
@@ -61,6 +62,7 @@
 enum SWSHPSSEffect
 {
     PSS_EFFECT_BATTLE,
+    PSS_EFFECT_STATS_GRAPH,
     PSS_EFFECT_COUNT 
 };
 
@@ -111,8 +113,8 @@ enum SWSHSkillsPageState
 #define PSS_DATA_WINDOW_SKILLS_RIBBON_COUNT 0 //ravetodo handle ribbons
 #define PSS_DATA_WINDOW_SKILLS_STATS 1
 #define PSS_DATA_WINDOW_EXP 2 // Exp
-#define PSS_DATA_WINDOW_EXP_NEXT_LEVEL 3 // Exp next level
-#define PSS_DATA_WINDOW_SKILLS_ABILITY 4
+// #define PSS_DATA_WINDOW_EXP_NEXT_LEVEL 3 // Exp next level
+#define PSS_DATA_WINDOW_SKILLS_ABILITY 3
 
 // Dynamic fields for the Battle Moves page
 #define PSS_DATA_WINDOW_MOVE_NAMES_PP 0
@@ -250,6 +252,7 @@ static void InitBGs(void);
 static bool8 DecompressGraphics(void);
 static void CopyMonToSummaryStruct(struct Pokemon *);
 static bool8 ExtractMonDataToSummaryStruct(struct Pokemon *);
+static void SetSkillsPageTilemaps(void);
 static void SetSelectMoveTilemaps(void);
 static void CloseSummaryScreen(u8);
 static void Task_HandleInput(u8);
@@ -400,16 +403,16 @@ static const u8 sText_Switch[]                      = _("Switch");
 static const u8 sText_Rename[]                      = _("Rename");
 static const u8 sText_Lv[]                          = _("Lv.");
 static const u8 sText_HP_Title[]                    = _("HP");
-static const u8 sText_Attack_Title[]                = _("Attack");
-static const u8 sText_Defense_Title[]               = _("Defense");
-static const u8 sText_SpAtk_Title[]                 = _("Sp. Atk");
-static const u8 sText_SpDef_Title[]                 = _("Sp. Def");
-static const u8 sText_Speed_Title[]                 = _("Speed");
+static const u8 sText_Attack_Title[]                = _("Atk");
+static const u8 sText_Defense_Title[]               = _("Def");
+static const u8 sText_SpAtk_Title[]                 = _("SpA");
+static const u8 sText_SpDef_Title[]                 = _("SpD");
+static const u8 sText_Speed_Title[]                 = _("Spe");
 static const u8 sText_ViewIVs[]                     = _("View IV");
 static const u8 sText_ViewEVs[]                     = _("View EV");
 static const u8 sText_ViewStats[]                   = _("View Stats");
 static const u8 sText_Exp[]                         = _("Exp.");
-static const u8 sText_NextLv[]                        = _("Next Lv.");
+static const u8 sText_NextLv[]                      = _("Next Lv.");
 static const u8 sText_RentalPkmn[]                  = _("Rental Pokémon");
 static const u8 sText_None[]                        = _("None");
 static const u8 sText_Egg[]                         = _("Egg");
@@ -660,29 +663,29 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
     [PSS_DATA_WINDOW_SKILLS_STATS] = {
         .bg = 0,
         .tilemapLeft = 1,
-        .tilemapTop = 4,
-        .width = 18,
-        .height = 6,
+        .tilemapTop = 3,
+        .width = 16,
+        .height = 12,
         .paletteNum = 6,
         .baseBlock = 366,
     },
     [PSS_DATA_WINDOW_EXP] = {
         .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 10,
-        .width = 18,
-        .height = 2,
+        .tilemapLeft = 14,
+        .tilemapTop = 4,
+        .width = 5,
+        .height = 9,
         .paletteNum = 6,
-        .baseBlock = 474,
+        .baseBlock = 558,
     },
     [PSS_DATA_WINDOW_SKILLS_ABILITY] = {
         .bg = 0,
         .tilemapLeft = 1,
-        .tilemapTop = 13,
+        .tilemapTop = 15,
         .width = 18,
         .height = 5,
         .paletteNum = 6,
-        .baseBlock = 510,
+        .baseBlock = 603,
     },
     // [PSS_DATA_WINDOW_EXP_NEXT_LEVEL] = {
     //     .bg = 0,
@@ -1677,6 +1680,14 @@ static const struct SpriteTemplate sSpriteTemplate_PokerusCuredIcon =
     .callback = SpriteCallbackDummy
 };
 
+// Add this near the top of swsh_summary_screen.c with other static data:
+static const struct ScanlineEffectParams sHexagonScanlineParams =
+{
+    .dmaDest = &REG_WIN0H,
+    .dmaControl = SCANLINE_EFFECT_DMACNT_32BIT,
+    .initState = 1,
+};
+
 static const u16 sMonShadowPalette[] = INCBIN_U16("graphics/summary_screen/swsh/shadow.gbapal");
 
 static const struct SpritePalette sSpritePal_MonShadow =
@@ -1764,6 +1775,7 @@ static void VBlank(void)
     LoadOam();
     ProcessSpriteCopyRequests();
     TransferPlttBuffer();
+    ScanlineEffect_InitHBlankDmaTransfer();
     if (SWSH_SUMMARY_SCROLLING_BG)
     {
         ChangeBgX(3, 64, BG_COORD_ADD);
@@ -1816,6 +1828,288 @@ static void RunMonAnimTimer(void)
     }
 }
 
+// In swsh_summary_screen.c or a test file
+
+// Define your hexagon area
+#define HEXAGON_TOP_Y      40
+#define HEXAGON_BOTTOM_Y   104
+#define HEXAGON_HEIGHT     (HEXAGON_BOTTOM_Y - HEXAGON_TOP_Y + 1)  // 65 scanlines
+#define HEXAGON_CENTER_X   58
+#define HEXAGON_CENTER_Y   ((HEXAGON_BOTTOM_Y + HEXAGON_TOP_Y) / 2)  // 72
+#define HEXAGON_MAX_RADIUS 32  // Distance from center to vertex (recalculated for Y=40 to Y=104)
+#define HEXAGON_VERTICES   6
+
+// Simplified graph structure for testing
+struct SimpleHexagon
+{
+    u16 scanlineRight[HEXAGON_HEIGHT][2];  // [y_offset][left_boundary, right_boundary]
+    u16 scanlineLeft[HEXAGON_HEIGHT][2];
+    u16 bottom;  // Used during line calculation
+};
+
+static struct SimpleHexagon sHexagonTest;
+
+static void FillHexagonBG(void)
+{
+    u16 i, j;
+    u16 *tilemap = sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH]; // Use new buffer
+    
+    // Fill entire BG1 with a solid color tile
+    // Format: (palette << 12) | tile_number
+    u16 hexagonTile = (0 << 12) | 320;  // Palette 0, tile 320
+    // Stats: #5352ff EV: #FFFF66
+    for (i = 0; i < 32; i++)
+    {
+        for (j = 0; j < 32; j++)
+        {
+            tilemap[i * 32 + j] = hexagonTile;
+        }
+    }
+    
+    // Don't set or schedule yet - we'll do that when switching to Skills page
+}
+
+// // Step 3: Calculate the 5 vertex positions (max size hexagon)
+// Add this new function that takes stat values as parameters
+static void CalculateHexagonVertices(struct UCoords16 *vertices, u16 hp, u16 atk, u16 def, u16 speed, u16 spDef, u16 spAtk)
+{
+    const u8 angles[HEXAGON_VERTICES] = {
+        192,  // HP (top)
+        235,  // Attack (top-right)
+        21,   // Defense (bottom-right)
+        64,   // Speed (bottom)
+        107,  // Sp. Defense (bottom-left)
+        149   // Sp. Attack (top-left)
+    };
+    
+    u16 stats[HEXAGON_VERTICES] = {hp, atk, def, speed, spDef, spAtk};
+    
+    for (u8 i = 0; i < HEXAGON_VERTICES; i++)
+    {
+        u8 sinIdx = angles[i];
+        
+        u16 stat = stats[i];
+        if (stat > 300)
+            stat = 300;
+        
+        // Piecewise linear function:
+        // 0-200 maps to 5%-85% radius (80% of the range)
+        // 200-300 maps to 85%-100% radius (remaining 20%)
+        u32 minRadius = (HEXAGON_MAX_RADIUS * 5) / 100;   // 5%
+        u32 maxRadius = HEXAGON_MAX_RADIUS;                // 100%
+        u32 radius;
+        
+        if (stat <= 200)
+        {
+            // First segment: 0-200 → 5%-85% (80% of radius range)
+            u32 firstSegmentMax = minRadius + ((maxRadius - minRadius) * 80) / 100;
+            radius = minRadius + ((stat * (firstSegmentMax - minRadius)) / 200);
+        }
+        else
+        {
+            // Second segment: 200-300 → 85%-100% (remaining 20%)
+            u32 firstSegmentMax = minRadius + ((maxRadius - minRadius) * 80) / 100;
+            u32 statAbove200 = stat - 200;
+            radius = firstSegmentMax + ((statAbove200 * (maxRadius - firstSegmentMax)) / 100);
+        }
+        
+        vertices[i].x = HEXAGON_CENTER_X + ((radius * gSineTable[64 + sinIdx]) >> 8);
+        vertices[i].y = HEXAGON_CENTER_Y + ((radius * gSineTable[sinIdx]) >> 8);
+    }
+}
+
+// Step 4: Draw a line between two vertices (simplified from ConditionGraph_CalcLine)
+// Simplified version without overflow handling
+static void DrawHexagonLine(u16 *scanline, struct UCoords16 *v1, struct UCoords16 *v2, bool8 isRightSide)
+{
+    u16 topY, bottomY;
+    s32 x, xIncrement = 0;
+    u16 height, startX, endX;
+    
+    if (v1->y < v2->y)
+    {
+        topY = v1->y;
+        bottomY = v2->y;
+        startX = v1->x;
+        endX = v2->x;
+    }
+    else
+    {
+        topY = v2->y;
+        bottomY = v1->y;
+        startX = v2->x;
+        endX = v1->x;
+    }
+    
+    height = bottomY - topY;
+    if (height == 0)
+        return;
+    
+    xIncrement = ((endX - startX) << 10) / height;
+    x = startX << 10;
+    
+    for (u16 i = 0; i <= height; i++)  // Note: <= to include endpoint
+    {
+        u16 currentY = topY + i;
+        
+        if (currentY < HEXAGON_TOP_Y || currentY >= HEXAGON_BOTTOM_Y)
+        {
+            x += xIncrement;
+            continue;
+        }
+        
+        u16 scanlineOffset = currentY - HEXAGON_TOP_Y;
+        u16 xPos = (x >> 10);
+        
+        u8 boundaryIndex = isRightSide ? 1 : 0;
+        scanline[scanlineOffset * 2 + boundaryIndex] = xPos;
+        
+        x += xIncrement;
+    }
+}
+
+// Step 5: Build the complete hexagon scanline data
+// Replace BuildHexagonScanlines temporarily with this test:
+static void BuildHexagonScanlines(void)
+{
+    struct UCoords16 vertices[HEXAGON_VERTICES];
+    // Get current mon's stats from summary
+    struct PokeSummary *summary = &sMonSummaryScreen->summary;
+    
+    // Clear scanline buffers - initialize properly
+    for (u16 i = 0; i < HEXAGON_HEIGHT; i++)
+    {
+        sHexagonTest.scanlineLeft[i][0] = 0;
+        sHexagonTest.scanlineLeft[i][1] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineRight[i][0] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineRight[i][1] = 240;
+    }
+    
+    // // Calculate vertices based on stats
+    // CalculateHexagonVertices(vertices, 
+    //                          360,    // HP
+    //                          360,      // Attack
+    //                          360,      // Defense
+    //                          360,    // Speed
+    //                          360,    // Sp. Defense
+    //                          360);   // Sp. Attack
+    
+    // Calculate vertices based on stats
+    CalculateHexagonVertices(vertices, 
+                             summary->maxHP,    // HP
+                             summary->atk,      // Attack
+                             summary->def,      // Defense
+                             summary->speed,    // Speed
+                             summary->spdef,    // Sp. Defense
+                             summary->spatk);   // Sp. Attack
+      
+    // Top-right side: vertex 0 (top) -> vertex 1 (top-right)
+    DrawHexagonLine(sHexagonTest.scanlineRight[0], &vertices[0], &vertices[1], TRUE);
+    
+    // Right side: vertex 1 (top-right) -> vertex 2 (bottom-right)
+    DrawHexagonLine(sHexagonTest.scanlineRight[0], &vertices[1], &vertices[2], TRUE);
+    
+    // Top-left side: vertex 0 (top) -> vertex 5 (top-left)
+    DrawHexagonLine(sHexagonTest.scanlineLeft[0], &vertices[0], &vertices[5], FALSE);
+    
+    // Left side: vertex 5 (top-left) -> vertex 4 (bottom-left)
+    DrawHexagonLine(sHexagonTest.scanlineLeft[0], &vertices[5], &vertices[4], FALSE);
+    
+    // Bottom-right: vertex 2 (bottom-right) -> vertex 3 (bottom)
+    DrawHexagonLine(sHexagonTest.scanlineRight[0], &vertices[2], &vertices[3], TRUE);
+    
+    // Bottom-left: vertex 3 (bottom) -> vertex 4 (bottom-left)
+    DrawHexagonLine(sHexagonTest.scanlineLeft[0], &vertices[3], &vertices[4], FALSE);
+    
+    // Clean up any scanlines that weren't touched by the hexagon drawing
+    // Find the actual top and bottom Y positions of the drawn hexagon
+    u16 minY = vertices[0].y;  // Top vertex
+    u16 maxY = vertices[3].y;  // Bottom vertex
+    
+    // Clear scanlines above the hexagon
+    for (u16 i = 0; i < (minY - HEXAGON_TOP_Y); i++)
+    {
+        sHexagonTest.scanlineLeft[i][0] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineLeft[i][1] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineRight[i][0] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineRight[i][1] = HEXAGON_CENTER_X;
+    }
+    
+    // Clear scanlines below the hexagon
+    for (u16 i = (maxY - HEXAGON_TOP_Y + 1); i < HEXAGON_HEIGHT; i++)
+    {
+        sHexagonTest.scanlineLeft[i][0] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineLeft[i][1] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineRight[i][0] = HEXAGON_CENTER_X;
+        sHexagonTest.scanlineRight[i][1] = HEXAGON_CENTER_X;
+    }
+}
+
+// Replace the CpuCopy32 call in ApplyHexagonScanlines with:
+static void ApplyHexagonScanlines(void)
+{
+    u16 y;
+    
+    // Clear ALL scanlines on the entire screen
+    for (y = 0; y < 160; y++)
+    {
+        gScanlineEffectRegBuffers[0][y * 2 + 0] = 0;
+        gScanlineEffectRegBuffers[0][y * 2 + 1] = 0;
+        gScanlineEffectRegBuffers[1][y * 2 + 0] = 0;
+        gScanlineEffectRegBuffers[1][y * 2 + 1] = 0;
+    }
+    
+    // Apply hexagon scanlines only within the hexagon area
+    for (u16 i = 0; i < HEXAGON_HEIGHT; i++)
+    {
+        u16 scanlineY = HEXAGON_TOP_Y + i;
+        
+        if (scanlineY >= 160)
+            continue;
+        
+        // WIN0H (right window)
+        gScanlineEffectRegBuffers[0][scanlineY * 2 + 0] = 
+            (sHexagonTest.scanlineRight[i][0] << 8) | sHexagonTest.scanlineRight[i][1];
+        
+        // WIN1H (left window)
+        gScanlineEffectRegBuffers[0][scanlineY * 2 + 1] = 
+            (sHexagonTest.scanlineLeft[i][0] << 8) | sHexagonTest.scanlineLeft[i][1];
+        
+        // Copy to second buffer
+        gScanlineEffectRegBuffers[1][scanlineY * 2 + 0] = gScanlineEffectRegBuffers[0][scanlineY * 2 + 0];
+        gScanlineEffectRegBuffers[1][scanlineY * 2 + 1] = gScanlineEffectRegBuffers[0][scanlineY * 2 + 1];
+    }
+}
+
+// Step 7: Initialize window hardware
+static void InitHexagonWindow(void)
+{
+    if (sMonSummaryScreen->currPageIndex != PSS_PAGE_SKILLS)
+        return;
+    
+    SetGpuReg(REG_OFFSET_WIN0H, WIN_RANGE(0, DISPLAY_WIDTH));
+    SetGpuReg(REG_OFFSET_WIN1H, WIN_RANGE(0, HEXAGON_CENTER_X));
+    
+    // Make sure these match your HEXAGON_TOP_Y and HEXAGON_BOTTOM_Y
+    SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
+    SetGpuReg(REG_OFFSET_WIN1V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
+    
+    SetGpuReg(REG_OFFSET_WININ, WININ_WIN0_BG_ALL | WININ_WIN0_OBJ | WININ_WIN0_CLR |
+                                 WININ_WIN1_BG_ALL | WININ_WIN1_OBJ | WININ_WIN1_CLR);
+    
+    SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG0 | WINOUT_WIN01_BG2 | WINOUT_WIN01_BG3 | WINOUT_WIN01_OBJ);
+    
+    // Set up alpha blending for both BG1 (hexagon) and OBJ (shadow sprite) with BG2+BG3 (backgrounds)
+    // TGT1 = BG1 + OBJ (first targets: hexagon layer + sprites like shadow)
+    // TGT2 = BG2 + BG3 (second targets, what shows through)
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_TGT1_OBJ | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_EFFECT_BLEND);
+    
+    // BLDALPHA format: (EVA << 0) | (EVB << 8)
+    // EVA = coefficient for first target (0-16), EVB = coefficient for second target (0-16)
+    // Higher EVA = more opaque hexagon, Higher EVB = more background shows through
+    // Examples: BLDALPHA_BLEND(12, 8) = semi-transparent, BLDALPHA_BLEND(16, 0) = fully opaque
+    SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
+}
 static void CB2_InitSummaryScreen(void)
 {
     while (MenuHelpers_ShouldWaitForLinkRecv() != TRUE && LoadGraphics() != TRUE && MenuHelpers_IsLinkActive() != TRUE);
@@ -1887,6 +2181,8 @@ static bool8 LoadGraphics(void)
             SetSelectMoveTilemaps();
         else if (sMonSummaryScreen->mode == SUMMARY_MODE_RELEARNER_BATTLE) // load the appropriate moves page when returning from move relearner
             SetBgTilemapBuffer(2, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_BATTLE_MOVES]);
+        else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)  // Add this
+            SetSkillsPageTilemaps();
         gMain.state++;
         break;
     case 14:
@@ -1976,6 +2272,33 @@ static bool8 LoadGraphics(void)
         }
         gMain.state++;
         break;
+    case 29:
+        FillHexagonBG();  // Fill BG1 with solid color
+        gMain.state++;
+        break;
+    case 30:
+        BuildHexagonScanlines();  // Calculate hexagon shape
+        gMain.state++;
+        break;
+    case 31:
+        InitHexagonWindow();  // Set up windowing
+        gMain.state++;
+        break;
+    case 32:
+        {
+            // Only apply scanlines if starting on Skills page
+            if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
+            {
+                struct ScanlineEffectParams params;
+                params.dmaDest = &REG_WIN0H;
+                params.dmaControl = SCANLINE_EFFECT_DMACNT_32BIT;
+                params.initState = 1;
+                ScanlineEffect_SetParams(params);
+                ApplyHexagonScanlines();
+            }
+        }
+        gMain.state++;
+        break;
     default:
         SetVBlankCallback(VBlank);
         SetMainCallback2(MainCB2);
@@ -1995,13 +2318,13 @@ static void InitBGs(void)
     ScheduleBgCopyTilemapToVram(3);
     ScheduleBgCopyTilemapToVram(2);
     ScheduleBgCopyTilemapToVram(1);
-    SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP);
+    SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP | DISPCNT_WIN0_ON | DISPCNT_WIN1_ON);
     if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
     {
         if (SWSH_SUMMARY_BG_BLEND)
-            SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1);
+            SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_OBJ);
         else
-            SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND);
+            SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_OBJ);
 
         SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
     }
@@ -2039,63 +2362,68 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 5:
-        DecompressDataWithHeaderWram(sSummaryPage_ScrollBG_Tilemap, sMonSummaryScreen->bg3TilemapBuffers);
+        // NEW: Initialize hexagon fill buffer
+        FillHexagonBG();
         sMonSummaryScreen->switchCounter++;
         break;
     case 6:
+        DecompressDataWithHeaderWram(sSummaryPage_ScrollBG_Tilemap, sMonSummaryScreen->bg3TilemapBuffers);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 7:
         LoadPalette(sSummaryScreen_Pal, BG_PLTT_ID(0), 8 * PLTT_SIZE_4BPP);
         LoadPalette(&sSummaryScreen_PPTextPalette, BG_PLTT_ID(8) + 1, PLTT_SIZEOF(16 - 1));
         sMonSummaryScreen->switchCounter++;
         break;
-    case 7:
+    case 8:
         LoadCompressedSpriteSheet(&sSpriteSheet_MoveTypes);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 8:
+    case 9:
         LoadCompressedSpriteSheet(&sMoveSelectorSpriteSheet);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 9:
+    case 10:
         LoadCompressedSpriteSheet(&sStatusIconsSpriteSheet);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 10:
+    case 11:
         LoadSpritePalette(&sStatusIconsSpritePalette);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 11:
+    case 12:
         LoadCompressedSpriteSheet(&sShinyIconSpriteSheet);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 12:
+    case 13:
         LoadCompressedSpriteSheet(&sPokerusCuredIconSpriteSheet);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 13:
-        LoadSpritePalette(&sMoveSelectorSpritePal);
-        sMonSummaryScreen->switchCounter++;
-        break;
     case 14:
-        if (SWSH_SUMMARY_CATEGORY_ICONS)
-            LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcons);
+        LoadSpritePalette(&sMoveSelectorSpritePal);
         sMonSummaryScreen->switchCounter++;
         break;
     case 15:
         if (SWSH_SUMMARY_CATEGORY_ICONS)
-            LoadSpritePalette(&sSpritePal_CategoryIcons);
+            LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcons);
         sMonSummaryScreen->switchCounter++;
         break;
     case 16:
-        if (SWSH_SUMMARY_SHOW_FRIENDSHIP)
-            LoadCompressedSpriteSheet(&sSpriteSheet_FriendshipIcon);
+        if (SWSH_SUMMARY_CATEGORY_ICONS)
+            LoadSpritePalette(&sSpritePal_CategoryIcons);
         sMonSummaryScreen->switchCounter++;
         break;
     case 17:
         if (SWSH_SUMMARY_SHOW_FRIENDSHIP)
-            LoadSpritePalette(&sSpritePal_FriendshipIcon);
+            LoadCompressedSpriteSheet(&sSpriteSheet_FriendshipIcon);
         sMonSummaryScreen->switchCounter++;
         break;
     case 18:
+        if (SWSH_SUMMARY_SHOW_FRIENDSHIP)
+            LoadSpritePalette(&sSpritePal_FriendshipIcon);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 19:
     #if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
         LoadPalette(sMoveTypes_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
     #else
@@ -2103,30 +2431,30 @@ static bool8 DecompressGraphics(void)
     #endif
         sMonSummaryScreen->switchCounter++;
         break;
-    case 19:
+    case 20:
         if (SWSH_SUMMARY_SHOW_GIGANTAMAX)
             LoadCompressedSpriteSheet(&sGigantamaxIconSpriteSheet);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 20:
+    case 21:
         if (SWSH_SUMMARY_SHOW_TERA_TYPE)
             LoadCompressedSpriteSheet(&sSpriteSheet_TeraType);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 21:
+    case 22:
         LoadCompressedSpriteSheet(&sSpriteSheet_InfoPrompt);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 22:
+    case 23:
         if (P_SUMMARY_SCREEN_MOVE_RELEARNER)
             LoadCompressedSpriteSheet(&sSpriteSheet_RelearnPrompt);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 23:
+    case 24:
         LoadCompressedSpriteSheet(&sSpriteSheet_HeldItemBox);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 24:
+    case 25:
         LoadSpritePalette(&sSpritePal_HeldItemBox);
         sMonSummaryScreen->switchCounter = 0;
         return TRUE;
@@ -2241,6 +2569,13 @@ static bool8 ExtractMonDataToSummaryStruct(struct Pokemon *mon)
     }
     sMonSummaryScreen->switchCounter++;
     return FALSE;
+}
+
+static void SetSkillsPageTilemaps(void)
+{
+    SetBgTilemapBuffer(2, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_SKILLS]);
+    SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH]);  // Correct!
+    ShowBg(1);
 }
 
 static void SetSelectMoveTilemaps(void)
@@ -2586,6 +2921,8 @@ static void Task_ChangeSummaryMon(u8 taskId)
         } 
         else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
         {
+            BuildHexagonScanlines();  // Recalculate hexagon for new mon
+            ApplyHexagonScanlines();   // Update hardware registers
             DrawNextSkillsButtonPrompt(SKILL_STATE_STATS);
         }
         break;
@@ -2681,7 +3018,37 @@ static void ChangePage(u8 taskId, s8 delta)
 
     PlaySE(SE_SELECT);
     ClearPageWindowTilemaps(sMonSummaryScreen->currPageIndex);
+    
+    // Store old page
+    u8 oldPage = sMonSummaryScreen->currPageIndex;
+    
+    // Update to new page
     sMonSummaryScreen->currPageIndex += delta;
+    
+    // Handle BG1 visibility when leaving/entering pages
+    if (oldPage == PSS_PAGE_SKILLS)
+    {
+        HideBg(1);  // Leaving Skills page
+        // Clear windows
+        SetGpuReg(REG_OFFSET_WIN0H, 0);
+        SetGpuReg(REG_OFFSET_WIN1H, 0);
+        
+        // Restore blend settings for shadow sprite on other pages
+        if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
+        {
+            if (SWSH_SUMMARY_BG_BLEND)
+                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_OBJ);
+            else
+                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_OBJ);
+
+            SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
+        }
+    }
+    else if (oldPage == PSS_PAGE_BATTLE_MOVES && sMonSummaryScreen->mode == SUMMARY_MODE_SELECT_MOVE)
+    {
+        HideBg(1);  // Leaving Battle Moves page
+    }
+    
     tScrollState = 0;
     SetTaskFuncWithFollowupFunc(taskId, PssScroll, gTasks[taskId].func);
     CreateTextPrinterTask(sMonSummaryScreen->currPageIndex);
@@ -2728,6 +3095,27 @@ static void PssScrollEnd(u8 taskId)
     {
         SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_BATTLE]);
         ScheduleBgCopyTilemapToVram(1);
+    }
+    else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)  // Check if on Skills page
+    {
+        // Set up hexagon on Skills page
+        SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH]);
+        ScheduleBgCopyTilemapToVram(1);
+        ShowBg(1);  // Show BG1
+        
+        // Set up windows and scanlines
+        struct ScanlineEffectParams params;
+        params.dmaDest = &REG_WIN0H;
+        params.dmaControl = SCANLINE_EFFECT_DMACNT_32BIT;
+        params.initState = 1;
+        ScanlineEffect_SetParams(params);
+        
+        InitHexagonWindow();
+        ApplyHexagonScanlines();
+    }
+    else
+    {
+        HideBg(1);  // Hide BG1 on other pages
     }
 
     ClearGpuRegBits(REG_OFFSET_BG2CNT, BGCNT_MOSAIC);
@@ -3251,7 +3639,7 @@ static void Task_HideEffectTilemap(u8 taskId)
 // #define EXP_BAR_VERTICAL_OFFSET_TILES -3
 // #define EXP_BAR_HORIZONTAL_OFFSET_TILES -9  // Negative = left, positive = right
 // #define EXP_BAR_TILEMAP_START (0x1F4 + (EXP_BAR_VERTICAL_OFFSET_TILES * 32) + EXP_BAR_HORIZONTAL_OFFSET_TILES)
-#define EXP_BAR_TILEMAP_START 0x18B
+#define EXP_BAR_TILEMAP_START 0x1AE  // Moved left 1 tile (-1) from 0x1AF
 #define EXP_BAR_TILE_EMPTY    0x2150
 #define EXP_BAR_TILE_FULL     0x2158
 
@@ -3268,9 +3656,9 @@ static void DrawExperienceProgressBar(struct Pokemon *unused)
         u32 expSinceLastLevel = summary->exp - gExperienceTables[gSpeciesInfo[summary->species].growthRate][summary->level];
 
         // Calculate the number of 1-pixel "ticks" to illuminate in the experience progress bar.
-        // There are 8 tiles that make up the bar, and each tile has 8 "ticks". Hence, the numerator
-        // is multiplied by 64.
-        numExpProgressBarTicks = expSinceLastLevel * 64 / expBetweenLevels;
+        // There are 6 tiles that make up the bar, and each tile has 8 "ticks". Hence, the numerator
+        // is multiplied by 48.
+        numExpProgressBarTicks = expSinceLastLevel * 40 / expBetweenLevels;
         if (numExpProgressBarTicks == 0 && expSinceLastLevel != 0)
             numExpProgressBarTicks = 1;
     }
@@ -3280,7 +3668,7 @@ static void DrawExperienceProgressBar(struct Pokemon *unused)
     }
 
     dst = &sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_SKILLS][EXP_BAR_TILEMAP_START];
-    for (i = 0; i < 8; i++)
+    for (i = 0; i < 5; i++)
     {
         if (numExpProgressBarTicks > 7)
             dst[i] = EXP_BAR_TILE_FULL;
@@ -3359,9 +3747,9 @@ static void PrintNotEggInfo(void)
         // Convert level number to string
         ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
 
-        // Print "Lv." with FONT_NORMAL
+        // Print "Lv."
         PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_INFO, sText_Lv, 74, 1, 0, 1, FONT_SMALL_NARROWER);
-        // Print the level number with FONT_SHORT_NARROW, positioned after "Lv." (10) + space (1)
+        // Print the level, positioned after "Lv." (10) + space (1)
         PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar2, 74 + 10 + 1, 1, 0, 1);
     }
     
@@ -3397,7 +3785,7 @@ static void PrintEggStepsRemaining(void)
     DynamicPlaceholderTextUtil_SetPlaceholderPtr(0, gStringVar1);
     DynamicPlaceholderTextUtil_ExpandPlaceholders(gStringVar1, sEggStepsLayout);
 
-    u8 stringXPos = GetStringRightAlignXOffset(FONT_SHORT_NARROW, gStringVar1, 80) + 24;
+    u8 stringXPos = GetStringRightAlignXOffset(PSS_DEFAULT_FONT, gStringVar1, 80) + 24;
     PrintTextOnWindow(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar1, stringXPos, 1, 0, 1);
 }
 
@@ -3501,7 +3889,7 @@ static void PrintPageNamesAndStats(void)
 
     ShowCancelOrRenamePrompt();
 
-    stringXPos = GetStringRightAlignXOffset(FONT_SHORT_NARROW, sText_Switch, 62) - 2;
+    stringXPos = GetStringRightAlignXOffset(PSS_DEFAULT_FONT, sText_Switch, 62) - 2;
     iconXPos = stringXPos - 11;
     if (iconXPos < 0)
         iconXPos = 0;
@@ -3510,21 +3898,21 @@ static void PrintPageNamesAndStats(void)
 
     if (SWSH_SUMMARY_SHOW_IV_EV)
     {
-        stringXPos = GetStringRightAlignXOffset(FONT_SHORT_NARROW, sText_ViewIVs, skillsLabelWidth) - 2;
+        stringXPos = GetStringRightAlignXOffset(PSS_DEFAULT_FONT, sText_ViewIVs, skillsLabelWidth) - 2;
         iconXPos = stringXPos - 11;
         if (iconXPos < 0)
             iconXPos = 0;
         PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_IVS, BUTTON_A, iconXPos, 4);
         PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_IVS, sText_ViewIVs, stringXPos, 0, 0, 1, FONT_SMALL);
 
-        stringXPos = GetStringRightAlignXOffset(FONT_SHORT_NARROW, sText_ViewEVs, skillsLabelWidth) - 2;
+        stringXPos = GetStringRightAlignXOffset(PSS_DEFAULT_FONT, sText_ViewEVs, skillsLabelWidth) - 2;
         iconXPos = stringXPos - 11;
         if (iconXPos < 0)
             iconXPos = 0;
         PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_EVS, BUTTON_A, iconXPos, 4);
         PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_EVS, sText_ViewEVs, stringXPos, 0, 0, 1, FONT_SMALL);
 
-        stringXPos = GetStringRightAlignXOffset(FONT_SHORT_NARROW, sText_ViewStats, skillsLabelWidth) - 2;
+        stringXPos = GetStringRightAlignXOffset(PSS_DEFAULT_FONT, sText_ViewStats, skillsLabelWidth) - 2;
         iconXPos = stringXPos - 11;
         if (iconXPos < 0)
             iconXPos = 0;
@@ -3775,13 +4163,13 @@ static void PrintMonNature(void)
 static void PrintMonAbilityName(void)
 {
     u16 ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].name, 48, 5, 0, 0);
+    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].name, 48, 1, 0, 0);
 }
 
 static void PrintMonAbilityDescription(void)
 {
     u16 ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 0, 22, 0, 0);
+    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 0, 18, 0, 0);
 }
 
 static void UNUSED BufferMonTrainerMemo(void)
@@ -4052,10 +4440,10 @@ static void PrintHeldItemInfo(void)
         description = GetItemDescription(sMonSummaryScreen->summary.item);
     }
 
-    fontId = GetFontIdToFit(text, FONT_SHORT_NARROW, 0, 72);
+    fontId = GetFontIdToFit(text, PSS_DEFAULT_FONT, 0, 72);
     PrintTextOnWindowWithFont(windowId, text, 74, 5, 0, 0, fontId);
-    
-    fontId = FormatTextByWidth(desc, 144, FONT_SHORT_NARROW, description, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+
+    fontId = FormatTextByWidth(desc, 144, PSS_DEFAULT_FONT, description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
     PrintTextOnWindowWithFont(windowId, desc, 0, 23, 1, 0, fontId);
 }
 
@@ -4080,10 +4468,11 @@ static void UNUSED PrintRibbonCount(void)
 }
 
 
-static void BufferStat(u8 *dst, u32 stat, u32 strId, u32 align)
+static void BufferStat(u8 *dst, u32 stat, u32 strId, u32 align, bool8 left_align)
 {
     // Simplified BufferStat that only converts to string, no nature coloring
-    ConvertIntToDecimalStringN(dst, stat, STR_CONV_MODE_RIGHT_ALIGN, align);
+    u8 mode = left_align ? STR_CONV_MODE_LEFT_ALIGN : STR_CONV_MODE_RIGHT_ALIGN;
+    ConvertIntToDecimalStringN(dst, stat, mode, align);
     DynamicPlaceholderTextUtil_SetPlaceholderPtr(strId, dst);
 }
 
@@ -4140,26 +4529,26 @@ static void BufferAndPrintStats_HandleState(u8 mode)
         PrintHPStats(mode);
 
         DynamicPlaceholderTextUtil_Reset();
-        BufferStat(gStringVar1, atk, 0, 3);
-        BufferStat(gStringVar2, def, 1, 3);
-        BufferStat(gStringVar3, spA, 2, 3);
-        BufferStat(gStringVar4, spD, 3, 3);
-        BufferStat(sStringVar5, spe, 4, 3);
+        BufferStat(gStringVar1, atk, 0, 3, TRUE);
+        BufferStat(gStringVar2, def, 1, 3, TRUE);
+        BufferStat(gStringVar3, spA, 2, 3, FALSE);
+        BufferStat(gStringVar4, spD, 3, 3, FALSE);
+        BufferStat(sStringVar5, spe, 4, 3, TRUE);
         PrintNonHPStats();
     }
     else
     {
-        BufferStat(maxHPString, hp, 0, 7);
+        BufferStat(maxHPString, hp, 0, 7, TRUE);
         DynamicPlaceholderTextUtil_Reset();
         DynamicPlaceholderTextUtil_SetPlaceholderPtr(0, maxHPString);
         DynamicPlaceholderTextUtil_ExpandPlaceholders(gStringVar4, sStatsHPIVEVLayout);
         PrintHPStats(mode);
 
-        BufferStat(gStringVar1, atk, 0, 3);
-        BufferStat(gStringVar2, def, 1, 3);
-        BufferStat(gStringVar3, spA, 2, 3);
-        BufferStat(gStringVar4, spD, 3, 3);
-        BufferStat(sStringVar5, spe, 4, 3);
+        BufferStat(gStringVar1, atk, 0, 3, TRUE);
+        BufferStat(gStringVar2, def, 1, 3, TRUE);
+        BufferStat(gStringVar3, spA, 2, 3, FALSE);
+        BufferStat(gStringVar4, spD, 3, 3, FALSE);
+        BufferStat(sStringVar5, spe, 4, 3, TRUE);
         PrintNonHPStats();
     }
 
@@ -4187,18 +4576,18 @@ static void BufferHPStats(void)
 static void PrintHPStats(u8 mode)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
-    PrintTextOnWindow(windowId, gStringVar4, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar4, 0), 0, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 51, 4, 0, 0);
 }
 
 
 static void BufferNonHPStats(void)
 {
     DynamicPlaceholderTextUtil_Reset();
-    BufferStat(gStringVar1, sMonSummaryScreen->summary.atk, 0, 3);
-    BufferStat(gStringVar2, sMonSummaryScreen->summary.def, 1, 3);
-    BufferStat(gStringVar3, sMonSummaryScreen->summary.spatk, 2, 3);
-    BufferStat(gStringVar4, sMonSummaryScreen->summary.spdef, 3, 3);
-    BufferStat(sStringVar5, sMonSummaryScreen->summary.speed, 4, 3);
+    BufferStat(gStringVar1, sMonSummaryScreen->summary.atk, 0, 3, TRUE);
+    BufferStat(gStringVar2, sMonSummaryScreen->summary.def, 1, 3, TRUE);
+    BufferStat(gStringVar3, sMonSummaryScreen->summary.spatk, 2, 3, FALSE);
+    BufferStat(gStringVar4, sMonSummaryScreen->summary.spdef, 3, 3, FALSE);
+    BufferStat(sStringVar5, sMonSummaryScreen->summary.speed, 4, 3, TRUE);
 }
 
 
@@ -4206,11 +4595,11 @@ static void PrintNonHPStats(void)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
     
-    PrintTextOnWindow(windowId, gStringVar1, 144 - GetStringWidth(FONT_SHORT_NARROW, gStringVar1, 0), 0, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar2, 0), 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 144 - GetStringWidth(FONT_SHORT_NARROW, gStringVar3, 0), 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar4, 0), 32, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 144 - GetStringWidth(FONT_SHORT_NARROW, sStringVar5, 0), 32, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar1, 80, 31, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar2, 80, 52, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar3, 19 - GetStringWidth(PSS_DEFAULT_FONT, gStringVar3, 0), 31, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 19 - GetStringWidth(PSS_DEFAULT_FONT, gStringVar4, 0), 52, 0, 0);
+    PrintTextOnWindow(windowId, sStringVar5, 51, 77, 0, 0);
 }
 
 static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 x, u8 y, 
@@ -4250,14 +4639,14 @@ static void PrintStatLabels(void)
     u8 natureDownStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statDown;
 
     // Print HP label
-    PrintTextOnWindow(windowId, sText_HP_Title, 8, 0, 0, 0);
+    PrintTextOnWindow(windowId, sText_HP_Title, 38 , 4, 0, 0);
     
     // Print non-HP stat labels (colored)
-    PrintColoredStatLabel(windowId, STAT_ATK, sText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_DEF, sText_Defense_Title, 8, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPATK, sText_SpAtk_Title, 80, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPDEF, sText_SpDef_Title, 8, 32, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPEED, sText_Speed_Title, 80, 32, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_ATK, sText_Attack_Title, 80, 18, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_DEF, sText_Defense_Title, 80, 64, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPATK, sText_SpAtk_Title, 4, 18, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPDEF, sText_SpDef_Title, 4, 64, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPEED, sText_Speed_Title, 33, 77, natureUpStat, natureDownStat, coloredLabel);
 }
 
 static void PrintExpPointsNextLevel(void)
@@ -4268,8 +4657,8 @@ static void PrintExpPointsNextLevel(void)
 
     // print exp
     ConvertIntToDecimalStringN(gStringVar1, sum->exp, STR_CONV_MODE_RIGHT_ALIGN, 7);
-    PrintTextOnWindow(windowId, sText_Exp, 8, 0, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar1, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar1, 0), 0, 0, 0);
+    PrintTextOnWindow(windowId, sText_Exp, 0, 15, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar1, 40 - GetStringWidth(PSS_DEFAULT_FONT, gStringVar1, 0), 28, 0, 0);
     
 
     // print exp to next level
@@ -4278,10 +4667,9 @@ static void PrintExpPointsNextLevel(void)
     else
         expToNextLevel = 0;
 
-    PrintTextOnWindow(windowId, sText_NextLv, 80, 0, 0, 0);
+    PrintTextOnWindow(windowId, sText_NextLv, 0, 43, 0, 0);
     ConvertIntToDecimalStringN(gStringVar1, expToNextLevel, STR_CONV_MODE_RIGHT_ALIGN, 5);
-    PrintTextOnWindow(windowId, gStringVar1, 144 - GetStringWidth(FONT_SHORT_NARROW, gStringVar1, 0), 0, 0, 0);
-}
+    PrintTextOnWindow(windowId, gStringVar1, 40 - GetStringWidth(PSS_DEFAULT_FONT, gStringVar1, 0), 56, 0, 0);}
 
 static void PrintBattleMoves(void)
 {
@@ -4400,7 +4788,7 @@ static void PrintMovePowerAndAccuracy(u16 moveIndex)
             ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[moveIndex].power, STR_CONV_MODE_LEFT_ALIGN, 3);
             text = gStringVar1;
         }
-        xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
+        xPos = 22 - GetStringWidth(PSS_DEFAULT_FONT, text, 0);
         PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 2, 0, 0);
 
         if (gMovesInfo[moveIndex].accuracy == 0)
@@ -4412,11 +4800,11 @@ static void PrintMovePowerAndAccuracy(u16 moveIndex)
             ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[moveIndex].accuracy, STR_CONV_MODE_LEFT_ALIGN, 3);
             text = gStringVar1;
         }
-        xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
+        xPos = 22 - GetStringWidth(PSS_DEFAULT_FONT, text, 0);
         PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 22, 0, 0);
     } else {
         text = gText_ThreeDashes;
-        xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
+        xPos = 22 - GetStringWidth(PSS_DEFAULT_FONT, text, 0);
         PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 2, 0, 0);
         PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 22, 0, 0);
     }
@@ -4442,9 +4830,9 @@ static void PrintMoveDescription(u16 move)
             {
                 u8 descFontId;
                 if (gMovesInfo[move].effect != EFFECT_PLACEHOLDER)
-                    descFontId = FormatTextByWidth(desc, 136, FONT_SHORT_NARROW, gMovesInfo[move].description, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gMovesInfo[move].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
                 else
-                    descFontId = FormatTextByWidth(desc, 136, FONT_SHORT_NARROW, gNotDoneYetDescription, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gNotDoneYetDescription, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
 
                 PrintTextOnWindowWithFont(windowId, desc, 0, 4, 1, 0, descFontId);
             }
@@ -4523,7 +4911,7 @@ static void PrintHMMovesCantBeForgotten(void)
     u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_DESCRIPTION);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
 
-    u8 msgFontId = FormatTextByWidth(message, 136, FONT_SHORT_NARROW, gText_HMMovesCantBeForgotten2, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+    u8 msgFontId = FormatTextByWidth(message, 136, PSS_DEFAULT_FONT, gText_HMMovesCantBeForgotten2, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
     PrintTextOnWindowWithFont(windowId, message, 0, 4, 0, 2, msgFontId);
 }
 
@@ -5263,7 +5651,7 @@ static u8 FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, 
         
         // Try to get a narrower font
         u8 narrowerFontId = fontId;
-        if (fontId == FONT_SHORT_NARROW)
+        if (fontId == PSS_DEFAULT_FONT)
             narrowerFontId = FONT_SHORT_NARROWER;
         
         // If no narrower font available, use what we have
@@ -5332,7 +5720,7 @@ static void ShowCancelOrRenamePrompt(void)
 {
     const u8 *promptText = ShouldShowRename() ? sText_Rename : sText_Cancel;
 
-    int stringXPos = GetStringRightAlignXOffset(FONT_SHORT_NARROW, promptText, 70) - 2;
+    int stringXPos = GetStringRightAlignXOffset(PSS_DEFAULT_FONT, promptText, 70) - 2;
     int iconXPos;
     
     if (ShouldShowRename())
@@ -5460,5 +5848,29 @@ static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
     
     return FALSE;
 }
+
+// static void CalculateHexagonVertices(struct UCoords16 *vertices)
+// {
+//     // Sine table indices for each condition (64 units = 90 degrees)
+//     // Starting at -90° (straight up), going clockwise
+//     const u8 angles[HEXAGON_VERTICES] = {
+//         192,  // Top
+//         235,  // Top-right
+//         21,   // Bottom-right
+//         64,   // Bottom
+//         107,  // Bottom-left
+//         149   // Top-left
+//     };
+
+//     for (u8 i = 0; i < HEXAGON_VERTICES; i++)
+//     {
+//         u8 sinIdx = angles[i];
+        
+//         // X = center + radius * cos(angle)
+//         // Y = center - radius * sin(angle)  // Negative because Y increases downward
+//         vertices[i].x = HEXAGON_CENTER_X + ((HEXAGON_MAX_RADIUS * gSineTable[64 + sinIdx]) >> 8);
+//         vertices[i].y = HEXAGON_CENTER_Y - ((HEXAGON_MAX_RADIUS * gSineTable[sinIdx]) >> 8);
+//     }
+// }
 
 #endif
