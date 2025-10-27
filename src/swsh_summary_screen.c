@@ -2098,7 +2098,10 @@ static void InitHexagonWindow(void)
                                  WININ_WIN1_BG_ALL | WININ_WIN1_OBJ | WININ_WIN1_CLR);
     
     SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG0 | WINOUT_WIN01_BG2 | WINOUT_WIN01_BG3 | WINOUT_WIN01_OBJ);
-    
+}
+
+static void InitHexagonBlend(void)
+{
     // Set up alpha blending for both BG1 (hexagon) and OBJ (shadow sprite) with BG2+BG3 (backgrounds)
     // TGT1 = BG1 + OBJ (first targets: hexagon layer + sprites like shadow)
     // TGT2 = BG2 + BG3 (second targets, what shows through)
@@ -3029,17 +3032,28 @@ static void ChangePage(u8 taskId, s8 delta)
     if (oldPage == PSS_PAGE_SKILLS)
     {
         HideBg(1);  // Leaving Skills page
-        // Clear windows
+        
+        // Stop scanline effects
+        ScanlineEffect_Stop();
+        
+        // Clear window registers completely
         SetGpuReg(REG_OFFSET_WIN0H, 0);
         SetGpuReg(REG_OFFSET_WIN1H, 0);
+        SetGpuReg(REG_OFFSET_WIN0V, 0);
+        SetGpuReg(REG_OFFSET_WIN1V, 0);
+        SetGpuReg(REG_OFFSET_WININ, 0);
+        SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG_ALL | WINOUT_WIN01_OBJ);
         
-        // Restore blend settings for shadow sprite on other pages
+        // Reset BG1 tilemap buffer to battle effect (default)
+        SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_BATTLE]);
+        
+        // Restore original blend settings from InitBGs (for shadow sprite)
         if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
         {
             if (SWSH_SUMMARY_BG_BLEND)
-                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_OBJ);
+                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1 | BLDCNT_TGT1_OBJ | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_EFFECT_BLEND);
             else
-                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_OBJ);
+                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_OBJ | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_EFFECT_BLEND);
 
             SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
         }
@@ -3100,18 +3114,31 @@ static void PssScrollEnd(u8 taskId)
     {
         // Set up hexagon on Skills page
         SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH]);
-        ScheduleBgCopyTilemapToVram(1);
-        ShowBg(1);  // Show BG1
         
-        // Set up windows and scanlines
+        // Recalculate hexagon for current mon's stats
+        BuildHexagonScanlines();
+        
+        // Set up windows with narrow initial X bounds to prevent flash
+        SetGpuReg(REG_OFFSET_WIN0H, WIN_RANGE(HEXAGON_CENTER_X, HEXAGON_CENTER_X + 1));
+        SetGpuReg(REG_OFFSET_WIN1H, WIN_RANGE(HEXAGON_CENTER_X, HEXAGON_CENTER_X + 1));
+        SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
+        SetGpuReg(REG_OFFSET_WIN1V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
+        SetGpuReg(REG_OFFSET_WININ, WININ_WIN0_BG_ALL | WININ_WIN0_OBJ | WININ_WIN0_CLR |
+                                     WININ_WIN1_BG_ALL | WININ_WIN1_OBJ | WININ_WIN1_CLR);
+        SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG0 | WINOUT_WIN01_BG2 | WINOUT_WIN01_BG3 | WINOUT_WIN01_OBJ);
+        
+        ApplyHexagonScanlines();
+        
+        // Start scanline effects
         struct ScanlineEffectParams params;
         params.dmaDest = &REG_WIN0H;
         params.dmaControl = SCANLINE_EFFECT_DMACNT_32BIT;
         params.initState = 1;
         ScanlineEffect_SetParams(params);
         
-        InitHexagonWindow();
-        ApplyHexagonScanlines();
+        InitHexagonBlend();
+        ScheduleBgCopyTilemapToVram(1);
+        ShowBg(1);
     }
     else
     {
