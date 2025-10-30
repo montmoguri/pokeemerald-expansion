@@ -1681,13 +1681,6 @@ static const struct SpriteTemplate sSpriteTemplate_PokerusCuredIcon =
 };
 
 // Add this near the top of swsh_summary_screen.c with other static data:
-static const struct ScanlineEffectParams sHexagonScanlineParams =
-{
-    .dmaDest = &REG_WIN0H,
-    .dmaControl = SCANLINE_EFFECT_DMACNT_32BIT,
-    .initState = 1,
-};
-
 static const u16 sMonShadowPalette[] = INCBIN_U16("graphics/summary_screen/swsh/shadow.gbapal");
 
 static const struct SpritePalette sSpritePal_MonShadow =
@@ -1828,52 +1821,72 @@ static void RunMonAnimTimer(void)
     }
 }
 
-// In swsh_summary_screen.c or a test file
+// ============================================================================
+// Stats Graph Implementation
+// ============================================================================
+// This section implements the hexagonal stats visualization for the Skills page
+// Uses dual-window masking with per-scanline DMA to create the stats graph shape:
+// - BG1 displays a solid color fill representing the stat area
+// - Two hardware windows (WIN0 and WIN1) mask BG1 to stats graph boundaries
+// - Scanline DMA updates window H registers every scanline to define shape
+// - Alpha blending creates semi-transparent effect over background
+//
+// Stat Layout (vertices, clockwise from top):
+//   0: HP (top)
+//   1: Attack (top-right)
+//   2: Defense (bottom-right)  
+//   3: Speed (bottom)
+//   4: Sp. Defense (bottom-left)
+//   5: Sp. Attack (top-left)
+//
+// Scaling: Piecewise linear function
+//   0-200 stats → 5%-85% of max radius
+//   200-300 stats → 85%-100% of max radius
+// ============================================================================
 
-// Define your hexagon area
-#define HEXAGON_TOP_Y      40
-#define HEXAGON_BOTTOM_Y   104
-#define HEXAGON_HEIGHT     (HEXAGON_BOTTOM_Y - HEXAGON_TOP_Y + 1)  // 65 scanlines
-#define HEXAGON_CENTER_X   58
-#define HEXAGON_CENTER_Y   ((HEXAGON_BOTTOM_Y + HEXAGON_TOP_Y) / 2)  // 72
-#define HEXAGON_MAX_RADIUS 32  // Distance from center to vertex (recalculated for Y=40 to Y=104)
-#define HEXAGON_VERTICES   6
+// Stats Graph Configuration
+#define STATS_GRAPH_TOP_Y      40
+#define STATS_GRAPH_BOTTOM_Y   104
+#define STATS_GRAPH_HEIGHT     (STATS_GRAPH_BOTTOM_Y - STATS_GRAPH_TOP_Y + 1)  // 65 scanlines
+#define STATS_GRAPH_CENTER_X   58
+#define STATS_GRAPH_CENTER_Y   ((STATS_GRAPH_BOTTOM_Y + STATS_GRAPH_TOP_Y) / 2)  // 72
+#define STATS_GRAPH_MAX_RADIUS 32  // Distance from center to vertex
+#define STATS_GRAPH_VERTICES   6
 
-// Simplified graph structure for testing
-struct SimpleHexagon
+// Stats graph scanline data structure
+// Stores window boundaries for each scanline to create stats graph shape via dual-window masking
+struct StatsGraphScanlines
 {
-    u16 scanlineRight[HEXAGON_HEIGHT][2];  // [y_offset][left_boundary, right_boundary]
-    u16 scanlineLeft[HEXAGON_HEIGHT][2];
-    u16 bottom;  // Used during line calculation
+    u16 scanlineRight[STATS_GRAPH_HEIGHT][2];  // Right window: [y_offset][left, right]
+    u16 scanlineLeft[STATS_GRAPH_HEIGHT][2];   // Left window: [y_offset][left, right]
 };
 
-static struct SimpleHexagon sHexagonTest;
+static struct StatsGraphScanlines sStatsGraphScanlines;
 
-static void FillHexagonBG(void)
+// Initialize the stats graph background with solid color fill
+static void FillStatsGraphBG(void)
 {
     u16 i, j;
-    u16 *tilemap = sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH]; // Use new buffer
+    u16 *tilemap = sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH];
     
     // Fill entire BG1 with a solid color tile
-    // Format: (palette << 12) | tile_number
-    u16 hexagonTile = (0 << 12) | 320;  // Palette 0, tile 320
-    // Stats: #5352ff EV: #FFFF66
+    // Palette 0, tile 320 (color: #5352ff for stats display)
+    u16 graphTile = (0 << 12) | 320;
+    
     for (i = 0; i < 32; i++)
     {
         for (j = 0; j < 32; j++)
         {
-            tilemap[i * 32 + j] = hexagonTile;
+            tilemap[i * 32 + j] = graphTile;
         }
     }
-    
-    // Don't set or schedule yet - we'll do that when switching to Skills page
 }
 
-// // Step 3: Calculate the 5 vertex positions (max size hexagon)
-// Add this new function that takes stat values as parameters
-static void CalculateHexagonVertices(struct UCoords16 *vertices, u16 hp, u16 atk, u16 def, u16 speed, u16 spDef, u16 spAtk)
+// Calculate stats graph vertex positions based on Pokemon stats
+// Uses piecewise linear scaling: 0-200 stats → 5%-85% radius, 200-300 → 85%-100% radius
+static void CalculateStatsGraphVertices(struct UCoords16 *vertices, u16 hp, u16 atk, u16 def, u16 speed, u16 spDef, u16 spAtk)
 {
-    const u8 angles[HEXAGON_VERTICES] = {
+    const u8 angles[STATS_GRAPH_VERTICES] = {
         192,  // HP (top)
         235,  // Attack (top-right)
         21,   // Defense (bottom-right)
@@ -1882,9 +1895,9 @@ static void CalculateHexagonVertices(struct UCoords16 *vertices, u16 hp, u16 atk
         149   // Sp. Attack (top-left)
     };
     
-    u16 stats[HEXAGON_VERTICES] = {hp, atk, def, speed, spDef, spAtk};
+    u16 stats[STATS_GRAPH_VERTICES] = {hp, atk, def, speed, spDef, spAtk};
     
-    for (u8 i = 0; i < HEXAGON_VERTICES; i++)
+    for (u8 i = 0; i < STATS_GRAPH_VERTICES; i++)
     {
         u8 sinIdx = angles[i];
         
@@ -1895,8 +1908,8 @@ static void CalculateHexagonVertices(struct UCoords16 *vertices, u16 hp, u16 atk
         // Piecewise linear function:
         // 0-200 maps to 5%-85% radius (80% of the range)
         // 200-300 maps to 85%-100% radius (remaining 20%)
-        u32 minRadius = (HEXAGON_MAX_RADIUS * 5) / 100;   // 5%
-        u32 maxRadius = HEXAGON_MAX_RADIUS;                // 100%
+        u32 minRadius = (STATS_GRAPH_MAX_RADIUS * 5) / 100;   // 5%
+        u32 maxRadius = STATS_GRAPH_MAX_RADIUS;                // 100%
         u32 radius;
         
         if (stat <= 200)
@@ -1913,14 +1926,14 @@ static void CalculateHexagonVertices(struct UCoords16 *vertices, u16 hp, u16 atk
             radius = firstSegmentMax + ((statAbove200 * (maxRadius - firstSegmentMax)) / 100);
         }
         
-        vertices[i].x = HEXAGON_CENTER_X + ((radius * gSineTable[64 + sinIdx]) >> 8);
-        vertices[i].y = HEXAGON_CENTER_Y + ((radius * gSineTable[sinIdx]) >> 8);
+        vertices[i].x = STATS_GRAPH_CENTER_X + ((radius * gSineTable[64 + sinIdx]) >> 8);
+        vertices[i].y = STATS_GRAPH_CENTER_Y + ((radius * gSineTable[sinIdx]) >> 8);
     }
 }
 
-// Step 4: Draw a line between two vertices (simplified from ConditionGraph_CalcLine)
-// Simplified version without overflow handling
-static void DrawHexagonLine(u16 *scanline, struct UCoords16 *v1, struct UCoords16 *v2, bool8 isRightSide)
+// Draw a line between two vertices using Bresenham-style interpolation
+// Fills scanline boundaries for either right or left window
+static void DrawStatsGraphLine(u16 *scanline, struct UCoords16 *v1, struct UCoords16 *v2, bool8 isRightSide)
 {
     u16 topY, bottomY;
     s32 x, xIncrement = 0;
@@ -1948,17 +1961,17 @@ static void DrawHexagonLine(u16 *scanline, struct UCoords16 *v1, struct UCoords1
     xIncrement = ((endX - startX) << 10) / height;
     x = startX << 10;
     
-    for (u16 i = 0; i <= height; i++)  // Note: <= to include endpoint
+    for (u16 i = 0; i <= height; i++)
     {
         u16 currentY = topY + i;
         
-        if (currentY < HEXAGON_TOP_Y || currentY >= HEXAGON_BOTTOM_Y)
+        if (currentY < STATS_GRAPH_TOP_Y || currentY >= STATS_GRAPH_BOTTOM_Y)
         {
             x += xIncrement;
             continue;
         }
         
-        u16 scanlineOffset = currentY - HEXAGON_TOP_Y;
+        u16 scanlineOffset = currentY - STATS_GRAPH_TOP_Y;
         u16 xPos = (x >> 10);
         
         u8 boundaryIndex = isRightSide ? 1 : 0;
@@ -1968,89 +1981,68 @@ static void DrawHexagonLine(u16 *scanline, struct UCoords16 *v1, struct UCoords1
     }
 }
 
-// Step 5: Build the complete hexagon scanline data
-// Replace BuildHexagonScanlines temporarily with this test:
-static void BuildHexagonScanlines(void)
+// Build scanline data for the stats graph
+// Calculates window boundaries for each scanline
+static void BuildStatsGraphScanlines(void)
 {
-    struct UCoords16 vertices[HEXAGON_VERTICES];
-    // Get current mon's stats from summary
+    struct UCoords16 vertices[STATS_GRAPH_VERTICES];
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
     
-    // Clear scanline buffers - initialize properly
-    for (u16 i = 0; i < HEXAGON_HEIGHT; i++)
+    // Clear scanline buffers - initialize with default boundaries
+    for (u16 i = 0; i < STATS_GRAPH_HEIGHT; i++)
     {
-        sHexagonTest.scanlineLeft[i][0] = 0;
-        sHexagonTest.scanlineLeft[i][1] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineRight[i][0] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineRight[i][1] = 240;
+        sStatsGraphScanlines.scanlineLeft[i][0] = 0;
+        sStatsGraphScanlines.scanlineLeft[i][1] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineRight[i][0] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineRight[i][1] = 240;
     }
     
-    // // Calculate vertices based on stats
-    // CalculateHexagonVertices(vertices, 
-    //                          360,    // HP
-    //                          360,      // Attack
-    //                          360,      // Defense
-    //                          360,    // Speed
-    //                          360,    // Sp. Defense
-    //                          360);   // Sp. Attack
-    
-    // Calculate vertices based on stats
-    CalculateHexagonVertices(vertices, 
-                             summary->maxHP,    // HP
-                             summary->atk,      // Attack
-                             summary->def,      // Defense
-                             summary->speed,    // Speed
-                             summary->spdef,    // Sp. Defense
-                             summary->spatk);   // Sp. Attack
+    // Calculate vertices based on current Pokemon's stats
+    CalculateStatsGraphVertices(vertices, 
+                                 summary->maxHP,
+                                 summary->atk,
+                                 summary->def,
+                                 summary->speed,
+                                 summary->spdef,
+                                 summary->spatk);
       
-    // Top-right side: vertex 0 (top) -> vertex 1 (top-right)
-    DrawHexagonLine(sHexagonTest.scanlineRight[0], &vertices[0], &vertices[1], TRUE);
+    // Draw stats graph edges using Bresenham interpolation
+    DrawStatsGraphLine(sStatsGraphScanlines.scanlineRight[0], &vertices[0], &vertices[1], TRUE);
+    DrawStatsGraphLine(sStatsGraphScanlines.scanlineRight[0], &vertices[1], &vertices[2], TRUE);
+    DrawStatsGraphLine(sStatsGraphScanlines.scanlineLeft[0], &vertices[0], &vertices[5], FALSE);
+    DrawStatsGraphLine(sStatsGraphScanlines.scanlineLeft[0], &vertices[5], &vertices[4], FALSE);
+    DrawStatsGraphLine(sStatsGraphScanlines.scanlineRight[0], &vertices[2], &vertices[3], TRUE);
+    DrawStatsGraphLine(sStatsGraphScanlines.scanlineLeft[0], &vertices[3], &vertices[4], FALSE);
     
-    // Right side: vertex 1 (top-right) -> vertex 2 (bottom-right)
-    DrawHexagonLine(sHexagonTest.scanlineRight[0], &vertices[1], &vertices[2], TRUE);
+    // Clean up scanlines outside the drawn stats graph area
+    u16 minY = vertices[0].y;
+    u16 maxY = vertices[3].y;
     
-    // Top-left side: vertex 0 (top) -> vertex 5 (top-left)
-    DrawHexagonLine(sHexagonTest.scanlineLeft[0], &vertices[0], &vertices[5], FALSE);
-    
-    // Left side: vertex 5 (top-left) -> vertex 4 (bottom-left)
-    DrawHexagonLine(sHexagonTest.scanlineLeft[0], &vertices[5], &vertices[4], FALSE);
-    
-    // Bottom-right: vertex 2 (bottom-right) -> vertex 3 (bottom)
-    DrawHexagonLine(sHexagonTest.scanlineRight[0], &vertices[2], &vertices[3], TRUE);
-    
-    // Bottom-left: vertex 3 (bottom) -> vertex 4 (bottom-left)
-    DrawHexagonLine(sHexagonTest.scanlineLeft[0], &vertices[3], &vertices[4], FALSE);
-    
-    // Clean up any scanlines that weren't touched by the hexagon drawing
-    // Find the actual top and bottom Y positions of the drawn hexagon
-    u16 minY = vertices[0].y;  // Top vertex
-    u16 maxY = vertices[3].y;  // Bottom vertex
-    
-    // Clear scanlines above the hexagon
-    for (u16 i = 0; i < (minY - HEXAGON_TOP_Y); i++)
+    // Clear scanlines above the stats graph
+    for (u16 i = 0; i < (minY - STATS_GRAPH_TOP_Y); i++)
     {
-        sHexagonTest.scanlineLeft[i][0] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineLeft[i][1] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineRight[i][0] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineRight[i][1] = HEXAGON_CENTER_X;
+        sStatsGraphScanlines.scanlineLeft[i][0] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineLeft[i][1] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineRight[i][0] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineRight[i][1] = STATS_GRAPH_CENTER_X;
     }
     
-    // Clear scanlines below the hexagon
-    for (u16 i = (maxY - HEXAGON_TOP_Y + 1); i < HEXAGON_HEIGHT; i++)
+    // Clear scanlines below the stats graph
+    for (u16 i = (maxY - STATS_GRAPH_TOP_Y + 1); i < STATS_GRAPH_HEIGHT; i++)
     {
-        sHexagonTest.scanlineLeft[i][0] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineLeft[i][1] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineRight[i][0] = HEXAGON_CENTER_X;
-        sHexagonTest.scanlineRight[i][1] = HEXAGON_CENTER_X;
+        sStatsGraphScanlines.scanlineLeft[i][0] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineLeft[i][1] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineRight[i][0] = STATS_GRAPH_CENTER_X;
+        sStatsGraphScanlines.scanlineRight[i][1] = STATS_GRAPH_CENTER_X;
     }
 }
 
-// Replace the CpuCopy32 call in ApplyHexagonScanlines with:
-static void ApplyHexagonScanlines(void)
+// Apply scanline data to hardware registers for window-based stats graph masking
+static void ApplyStatsGraphScanlines(void)
 {
     u16 y;
     
-    // Clear ALL scanlines on the entire screen
+    // Clear all scanlines on the entire screen
     for (y = 0; y < 160; y++)
     {
         gScanlineEffectRegBuffers[0][y * 2 + 0] = 0;
@@ -2059,21 +2051,21 @@ static void ApplyHexagonScanlines(void)
         gScanlineEffectRegBuffers[1][y * 2 + 1] = 0;
     }
     
-    // Apply hexagon scanlines only within the hexagon area
-    for (u16 i = 0; i < HEXAGON_HEIGHT; i++)
+    // Apply scanlines only within the stats graph area
+    for (u16 i = 0; i < STATS_GRAPH_HEIGHT; i++)
     {
-        u16 scanlineY = HEXAGON_TOP_Y + i;
+        u16 scanlineY = STATS_GRAPH_TOP_Y + i;
         
         if (scanlineY >= 160)
             continue;
         
         // WIN0H (right window)
         gScanlineEffectRegBuffers[0][scanlineY * 2 + 0] = 
-            (sHexagonTest.scanlineRight[i][0] << 8) | sHexagonTest.scanlineRight[i][1];
+            (sStatsGraphScanlines.scanlineRight[i][0] << 8) | sStatsGraphScanlines.scanlineRight[i][1];
         
         // WIN1H (left window)
         gScanlineEffectRegBuffers[0][scanlineY * 2 + 1] = 
-            (sHexagonTest.scanlineLeft[i][0] << 8) | sHexagonTest.scanlineLeft[i][1];
+            (sStatsGraphScanlines.scanlineLeft[i][0] << 8) | sStatsGraphScanlines.scanlineLeft[i][1];
         
         // Copy to second buffer
         gScanlineEffectRegBuffers[1][scanlineY * 2 + 0] = gScanlineEffectRegBuffers[0][scanlineY * 2 + 0];
@@ -2081,18 +2073,18 @@ static void ApplyHexagonScanlines(void)
     }
 }
 
-// Step 7: Initialize window hardware
-static void InitHexagonWindow(void)
+// Initialize window hardware registers for stats graph display
+static void InitStatsGraphWindow(void)
 {
     if (sMonSummaryScreen->currPageIndex != PSS_PAGE_SKILLS)
         return;
     
     SetGpuReg(REG_OFFSET_WIN0H, WIN_RANGE(0, DISPLAY_WIDTH));
-    SetGpuReg(REG_OFFSET_WIN1H, WIN_RANGE(0, HEXAGON_CENTER_X));
+    SetGpuReg(REG_OFFSET_WIN1H, WIN_RANGE(0, STATS_GRAPH_CENTER_X));
     
-    // Make sure these match your HEXAGON_TOP_Y and HEXAGON_BOTTOM_Y
-    SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
-    SetGpuReg(REG_OFFSET_WIN1V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
+    // Make sure these match your STATS_GRAPH_TOP_Y and STATS_GRAPH_BOTTOM_Y
+    SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(STATS_GRAPH_TOP_Y, STATS_GRAPH_BOTTOM_Y));
+    SetGpuReg(REG_OFFSET_WIN1V, WIN_RANGE(STATS_GRAPH_TOP_Y, STATS_GRAPH_BOTTOM_Y));
     
     SetGpuReg(REG_OFFSET_WININ, WININ_WIN0_BG_ALL | WININ_WIN0_OBJ | WININ_WIN0_CLR |
                                  WININ_WIN1_BG_ALL | WININ_WIN1_OBJ | WININ_WIN1_CLR);
@@ -2100,19 +2092,20 @@ static void InitHexagonWindow(void)
     SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG0 | WINOUT_WIN01_BG2 | WINOUT_WIN01_BG3 | WINOUT_WIN01_OBJ);
 }
 
-static void InitHexagonBlend(void)
+static void InitStatsGraphBlend(void)
 {
-    // Set up alpha blending for both BG1 (hexagon) and OBJ (shadow sprite) with BG2+BG3 (backgrounds)
-    // TGT1 = BG1 + OBJ (first targets: hexagon layer + sprites like shadow)
+    // Set up alpha blending for both BG1 (stats graph) and OBJ (shadow sprite) with BG2+BG3 (backgrounds)
+    // TGT1 = BG1 + OBJ (first targets: stats graph layer + sprites like shadow)
     // TGT2 = BG2 + BG3 (second targets, what shows through)
     SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_TGT1_OBJ | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_EFFECT_BLEND);
     
     // BLDALPHA format: (EVA << 0) | (EVB << 8)
     // EVA = coefficient for first target (0-16), EVB = coefficient for second target (0-16)
-    // Higher EVA = more opaque hexagon, Higher EVB = more background shows through
+    // Higher EVA = more opaque stats graph, Higher EVB = more background shows through
     // Examples: BLDALPHA_BLEND(12, 8) = semi-transparent, BLDALPHA_BLEND(16, 0) = fully opaque
     SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
 }
+
 static void CB2_InitSummaryScreen(void)
 {
     while (MenuHelpers_ShouldWaitForLinkRecv() != TRUE && LoadGraphics() != TRUE && MenuHelpers_IsLinkActive() != TRUE);
@@ -2276,15 +2269,15 @@ static bool8 LoadGraphics(void)
         gMain.state++;
         break;
     case 29:
-        FillHexagonBG();  // Fill BG1 with solid color
+        FillStatsGraphBG();  // Fill BG1 with solid color
         gMain.state++;
         break;
     case 30:
-        BuildHexagonScanlines();  // Calculate hexagon shape
+        BuildStatsGraphScanlines();  // Calculate stats graph shape
         gMain.state++;
         break;
     case 31:
-        InitHexagonWindow();  // Set up windowing
+        InitStatsGraphWindow();  // Set up windowing
         gMain.state++;
         break;
     case 32:
@@ -2297,7 +2290,7 @@ static bool8 LoadGraphics(void)
                 params.dmaControl = SCANLINE_EFFECT_DMACNT_32BIT;
                 params.initState = 1;
                 ScanlineEffect_SetParams(params);
-                ApplyHexagonScanlines();
+                ApplyStatsGraphScanlines();
             }
         }
         gMain.state++;
@@ -2365,8 +2358,8 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 5:
-        // NEW: Initialize hexagon fill buffer
-        FillHexagonBG();
+        // initialize stats graph fill buffer
+        FillStatsGraphBG();
         sMonSummaryScreen->switchCounter++;
         break;
     case 6:
@@ -2924,8 +2917,8 @@ static void Task_ChangeSummaryMon(u8 taskId)
         } 
         else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
         {
-            BuildHexagonScanlines();  // Recalculate hexagon for new mon
-            ApplyHexagonScanlines();   // Update hardware registers
+            BuildStatsGraphScanlines();  // recalculate stats graph for new mon
+            ApplyStatsGraphScanlines();   // update hardware registers
             DrawNextSkillsButtonPrompt(SKILL_STATE_STATS);
         }
         break;
@@ -3033,7 +3026,6 @@ static void ChangePage(u8 taskId, s8 delta)
     {
         HideBg(1);  // Leaving Skills page
         
-        // Stop scanline effects
         ScanlineEffect_Stop();
         
         // Clear window registers completely
@@ -3044,10 +3036,8 @@ static void ChangePage(u8 taskId, s8 delta)
         SetGpuReg(REG_OFFSET_WININ, 0);
         SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG_ALL | WINOUT_WIN01_OBJ);
         
-        // Reset BG1 tilemap buffer to battle effect (default)
         SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_BATTLE]);
         
-        // Restore original blend settings from InitBGs (for shadow sprite)
         if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
         {
             if (SWSH_SUMMARY_BG_BLEND)
@@ -3060,7 +3050,7 @@ static void ChangePage(u8 taskId, s8 delta)
     }
     else if (oldPage == PSS_PAGE_BATTLE_MOVES && sMonSummaryScreen->mode == SUMMARY_MODE_SELECT_MOVE)
     {
-        HideBg(1);  // Leaving Battle Moves page
+        HideBg(1);
     }
     
     tScrollState = 0;
@@ -3112,37 +3102,34 @@ static void PssScrollEnd(u8 taskId)
     }
     else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)  // Check if on Skills page
     {
-        // Set up hexagon on Skills page
-        SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH]);
+        // sets up stats graph on Skills page
+        SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_STATS_GRAPH]);      
+        BuildStatsGraphScanlines();
         
-        // Recalculate hexagon for current mon's stats
-        BuildHexagonScanlines();
-        
-        // Set up windows with narrow initial X bounds to prevent flash
-        SetGpuReg(REG_OFFSET_WIN0H, WIN_RANGE(HEXAGON_CENTER_X, HEXAGON_CENTER_X + 1));
-        SetGpuReg(REG_OFFSET_WIN1H, WIN_RANGE(HEXAGON_CENTER_X, HEXAGON_CENTER_X + 1));
-        SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
-        SetGpuReg(REG_OFFSET_WIN1V, WIN_RANGE(HEXAGON_TOP_Y, HEXAGON_BOTTOM_Y));
+        SetGpuReg(REG_OFFSET_WIN0H, WIN_RANGE(STATS_GRAPH_CENTER_X, STATS_GRAPH_CENTER_X + 1));
+        SetGpuReg(REG_OFFSET_WIN1H, WIN_RANGE(STATS_GRAPH_CENTER_X, STATS_GRAPH_CENTER_X + 1));
+        SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(STATS_GRAPH_TOP_Y, STATS_GRAPH_BOTTOM_Y));
+        SetGpuReg(REG_OFFSET_WIN1V, WIN_RANGE(STATS_GRAPH_TOP_Y, STATS_GRAPH_BOTTOM_Y));
         SetGpuReg(REG_OFFSET_WININ, WININ_WIN0_BG_ALL | WININ_WIN0_OBJ | WININ_WIN0_CLR |
                                      WININ_WIN1_BG_ALL | WININ_WIN1_OBJ | WININ_WIN1_CLR);
         SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG0 | WINOUT_WIN01_BG2 | WINOUT_WIN01_BG3 | WINOUT_WIN01_OBJ);
         
-        ApplyHexagonScanlines();
+        ApplyStatsGraphScanlines();
         
-        // Start scanline effects
+        // starts stats graph scanline effect
         struct ScanlineEffectParams params;
         params.dmaDest = &REG_WIN0H;
         params.dmaControl = SCANLINE_EFFECT_DMACNT_32BIT;
         params.initState = 1;
         ScanlineEffect_SetParams(params);
         
-        InitHexagonBlend();
+        InitStatsGraphBlend();
         ScheduleBgCopyTilemapToVram(1);
         ShowBg(1);
     }
     else
     {
-        HideBg(1);  // Hide BG1 on other pages
+        HideBg(1);
     }
 
     ClearGpuRegBits(REG_OFFSET_BG2CNT, BGCNT_MOSAIC);
@@ -5876,11 +5863,11 @@ static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
     return FALSE;
 }
 
-// static void CalculateHexagonVertices(struct UCoords16 *vertices)
+// static void CalculateStatsGraphVertices(struct UCoords16 *vertices)
 // {
 //     // Sine table indices for each condition (64 units = 90 degrees)
 //     // Starting at -90° (straight up), going clockwise
-//     const u8 angles[HEXAGON_VERTICES] = {
+//     const u8 angles[STATS_GRAPH_VERTICES] = {
 //         192,  // Top
 //         235,  // Top-right
 //         21,   // Bottom-right
@@ -5889,14 +5876,14 @@ static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
 //         149   // Top-left
 //     };
 
-//     for (u8 i = 0; i < HEXAGON_VERTICES; i++)
+//     for (u8 i = 0; i < STATS_GRAPH_VERTICES; i++)
 //     {
 //         u8 sinIdx = angles[i];
         
 //         // X = center + radius * cos(angle)
 //         // Y = center - radius * sin(angle)  // Negative because Y increases downward
-//         vertices[i].x = HEXAGON_CENTER_X + ((HEXAGON_MAX_RADIUS * gSineTable[64 + sinIdx]) >> 8);
-//         vertices[i].y = HEXAGON_CENTER_Y - ((HEXAGON_MAX_RADIUS * gSineTable[sinIdx]) >> 8);
+//         vertices[i].x = STATS_GRAPH_CENTER_X + ((STATS_GRAPH_MAX_RADIUS * gSineTable[64 + sinIdx]) >> 8);
+//         vertices[i].y = STATS_GRAPH_CENTER_Y - ((STATS_GRAPH_MAX_RADIUS * gSineTable[sinIdx]) >> 8);
 //     }
 // }
 
