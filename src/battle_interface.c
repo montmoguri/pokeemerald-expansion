@@ -2063,7 +2063,7 @@ void UpdateHealthboxAttribute(u8 healthboxSpriteId, struct Pokemon *mon, u8 elem
     }
 }
 
-#define B_EXPBAR_PIXELS 64
+#define B_EXPBAR_PIXELS 32
 #define B_HEALTHBAR_PIXELS 48
 
 s32 MoveBattleBar(u8 battler, u8 healthboxSpriteId, u8 whichBar, u8 unused)
@@ -2147,17 +2147,19 @@ static void MoveBattleBarGraphically(u8 battler, u8 whichBar)
         level = GetMonData(GetBattlerMon(battler), MON_DATA_LEVEL);
         if (level >= MAX_LEVEL)
         {
-            for (i = 0; i < 8; i++)
+            for (i = 0; i < B_EXPBAR_PIXELS / 8; i++)
                 array[i] = 0;
         }
-        for (i = 0; i < 8; i++)
+        for (i = 0; i < B_EXPBAR_PIXELS / 8; i++)
         {
-            if (i < 4)
+            u8 offset = 8 - B_EXPBAR_PIXELS / 8; // Right-align by offsetting from original 8-tile width
+            u8 tilePos = offset + i;
+            if (tilePos < 4)
                 CpuCopy32(GetHealthboxElementGfxPtr(HEALTHBOX_GFX_12) + array[i] * 32,
-                          (void *)(OBJ_VRAM0 + (gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum + 0x24 + i) * TILE_SIZE_4BPP), 32);
+                          (void *)(OBJ_VRAM0 + (gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum + 0x24 + tilePos) * TILE_SIZE_4BPP), 32);
             else
                 CpuCopy32(GetHealthboxElementGfxPtr(HEALTHBOX_GFX_12) + array[i] * 32,
-                          (void *)(OBJ_VRAM0 + 0xB80 + (i + gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum) * TILE_SIZE_4BPP), 32);
+                          (void *)(OBJ_VRAM0 + 0xB80 + (tilePos + gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum) * TILE_SIZE_4BPP), 32);
         }
         break;
     }
@@ -2901,7 +2903,7 @@ static const struct SpriteSheet sSpriteSheet_MoveInfoWindow =
     sMoveInfoWindowGfx, sizeof(sMoveInfoWindowGfx), MOVE_INFO_WINDOW_TAG
 };
 
-#define LAST_USED_BALL_X_F    14
+#define LAST_USED_BALL_X_F    16
 #define LAST_USED_BALL_X_0    -14
 #define LAST_USED_BALL_Y      ((IsDoubleBattle()) ? 78 : 68)
 #define LAST_USED_BALL_Y_BNC  ((IsDoubleBattle()) ? 76 : 66)
