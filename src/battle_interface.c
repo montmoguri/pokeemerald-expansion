@@ -1309,7 +1309,7 @@ u8 CreatePartyStatusSummarySprites(u8 battler, struct HpAndStatus *partyInfo, bo
 
     for (i = 0; i < PARTY_SIZE; i++)
     {
-        ballIconSpritesIds[i] = CreateSpriteAtEnd(&sStatusSummaryBallsSpriteTemplates[isOpponent], bar_X, bar_Y - 4, 9);
+        ballIconSpritesIds[i] = CreateSpriteAtEnd(&sStatusSummaryBallsSpriteTemplates[isOpponent], bar_X, bar_Y, 9);
 
         if (!isBattleStart)
             gSprites[ballIconSpritesIds[i]].callback = SpriteCB_StatusSummaryBalls_OnSwitchout;
@@ -2063,7 +2063,7 @@ void UpdateHealthboxAttribute(u8 healthboxSpriteId, struct Pokemon *mon, u8 elem
     }
 }
 
-#define B_EXPBAR_PIXELS 64
+#define B_EXPBAR_PIXELS 32
 #define B_HEALTHBAR_PIXELS 48
 
 s32 MoveBattleBar(u8 battler, u8 healthboxSpriteId, u8 whichBar, u8 unused)
@@ -2147,17 +2147,19 @@ static void MoveBattleBarGraphically(u8 battler, u8 whichBar)
         level = GetMonData(GetBattlerMon(battler), MON_DATA_LEVEL);
         if (level >= MAX_LEVEL)
         {
-            for (i = 0; i < 8; i++)
+            for (i = 0; i < B_EXPBAR_PIXELS / 8; i++)
                 array[i] = 0;
         }
-        for (i = 0; i < 8; i++)
+        for (i = 0; i < B_EXPBAR_PIXELS / 8; i++)
         {
-            if (i < 4)
+            u8 offset = 8 - B_EXPBAR_PIXELS / 8; // Right-align by offsetting from original 8-tile width
+            u8 tilePos = offset + i;
+            if (tilePos < 4)
                 CpuCopy32(GetHealthboxElementGfxPtr(HEALTHBOX_GFX_12) + array[i] * 32,
-                          (void *)(OBJ_VRAM0 + (gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum + 0x24 + i) * TILE_SIZE_4BPP), 32);
+                          (void *)(OBJ_VRAM0 + (gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum + 0x24 + tilePos) * TILE_SIZE_4BPP), 32);
             else
                 CpuCopy32(GetHealthboxElementGfxPtr(HEALTHBOX_GFX_12) + array[i] * 32,
-                          (void *)(OBJ_VRAM0 + 0xB80 + (i + gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum) * TILE_SIZE_4BPP), 32);
+                          (void *)(OBJ_VRAM0 + 0xB80 + (tilePos + gSprites[gBattleSpritesDataPtr->battleBars[battler].healthboxSpriteId].oam.tileNum) * TILE_SIZE_4BPP), 32);
         }
         break;
     }
@@ -2429,13 +2431,26 @@ static void SafariTextIntoHealthboxObject(void *dest, u8 *windowTileData, u32 wi
  * FG = ForeGround
  * SH = SHadow
  */
-#define ABILITY_POP_UP_BATTLER_BG_TXTCLR 2
-#define ABILITY_POP_UP_BATTLER_FG_TXTCLR 7
-#define ABILITY_POP_UP_BATTLER_SH_TXTCLR 1
+/*
+THESE ARE USEFUL FOR TESTING, BATTLER 2-7-1 + ABILITY 7-9-1 ARE DEFAULT
+*/
+// #define ABILITY_POP_UP_BATTLER_BG_TXTCLR 2
+// #define ABILITY_POP_UP_BATTLER_FG_TXTCLR 7
+// #define ABILITY_POP_UP_BATTLER_SH_TXTCLR 1
+
+// #define ABILITY_POP_UP_ABILITY_BG_TXTCLR 2
+// #define ABILITY_POP_UP_ABILITY_FG_TXTCLR 7
+// #define ABILITY_POP_UP_ABILITY_SH_TXTCLR 1
+
+// For idx 15 see comment below re: ability_pop_up.gbapal
+
+#define ABILITY_POP_UP_BATTLER_BG_TXTCLR 7
+#define ABILITY_POP_UP_BATTLER_FG_TXTCLR 9
+#define ABILITY_POP_UP_BATTLER_SH_TXTCLR 15
 
 #define ABILITY_POP_UP_ABILITY_BG_TXTCLR 7
 #define ABILITY_POP_UP_ABILITY_FG_TXTCLR 9
-#define ABILITY_POP_UP_ABILITY_SH_TXTCLR 1
+#define ABILITY_POP_UP_ABILITY_SH_TXTCLR 15
 
 #define sState          data[0]
 #define sAutoDestroy    data[1]
@@ -2464,6 +2479,8 @@ enum
 
 static const u32 sAbilityPopUpGfx[] = INCBIN_U32("graphics/battle_interface/ability_pop_up.4bpp");
 static const u16 sAbilityPopUpPalette[] = INCBIN_U16("graphics/battle_interface/ability_pop_up.gbapal");
+// in ability_pop_up.pal: Changed palette idx-16 from 0 0 0 to 222 214 181 to be able to set 
+// ABILITY_POP_UP_BATTLER_SH_TXTCLR and ABILITY_POP_UP_ABILITY_SH_TXTCLR have lighter shadow matching name in healthbox
 
 static const struct SpriteSheet sSpriteSheet_AbilityPopUp =
 {
@@ -2886,7 +2903,7 @@ static const struct SpriteSheet sSpriteSheet_MoveInfoWindow =
     sMoveInfoWindowGfx, sizeof(sMoveInfoWindowGfx), MOVE_INFO_WINDOW_TAG
 };
 
-#define LAST_USED_BALL_X_F    14
+#define LAST_USED_BALL_X_F    16
 #define LAST_USED_BALL_X_0    -14
 #define LAST_USED_BALL_Y      ((IsDoubleBattle()) ? 78 : 68)
 #define LAST_USED_BALL_Y_BNC  ((IsDoubleBattle()) ? 76 : 66)
