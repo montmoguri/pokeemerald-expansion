@@ -585,6 +585,8 @@ static const struct SpriteTemplate sStatusSummaryBallsSpriteTemplates[2] =
 
 static const u8 sEmptyWhiteText_GrayHighlight[] = __("{COLOR WHITE}{HIGHLIGHT DARK_GRAY}              ");
 static const u8 sEmptyWhiteText_TransparentHighlight[] = __("{COLOR WHITE}{HIGHLIGHT TRANSPARENT}              ");
+static const u8 sText_GenderMale[] = _("{COLOR LIGHT_BLUE}♂");
+static const u8 sText_GenderFemale[] = _("{COLOR BLUE}♀");
 
 enum
 {
@@ -592,16 +594,18 @@ enum
     PAL_STATUS_PAR,
     PAL_STATUS_SLP,
     PAL_STATUS_FRZ,
-    PAL_STATUS_BRN
+    PAL_STATUS_BRN,
+    PAL_STATUS_FRB
 };
 
 static const u16 sStatusIconColors[] =
 {
-    [PAL_STATUS_PSN] = RGB(24, 12, 24),
-    [PAL_STATUS_PAR] = RGB(23, 23, 3),
-    [PAL_STATUS_SLP] = RGB(20, 20, 17),
-    [PAL_STATUS_FRZ] = RGB(17, 22, 28),
-    [PAL_STATUS_BRN] = RGB(28, 14, 10),
+    [PAL_STATUS_PSN] = RGB(26, 13, 31),
+    [PAL_STATUS_PAR] = RGB(31, 26, 0),
+    [PAL_STATUS_SLP] = RGB(17, 24, 31),
+    [PAL_STATUS_FRZ] = RGB(0, 31, 27),
+    [PAL_STATUS_BRN] = RGB(31, 16, 5),
+    [PAL_STATUS_FRB] = RGB(6, 21, 26)
 };
 
 static const struct WindowTemplate sHealthboxWindowTemplate = {
@@ -928,7 +932,8 @@ static void UpdateLvlInHealthbox(u8 healthboxSpriteId, u8 lvl)
         UpdateIndicatorVisibilityAndType(healthboxSpriteId, TRUE);
     }
 
-    windowTileData = AddTextPrinterAndCreateWindowOnHealthbox(text, xPos, 3, 2, &windowId);
+    u32 yPos = IsDoubleBattle() ? 2 : 3;
+    windowTileData = AddTextPrinterAndCreateWindowOnHealthbox(text, xPos, yPos, 2, &windowId);
     spriteTileNum = gSprites[healthboxSpriteId].oam.tileNum * TILE_SIZE_4BPP;
 
     if (IsOnPlayerSide(battler))
@@ -966,7 +971,7 @@ static void PrintHpOnHealthbox(u32 spriteId, s16 currHp, s16 maxHp, u32 bgColor,
     *txtPtr++ = CHAR_SLASH;
     txtPtr = ConvertIntToDecimalStringN(txtPtr, maxHp, STR_CONV_MODE_LEFT_ALIGN, 4);
     // Print last 6 chars on the right window
-    windowTileData = AddTextPrinterAndCreateWindowOnHealthbox(txtPtr - 6, 0, 5, bgColor, &windowId);
+    windowTileData = AddTextPrinterAndCreateWindowOnHealthbox(txtPtr - 6, 0, 4, bgColor, &windowId);
     HpTextIntoHealthboxObject(objVram + rightTile, windowTileData, 4);
     RemoveWindowOnHealthbox(windowId);
     // Print the rest of the chars on the left window
@@ -976,7 +981,7 @@ static void PrintHpOnHealthbox(u32 spriteId, s16 currHp, s16 maxHp, u32 bgColor,
         x = 9, tilesCount = 3;
     else
         x = 6, tilesCount = 2, leftTile += 0x20;
-    windowTileData = AddTextPrinterAndCreateWindowOnHealthbox(text, x, 5, bgColor, &windowId);
+    windowTileData = AddTextPrinterAndCreateWindowOnHealthbox(text, x, 4, bgColor, &windowId);
     HpTextIntoHealthboxObject(objVram + leftTile, windowTileData, tilesCount);
     RemoveWindowOnHealthbox(windowId);
 }
@@ -1313,6 +1318,9 @@ u8 CreatePartyStatusSummarySprites(u8 battler, struct HpAndStatus *partyInfo, bo
 
         if (!isBattleStart)
             gSprites[ballIconSpritesIds[i]].callback = SpriteCB_StatusSummaryBalls_OnSwitchout;
+
+        // Move ball display sprites down 3 pixels
+        gSprites[ballIconSpritesIds[i]].y += 2;
 
         if (!isOpponent)
         {
@@ -1738,14 +1746,15 @@ static void UpdateNickInHealthbox(u8 healthboxSpriteId, struct Pokemon *mon)
         StringCopy(ptr, gText_HealthboxGender_None);
         break;
     case MON_MALE:
-        StringCopy(ptr, gText_HealthboxGender_Male);
+        StringCopy(ptr, sText_GenderMale);
         break;
     case MON_FEMALE:
-        StringCopy(ptr, gText_HealthboxGender_Female);
+        StringCopy(ptr, sText_GenderFemale);
         break;
     }
 
-    windowTileData = AddTextPrinterAndCreateWindowOnHealthboxToFit(gDisplayedStringBattle, 0, 3, 2, &windowId, 55);
+    u32 yPos = IsDoubleBattle() ? 2 : 3;
+    windowTileData = AddTextPrinterAndCreateWindowOnHealthboxToFit(gDisplayedStringBattle, 0, yPos, 2, &windowId, 55);
 
     spriteTileNum = gSprites[healthboxSpriteId].oam.tileNum * TILE_SIZE_4BPP;
 
@@ -1847,7 +1856,7 @@ static void UpdateStatusIconInHealthbox(u8 healthboxSpriteId)
     else if (status & STATUS1_FROSTBITE)
     {
         statusGfxPtr = GetHealthboxElementGfxPtr(GetStatusIconForBattlerId(HEALTHBOX_GFX_STATUS_FRB_BATTLER0, battler));
-        statusPalId = PAL_STATUS_FRZ;
+        statusPalId = PAL_STATUS_FRB;
     }
     else if (status & STATUS1_PARALYSIS)
     {
@@ -2356,7 +2365,7 @@ static u8 *AddTextPrinterAndCreateWindowOnHealthboxWithFont(const u8 *str, u32 x
     FillWindowPixelBuffer(winId, PIXEL_FILL(bgColor));
 
     color[0] = bgColor;
-    color[1] = 1;
+    color[1] = 6;
     color[2] = 3;
 
     AddTextPrinterParameterized4(winId, fontId, x, y, 0, 0, color, TEXT_SKIP_DRAW, str);
@@ -2419,10 +2428,10 @@ static void SafariTextIntoHealthboxObject(void *dest, u8 *windowTileData, u32 wi
 #define ABILITY_POP_UP_WIN_WIDTH   10
 #define ABILITY_POP_UP_STR_WIDTH   (ABILITY_POP_UP_WIN_WIDTH * 8)
 
-#define ABILITY_POP_UP_PLAYER_LEFT_WIN_W    6
-#define ABILITY_POP_UP_PLAYER_RIGHT_WIN_W   4
-#define ABILITY_POP_UP_OPPONENT_LEFT_WIN_W  7
-#define ABILITY_POP_UP_OPPONENT_RIGHT_WIN_W 3
+#define ABILITY_POP_UP_PLAYER_LEFT_WIN_W    5
+#define ABILITY_POP_UP_PLAYER_RIGHT_WIN_W   5
+#define ABILITY_POP_UP_OPPONENT_LEFT_WIN_W  6
+#define ABILITY_POP_UP_OPPONENT_RIGHT_WIN_W 4
 
 #define ABILITY_POP_UP_WAIT_FRAMES 48
 
@@ -2514,15 +2523,15 @@ static const struct SpriteTemplate sSpriteTemplate_AbilityPopUp =
 
 static const s16 sAbilityPopUpCoordsDoubles[MAX_BATTLERS_COUNT][2] =
 {
-    { 24, 80}, // Player left
+    { 16, 80}, // Player left (shifted 8 pixels left)
     {178, 19}, // Opponent left
-    { 24, 97}, // Player right
+    { 16, 97}, // Player right (shifted 8 pixels left)
     {178, 36}, // Opponent right
 };
 
 static const s16 sAbilityPopUpCoordsSingles[MAX_BATTLERS_COUNT][2] =
 {
-    { 24, 97}, // Player
+    { 16, 97}, // Player (shifted 8 pixels left)
     {178, 57}, // Opponent
 };
 
@@ -2574,7 +2583,7 @@ static void PrintOnAbilityPopUp(const u8 *str, u8 *spriteTileData1, u8 *spriteTi
     u8 *windowTileData = AddTextPrinterAndCreateWindowOnAbilityPopUp(str, x, y, bgColor, fgColor, shadowColor, &windowId);
     u32 size1 = ABILITY_POP_UP_OPPONENT_LEFT_WIN_W, size2 = ABILITY_POP_UP_OPPONENT_RIGHT_WIN_W;
 
-    spriteTileData1 += TILE_OFFSET_4BPP(1);
+    spriteTileData1 += TILE_OFFSET_4BPP(2);
     if (IsOnPlayerSide(battler))
     {
         size1 = ABILITY_POP_UP_PLAYER_LEFT_WIN_W, size2 = ABILITY_POP_UP_PLAYER_RIGHT_WIN_W;
@@ -2903,13 +2912,13 @@ static const struct SpriteSheet sSpriteSheet_MoveInfoWindow =
     sMoveInfoWindowGfx, sizeof(sMoveInfoWindowGfx), MOVE_INFO_WINDOW_TAG
 };
 
-#define LAST_USED_BALL_X_F    16
-#define LAST_USED_BALL_X_0    -14
-#define LAST_USED_BALL_Y      ((IsDoubleBattle()) ? 78 : 68)
-#define LAST_USED_BALL_Y_BNC  ((IsDoubleBattle()) ? 76 : 66)
+#define LAST_USED_BALL_X_F    23
+#define LAST_USED_BALL_X_0    -7
+#define LAST_USED_BALL_Y      ((IsDoubleBattle()) ? 72 : 62)
+#define LAST_USED_BALL_Y_BNC  ((IsDoubleBattle()) ? 70 : 60)
 
-#define LAST_BALL_WIN_X_F       (LAST_USED_BALL_X_F - 0)
-#define LAST_BALL_WIN_X_0       (LAST_USED_BALL_X_0 - 0)
+#define LAST_BALL_WIN_X_F       (LAST_USED_BALL_X_F - 7)
+#define LAST_BALL_WIN_X_0       (LAST_USED_BALL_X_0 - 7)
 #define LAST_USED_WIN_Y         (LAST_USED_BALL_Y - 8)
 
 #define sHide  data[0]
