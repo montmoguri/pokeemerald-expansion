@@ -115,8 +115,8 @@ void SetGimmickAsActivated(u32 battler, enum Gimmick gimmick)
         gBattleStruct->gimmick.activated[BATTLE_PARTNER(battler)][gimmick] = TRUE;
 }
 
-#define SINGLES_GIMMICK_TRIGGER_POS_X_OPTIMAL (32)
-#define SINGLES_GIMMICK_TRIGGER_POS_X_PRIORITY (33)
+#define SINGLES_GIMMICK_TRIGGER_POS_X_OPTIMAL (35)
+#define SINGLES_GIMMICK_TRIGGER_POS_X_PRIORITY (36)
 #define SINGLES_GIMMICK_TRIGGER_POS_X_SLIDE (15)
 #define SINGLES_GIMMICK_TRIGGER_POS_Y_DIFF (-10)
 
