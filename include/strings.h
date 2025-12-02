@@ -246,39 +246,15 @@ extern const u8 gText_SavingTime[];
 extern const u8 gText_BattlePyramidConfirmRest[];
 extern const u8 gText_BattlePyramidConfirmRetire[];
 
-// option menu texts
-extern const u8 gText_TextSpeedSlow[];
-extern const u8 gText_TextSpeedMid[];
-extern const u8 gText_TextSpeedFast[];
-extern const u8 gText_BattleSceneOn[];
-extern const u8 gText_BattleSceneOff[];
-extern const u8 gText_BattleStyleShift[];
-extern const u8 gText_BattleStyleSet[];
-extern const u8 gText_SoundMono[];
-extern const u8 gText_SoundStereo[];
-extern const u8 gText_FrameTypeNumber[];
-extern const u8 gText_FrameType[];
-extern const u8 gText_ButtonTypeNormal[];
-extern const u8 gText_ButtonTypeLR[];
-extern const u8 gText_ButtonTypeLEqualsA[];
 extern const u8 gText_AutorunOff[];
 extern const u8 gText_AutorunOn[];
 extern const u8 gText_FollowerOff[];
 extern const u8 gText_FollowerOn[];
 extern const u8 gText_DifficultyNormal[];
 extern const u8 gText_DifficultyHard[];
-extern const u8 gText_Option[];
-extern const u8 gText_OptionMenu[];
-extern const u8 gText_TextSpeed[];
 extern const u8 gText_SmallDot[];
 extern const u8 gText_LargeDot[];
 extern const u8 gText_PageNav[];
-extern const u8 gText_BattleScene[];
-extern const u8 gText_BattleStyle[];
-extern const u8 gText_Sound[];
-extern const u8 gText_Frame[];
-extern const u8 gText_OptionMenuCancel[];
-extern const u8 gText_ButtonMode[];
 extern const u8 gText_Follower[];
 extern const u8 gText_Difficulty[];
 extern const u8 gText_Autorun[];
@@ -2441,12 +2417,11 @@ extern const u8 gText_Relearn_Egg[];
 extern const u8 gText_Relearn_TM[];
 extern const u8 gText_Relearn_Tutor[];
 extern const u8 gText_Rename[]; // change nickname from summary screen
-extern const u8 gText_HP_Title[];
-extern const u8 gText_Attack_Title[];
-extern const u8 gText_Defense_Title[];
-extern const u8 gText_SpAtk_Title[];
-extern const u8 gText_SpDef_Title[];
-extern const u8 gText_Speed_Title[];
+
+extern const u8 MoveRelearner_Text_LevelUpMoveLWR[];
+extern const u8 MoveRelearner_Text_EggMoveLWR[];
+extern const u8 MoveRelearner_Text_TMMoveLWR[];
+extern const u8 MoveRelearner_Text_TutorMoveLWR[];
 
 // Switch Caught Mon into Party
 extern const u8 gText_CannotSendMonToBoxHM[];

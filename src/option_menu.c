@@ -142,7 +142,7 @@ static const u8 *const sOptionMenuItemsNames_Pg2[MENUITEM_COUNT_PG2] =
     [MENUITEM_FOLLOWER]        = gText_Follower,
     [MENUITEM_DIFFICULTY]      = gText_Difficulty,
     [MENUITEM_AUTORUN]         = gText_Autorun,
-    [MENUITEM_CANCEL_PG2]      = gText_OptionMenuCancel,
+    [MENUITEM_CANCEL_PG2]      = COMPOUND_STRING("CANCEL"),
 };
 
 static const struct WindowTemplate sOptionMenuWinTemplates[] =
