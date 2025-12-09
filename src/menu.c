@@ -1,6 +1,7 @@
 #include "global.h"
 #include "bg.h"
 #include "blit.h"
+#include "comfy_anim.h"
 #include "decompress.h"
 #include "dma3.h"
 #include "event_data.h"
@@ -47,6 +48,8 @@ struct Menu
     u8 columns;
     u8 rows;
     bool8 APressMuted;
+    struct ComfyAnim cursorAnim;
+    s8 animatedCursorPos;  // The current animated position of the cursor
 };
 
 static u16 AddWindowParameterized(u8, u8, u8, u8, u8, u8, u16);
@@ -1081,10 +1084,40 @@ void RedrawMenuCursor(u8 oldPos, u8 newPos)
     AddTextPrinterParameterized(sMenu.windowId, sMenu.fontId, gText_SelectorArrow3, sMenu.left, sMenu.optionHeight * newPos + sMenu.top, 0, 0);
 }
 
+void UpdateAnimatedMenuCursor(void)
+{
+    u8 width, height;
+    s32 animatedY;
+
+    if (!sMenu.cursorAnim.inUse)
+        return;
+
+    // Advance the animation
+    TryAdvanceComfyAnim(&sMenu.cursorAnim);
+
+    // Get the current animated position
+    animatedY = ReadComfyAnimValueSmooth(&sMenu.cursorAnim);
+
+    // Clear the entire cursor area to avoid artifacts
+    width = GetMenuCursorDimensionByFont(sMenu.fontId, 0);
+    height = GetMenuCursorDimensionByFont(sMenu.fontId, 1);
+    
+    // Clear old position
+    if (sMenu.animatedCursorPos != animatedY)
+    {
+        FillWindowPixelRect(sMenu.windowId, PIXEL_FILL(1), sMenu.left, sMenu.animatedCursorPos + sMenu.top, width, height);
+        sMenu.animatedCursorPos = animatedY;
+    }
+
+    // Draw at new animated position
+    AddTextPrinterParameterized(sMenu.windowId, sMenu.fontId, gText_SelectorArrow3, sMenu.left, animatedY + sMenu.top, 0, 0);
+}
+
 u8 Menu_MoveCursor(s8 cursorDelta)
 {
     u8 oldPos = sMenu.cursorPos;
     int newPos = sMenu.cursorPos + cursorDelta;
+    struct ComfyAnimEasingConfig config;
 
     if (newPos < sMenu.minCursorPos)
         sMenu.cursorPos = sMenu.maxCursorPos;
@@ -1093,7 +1126,32 @@ u8 Menu_MoveCursor(s8 cursorDelta)
     else
         sMenu.cursorPos += cursorDelta;
 
-    RedrawMenuCursor(oldPos, sMenu.cursorPos);
+    // Initialize comfy animation for smooth cursor movement
+    InitComfyAnimConfig_Easing(&config);
+    config.from = Q_24_8(sMenu.optionHeight * oldPos);
+    config.to = Q_24_8(sMenu.optionHeight * sMenu.cursorPos);
+    config.easingFunc = ComfyAnimEasing_EaseOutCubic;
+    config.delayFrames = 0;
+
+    // For initial setup (cursorDelta == 0), use instant animation
+    if (cursorDelta == 0)
+    {
+        config.durationFrames = 1;  // Instant
+    }
+    else
+    {
+        config.durationFrames = 8;  // 8 frames for smooth animation (~133ms at 60fps)
+    }
+
+    InitComfyAnim_Easing(&config, &sMenu.cursorAnim);
+    sMenu.animatedCursorPos = sMenu.optionHeight * oldPos;
+
+    // Force immediate update for initial positioning
+    if (cursorDelta == 0)
+    {
+        UpdateAnimatedMenuCursor();
+    }
+
     return sMenu.cursorPos;
 }
 
@@ -1101,6 +1159,7 @@ u8 Menu_MoveCursorNoWrapAround(s8 cursorDelta)
 {
     u8 oldPos = sMenu.cursorPos;
     int newPos = sMenu.cursorPos + cursorDelta;
+    struct ComfyAnimEasingConfig config;
 
     if (newPos < sMenu.minCursorPos)
         sMenu.cursorPos = sMenu.minCursorPos;
@@ -1109,7 +1168,32 @@ u8 Menu_MoveCursorNoWrapAround(s8 cursorDelta)
     else
         sMenu.cursorPos += cursorDelta;
 
-    RedrawMenuCursor(oldPos, sMenu.cursorPos);
+    // Initialize comfy animation for smooth cursor movement
+    InitComfyAnimConfig_Easing(&config);
+    config.from = Q_24_8(sMenu.optionHeight * oldPos);
+    config.to = Q_24_8(sMenu.optionHeight * sMenu.cursorPos);
+    config.easingFunc = ComfyAnimEasing_EaseOutCubic;
+    config.delayFrames = 0;
+
+    // For initial setup (cursorDelta == 0), use instant animation
+    if (cursorDelta == 0)
+    {
+        config.durationFrames = 1;  // Instant
+    }
+    else
+    {
+        config.durationFrames = 8;  // 8 frames for smooth animation (~133ms at 60fps)
+    }
+
+    InitComfyAnim_Easing(&config, &sMenu.cursorAnim);
+    sMenu.animatedCursorPos = sMenu.optionHeight * oldPos;
+
+    // Force immediate update for initial positioning
+    if (cursorDelta == 0)
+    {
+        UpdateAnimatedMenuCursor();
+    }
+
     return sMenu.cursorPos;
 }
 
@@ -1120,6 +1204,9 @@ u8 Menu_GetCursorPos(void)
 
 s8 Menu_ProcessInput(void)
 {
+    // Update animated cursor every frame
+    UpdateAnimatedMenuCursor();
+
     if (JOY_NEW(A_BUTTON))
     {
         if (!sMenu.APressMuted)
@@ -1150,6 +1237,9 @@ s8 Menu_ProcessInputNoWrap(void)
 {
     u8 oldPos = sMenu.cursorPos;
 
+    // Update animated cursor every frame
+    UpdateAnimatedMenuCursor();
+
     if (JOY_NEW(A_BUTTON))
     {
         if (!sMenu.APressMuted)
@@ -1178,6 +1268,9 @@ s8 Menu_ProcessInputNoWrap(void)
 
 s8 ProcessMenuInput_other(void)
 {
+    // Update animated cursor every frame
+    UpdateAnimatedMenuCursor();
+
     if (JOY_NEW(A_BUTTON))
     {
         if (!sMenu.APressMuted)
@@ -1207,6 +1300,9 @@ s8 ProcessMenuInput_other(void)
 s8 Menu_ProcessInputNoWrapAround_other(void)
 {
     u8 oldPos = sMenu.cursorPos;
+
+    // Update animated cursor every frame
+    UpdateAnimatedMenuCursor();
 
     if (JOY_NEW(A_BUTTON))
     {

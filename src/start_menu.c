@@ -621,6 +621,9 @@ void ShowStartMenu(void)
 
 static bool8 HandleStartMenuInput(void)
 {
+    // Update animated cursor every frame
+    UpdateAnimatedMenuCursor();
+
     if (JOY_NEW(DPAD_UP))
     {
         PlaySE(SE_SELECT);
