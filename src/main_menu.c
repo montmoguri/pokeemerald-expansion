@@ -397,7 +397,7 @@ static const struct WindowTemplate sNewGameBirchSpeechTextWindows[] =
         .bg = 0,
         .tilemapLeft = 2,
         .tilemapTop = 15,
-        .width = 27,
+        .width = 26,
         .height = 4,
         .paletteNum = 15,
         .baseBlock = 1
@@ -2287,6 +2287,8 @@ void CreateYesNoMenuParameterized(u8 x, u8 y, u16 baseTileNum, u16 baseBlock, u8
     CreateYesNoMenu(&template, baseTileNum, yesNoPalNum, 0);
 }
 
+extern const u8 sMessageBoxTilemap[];
+
 static void NewGameBirchSpeech_ShowDialogueWindow(u8 windowId, u8 copyToVram)
 {
     CallWindowFunction(windowId, NewGameBirchSpeech_CreateDialogueWindowBorder);
@@ -2296,22 +2298,22 @@ static void NewGameBirchSpeech_ShowDialogueWindow(u8 windowId, u8 copyToVram)
         CopyWindowToVram(windowId, COPYWIN_FULL);
 }
 
-static void NewGameBirchSpeech_CreateDialogueWindowBorder(u8 bg, u8 x, u8 y, u8 width, u8 height, u8 palNum)
+static void NewGameBirchSpeech_CreateDialogueWindowBorder(u8 bg, u8 tilemapLeft, u8 tilemapTop, u8 width, u8 height, u8 paletteNum)
 {
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM +  1, x-2,       y-1, 1,       1, palNum);
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM +  3, x-1,       y-1, 1,       1, palNum);
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM +  4, x,         y-1, width,   1, palNum);
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM +  5, x+width-1, y-1, 1,       1, palNum);
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM +  6, x+width,   y-1, 1,       1, palNum);
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM +  7, x-2,       y,   1,       5, palNum);
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM +  9, x-1,       y,   width+1, 5, palNum);
-    FillBgTilemapBufferRect(bg, BIRCH_DLG_BASE_TILE_NUM + 10, x+width,   y,   1,       5, palNum);
+    CopyRectToBgTilemapBufferRect(bg, sMessageBoxTilemap, 0, 0, 7, 6,
+                                  tilemapLeft - 2, tilemapTop - 1, 3, 6,
+                                  paletteNum, BIRCH_DLG_BASE_TILE_NUM, 0);
 
-    FillBgTilemapBufferRect(bg, BG_TILE_V_FLIP(BIRCH_DLG_BASE_TILE_NUM + 1), x-2,       y+height, 1,       1, palNum);
-    FillBgTilemapBufferRect(bg, BG_TILE_V_FLIP(BIRCH_DLG_BASE_TILE_NUM + 3), x-1,       y+height, 1,       1, palNum);
-    FillBgTilemapBufferRect(bg, BG_TILE_V_FLIP(BIRCH_DLG_BASE_TILE_NUM + 4), x,         y+height, width-1, 1, palNum);
-    FillBgTilemapBufferRect(bg, BG_TILE_V_FLIP(BIRCH_DLG_BASE_TILE_NUM + 5), x+width-1, y+height, 1,       1, palNum);
-    FillBgTilemapBufferRect(bg, BG_TILE_V_FLIP(BIRCH_DLG_BASE_TILE_NUM + 6), x+width,   y+height, 1,       1, palNum);
+    for (u32 i = tilemapLeft + 1; i < tilemapLeft + width; i++)
+    {
+        CopyRectToBgTilemapBufferRect(bg, sMessageBoxTilemap, 3, 0, 7, 6,
+                                      i, tilemapTop - 1, 1, 6,
+                                      paletteNum, BIRCH_DLG_BASE_TILE_NUM, 0);
+    }
+
+    CopyRectToBgTilemapBufferRect(bg, sMessageBoxTilemap, 4, 0, 7, 6,
+                                  tilemapLeft + width - 1, tilemapTop - 1, 3, 6,
+                                  paletteNum, BIRCH_DLG_BASE_TILE_NUM, 0);
 }
 
 static void Task_NewGameBirchSpeech_ReturnFromNamingScreenShowTextbox(u8 taskId)
