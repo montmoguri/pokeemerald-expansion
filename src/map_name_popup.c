@@ -313,6 +313,17 @@ static const u8 sRegionMapSectionId_To_PopUpThemeIdMapping_BW[] =
     [MAPSEC_TRAINER_HILL - KANTO_MAPSEC_COUNT] = MAPPOPUP_THEME_BW_DEFAULT,
 };
 
+#if OW_POPUP_GENERATION == GEN_8
+// Gen8 assets
+static const u8 sMapPopUp_SwSh[] = INCBIN_U8("graphics/map_popup/swsh.4bpp");
+static const u8 sMapPopUp_Outline_SwSh[] = INCBIN_U8("graphics/map_popup/swsh_outline.4bpp");
+static const u16 sMapPopUp_Palette_SwSh[] = INCBIN_U16("graphics/map_popup/swsh.gbapal");
+#else
+static const u8 sMapPopUp_SwSh[] = {0};
+static const u8 sMapPopUp_Outline_SwSh[] = {0};
+static const u16 sMapPopUp_Palette_SwSh[] = {0};
+#endif
+
 static const u8 sText_PyramidFloor1[] = _("PYRAMID FLOOR 1");
 static const u8 sText_PyramidFloor2[] = _("PYRAMID FLOOR 2");
 static const u8 sText_PyramidFloor3[] = _("PYRAMID FLOOR 3");
@@ -353,11 +364,13 @@ enum {
 };
 
 #define POPUP_OFFSCREEN_Y  ((OW_POPUP_GENERATION == GEN_5) ? 24 : 40)
-#define POPUP_SLIDE_SPEED  2
+#define POPUP_OFFSCREEN_X  ((OW_POPUP_GENERATION == GEN_8) ? 112 : 0)
+#define POPUP_SLIDE_SPEED  ((OW_POPUP_GENERATION == GEN_8) ? 4 : 2)
 
 #define tState         data[0]
 #define tOnscreenTimer data[1]
 #define tYOffset       data[2]
+#define tXOffset       data[2]
 #define tIncomingPopUp data[3]
 #define tPrintTimer    data[4]
 
@@ -375,6 +388,15 @@ void ShowMapNamePopup(void)
                 if (OW_POPUP_BW_ALPHA_BLEND && !IsWeatherAlphaBlend())
                     SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG0 | BLDCNT_TGT2_ALL | BLDCNT_EFFECT_BLEND);
             }
+            else if (OW_POPUP_GENERATION == GEN_8)
+            {
+                gPopupTaskId = CreateTask(Task_MapNamePopUpWindow, 90);
+
+                SetGpuReg(REG_OFFSET_BG0HOFS, -POPUP_OFFSCREEN_X);
+                SetGpuReg(REG_OFFSET_WIN0H, (128 << 8) | 240);
+                SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG1 | WINOUT_WIN01_BG2 | WINOUT_WIN01_BG3 | WINOUT_WIN01_OBJ);
+                SetGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
+            }
             else
             {
                 gPopupTaskId = CreateTask(Task_MapNamePopUpWindow, 90);
@@ -382,7 +404,10 @@ void ShowMapNamePopup(void)
             }
 
             gTasks[gPopupTaskId].tState = STATE_PRINT;
-            gTasks[gPopupTaskId].tYOffset = POPUP_OFFSCREEN_Y;
+            if (OW_POPUP_GENERATION == GEN_8)
+                gTasks[gPopupTaskId].tXOffset = -POPUP_OFFSCREEN_X;
+            else
+                gTasks[gPopupTaskId].tYOffset = POPUP_OFFSCREEN_Y;
         }
         else
         {
@@ -417,10 +442,26 @@ static void Task_MapNamePopUpWindow(u8 taskId)
         break;
     case STATE_SLIDE_IN:
         // Slide the window onscreen.
-        task->tYOffset -= POPUP_SLIDE_SPEED;
-        if (task->tYOffset <= 0 )
+        if (OW_POPUP_GENERATION == GEN_8)
         {
-            task->tYOffset = 0;
+            task->tXOffset += POPUP_SLIDE_SPEED;
+            if (task->tXOffset > 0)
+                task->tXOffset = 0;
+            SetGpuReg(REG_OFFSET_BG0HOFS, task->tXOffset);
+        }
+        else
+        {
+            task->tYOffset -= POPUP_SLIDE_SPEED;
+            if (task->tYOffset <= 0)
+            {
+                task->tYOffset = 0;
+            }
+            if (OW_POPUP_GENERATION != GEN_5)
+                SetGpuReg(REG_OFFSET_BG0VOFS, task->tYOffset);
+        }
+
+        if (task->tYOffset == 0)
+        {
             task->tState = STATE_WAIT;
             gTasks[gPopupTaskId].tOnscreenTimer = 0;
         }
@@ -435,10 +476,29 @@ static void Task_MapNamePopUpWindow(u8 taskId)
         break;
     case STATE_SLIDE_OUT:
         // Slide the window offscreen.
-        task->tYOffset += POPUP_SLIDE_SPEED;
-        if (task->tYOffset >= POPUP_OFFSCREEN_Y)
+        if (OW_POPUP_GENERATION == GEN_8)
         {
-            task->tYOffset = POPUP_OFFSCREEN_Y;
+            task->tXOffset -= POPUP_SLIDE_SPEED;
+            if (task->tXOffset < -POPUP_OFFSCREEN_X)
+            {
+                task->tXOffset = -POPUP_OFFSCREEN_X;
+            }
+            SetGpuReg(REG_OFFSET_BG0HOFS, task->tXOffset);
+        }
+        else
+        {
+            task->tYOffset += POPUP_SLIDE_SPEED;
+            if (task->tYOffset >= POPUP_OFFSCREEN_Y)
+            {
+                task->tYOffset = POPUP_OFFSCREEN_Y;
+            }
+            if (OW_POPUP_GENERATION != GEN_5)
+                SetGpuReg(REG_OFFSET_BG0VOFS, task->tYOffset);
+        }
+
+        if ((OW_POPUP_GENERATION == GEN_8 && task->tXOffset <= -POPUP_OFFSCREEN_X) ||
+            (OW_POPUP_GENERATION != GEN_8 && task->tYOffset >= POPUP_OFFSCREEN_Y))
+        {
             if (task->tIncomingPopUp)
             {
                 // A new pop up window is incoming,
@@ -464,7 +524,9 @@ static void Task_MapNamePopUpWindow(u8 taskId)
         HideMapNamePopUpWindow();
         return;
     }
-    if (OW_POPUP_GENERATION != GEN_5)
+    if (OW_POPUP_GENERATION == GEN_8)
+        SetGpuReg(REG_OFFSET_BG0HOFS, task->tXOffset);
+    else if (OW_POPUP_GENERATION != GEN_5)
         SetGpuReg(REG_OFFSET_BG0VOFS, task->tYOffset);
 }
 
@@ -498,8 +560,14 @@ void HideMapNamePopUpWindow(void)
                 SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(8, 10));
             }
         }
+        else if (OW_POPUP_GENERATION == GEN_8)
+        {
+            ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
+            SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG_ALL | WINOUT_WIN01_OBJ | WINOUT_WIN01_CLR);
+        }
 
         SetGpuReg_ForcedBlank(REG_OFFSET_BG0VOFS, 0);
+        SetGpuReg_ForcedBlank(REG_OFFSET_BG0HOFS, 0);
         DestroyTask(gPopupTaskId);
     }
 }
@@ -571,6 +639,12 @@ static void ShowMapNamePopUpWindow(void)
         CopyWindowToVram(mapNamePopUpWindowId, COPYWIN_FULL);
         UpdateSecondaryPopUpWindow(secondaryPopUpWindowId);
     }
+    else if (OW_POPUP_GENERATION == GEN_8)
+    {
+        x = GetStringCenterAlignXOffset(FONT_NARROW, withoutPrefixPtr, 96);
+        AddTextPrinterParameterized(GetMapNamePopUpWindowId(), FONT_NARROW, mapDisplayHeader, x, 0, TEXT_SKIP_DRAW, NULL);
+        CopyWindowToVram(GetMapNamePopUpWindowId(), COPYWIN_FULL);
+    }
     else
     {
         x = GetStringCenterAlignXOffset(FONT_NARROW, withoutPrefixPtr, 80);
@@ -611,6 +685,38 @@ static void DrawMapNamePopUpFrame(u8 bg, u8 x, u8 y, u8 deltaX, u8 deltaY, u8 un
         FillBgTilemapBufferRect(bg, TILE_BOT_EDGE_START + i, i - 1 + x, y + deltaY, 1, 1, 14);
 }
 
+#define TILE_SWSH_TOP_EDGE_START 0x21D
+#define TILE_SWSH_TOP_EDGE_END   0x22A
+#define TILE_SWSH_LEFT_EDGE_TOP  0x22B
+#define TILE_SWSH_RIGHT_EDGE_TOP 0x22C
+#define TILE_SWSH_LEFT_EDGE_MID  0x22D
+#define TILE_SWSH_RIGHT_EDGE_MID 0x22E
+#define TILE_SWSH_LEFT_EDGE_BOT  0x22F
+#define TILE_SWSH_RIGHT_EDGE_BOT 0x230
+#define TILE_SWSH_BOT_EDGE_START 0x231
+#define TILE_SWSH_BOT_EDGE_END   0x23E
+
+static void DrawMapNamePopUpFrame_SwSh(u8 bg, u8 x, u8 y, u8 deltaX, u8 deltaY, u8 unused)
+{
+    s32 i;
+
+    // Draw top edge (Tiles 0-13)
+    for (i = 0; i < 1 + TILE_SWSH_TOP_EDGE_END - TILE_SWSH_TOP_EDGE_START; i++)
+        FillBgTilemapBufferRect(bg, TILE_SWSH_TOP_EDGE_START + i, x - 1 + i, y - 1, 1, 1, 14);
+
+    // Draw left side (1 tile wide)
+    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_TOP,       x - 1,     y, 1, 1, 14);
+    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_TOP, deltaX + x,     y, 1, 1, 14);
+    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_MID,       x - 1, y + 1, 1, 1, 14);
+    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_MID, deltaX + x, y + 1, 1, 1, 14);
+    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_BOT,       x - 1, y + 2, 1, 1, 14);
+    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_BOT, deltaX + x, y + 2, 1, 1, 14);
+
+    // Draw bottom edge (Tiles 20-33)
+    for (i = 0; i < 1 + TILE_SWSH_BOT_EDGE_END - TILE_SWSH_BOT_EDGE_START; i++)
+        FillBgTilemapBufferRect(bg, TILE_SWSH_BOT_EDGE_START + i, x - 1 + i, y + deltaY, 1, 1, 14);
+}
+
 static void LoadMapNamePopUpWindowBg(void)
 {
     u8 popUpThemeId;
@@ -648,6 +754,14 @@ static void LoadMapNamePopUpWindowBg(void)
 
         PutWindowTilemap(popupWindowId);
         PutWindowTilemap(secondaryPopUpWindowId);
+    }
+    else if (OW_POPUP_GENERATION == GEN_8)
+    {
+        LoadBgTiles(GetWindowAttribute(popupWindowId, WINDOW_BG), sMapPopUp_Outline_SwSh, 0x440, 0x21D);
+        CallWindowFunction(popupWindowId, DrawMapNamePopUpFrame_SwSh);
+        PutWindowTilemap(popupWindowId);
+        LoadPalette(sMapPopUp_Palette_SwSh, BG_PLTT_ID(14), sizeof(sMapPopUp_Palette_SwSh));
+        BlitBitmapToWindow(popupWindowId, sMapPopUp_SwSh, 0, 0, 96, 24);
     }
     else
     {
