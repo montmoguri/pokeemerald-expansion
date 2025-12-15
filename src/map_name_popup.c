@@ -1,6 +1,7 @@
 #include "global.h"
 #include "battle_pyramid.h"
 #include "bg.h"
+#include "comfy_anim.h"
 #include "event_data.h"
 #include "field_weather.h"
 #include "gpu_regs.h"
@@ -373,6 +374,7 @@ enum {
 #define tXOffset       data[2]
 #define tIncomingPopUp data[3]
 #define tPrintTimer    data[4]
+#define tComfyAnimId   data[5]
 
 void ShowMapNamePopup(void)
 {
@@ -404,9 +406,7 @@ void ShowMapNamePopup(void)
             }
 
             gTasks[gPopupTaskId].tState = STATE_PRINT;
-            if (OW_POPUP_GENERATION == GEN_8)
-                gTasks[gPopupTaskId].tXOffset = -POPUP_OFFSCREEN_X;
-            else
+            if (OW_POPUP_GENERATION != GEN_8)
                 gTasks[gPopupTaskId].tYOffset = POPUP_OFFSCREEN_Y;
         }
         else
@@ -444,10 +444,28 @@ static void Task_MapNamePopUpWindow(u8 taskId)
         // Slide the window onscreen.
         if (OW_POPUP_GENERATION == GEN_8)
         {
-            task->tXOffset += POPUP_SLIDE_SPEED;
-            if (task->tXOffset > 0)
-                task->tXOffset = 0;
-            SetGpuReg(REG_OFFSET_BG0HOFS, task->tXOffset);
+            if (task->tPrintTimer == 0)
+            {
+                struct ComfyAnimEasingConfig config;
+                InitComfyAnimConfig_Easing(&config);
+                config.durationFrames = 20;
+                config.from = Q_24_8(-POPUP_OFFSCREEN_X);
+                config.to = Q_24_8(0);
+                config.easingFunc = ComfyAnimEasing_EaseInOutCubic;
+                config.delayFrames = 0;
+                task->tComfyAnimId = CreateComfyAnim_Easing(&config);
+                task->tPrintTimer = 1;
+            }
+            
+            TryAdvanceComfyAnim(&gComfyAnims[task->tComfyAnimId]);
+            s32 xOffset = ReadComfyAnimValueSmooth(&gComfyAnims[task->tComfyAnimId]);
+            SetGpuReg(REG_OFFSET_BG0HOFS, xOffset);
+            
+            if (gComfyAnims[task->tComfyAnimId].completed)
+            {
+                task->tState = STATE_WAIT;
+                gTasks[gPopupTaskId].tOnscreenTimer = 0;
+            }
         }
         else
         {
@@ -458,12 +476,12 @@ static void Task_MapNamePopUpWindow(u8 taskId)
             }
             if (OW_POPUP_GENERATION != GEN_5)
                 SetGpuReg(REG_OFFSET_BG0VOFS, task->tYOffset);
-        }
 
-        if (task->tYOffset == 0)
-        {
-            task->tState = STATE_WAIT;
-            gTasks[gPopupTaskId].tOnscreenTimer = 0;
+            if (task->tYOffset == 0)
+            {
+                task->tState = STATE_WAIT;
+                gTasks[gPopupTaskId].tOnscreenTimer = 0;
+            }
         }
         break;
     case STATE_WAIT:
@@ -476,14 +494,26 @@ static void Task_MapNamePopUpWindow(u8 taskId)
         break;
     case STATE_SLIDE_OUT:
         // Slide the window offscreen.
-        if (OW_POPUP_GENERATION == GEN_8)
+        if (OW_POPUP_GENERATION == GEN_8)   
         {
-            task->tXOffset -= POPUP_SLIDE_SPEED;
-            if (task->tXOffset < -POPUP_OFFSCREEN_X)
+            if (task->tPrintTimer != 2)
             {
-                task->tXOffset = -POPUP_OFFSCREEN_X;
+                struct ComfyAnimEasingConfig config;
+                InitComfyAnimConfig_Easing(&config);
+                config.durationFrames = 20;
+                s32 currentPos = ReadComfyAnimValueSmooth(&gComfyAnims[task->tComfyAnimId]);
+                config.from = Q_24_8(currentPos);
+                config.to = Q_24_8(-POPUP_OFFSCREEN_X);
+                config.easingFunc = ComfyAnimEasing_EaseInOutCubic;
+                config.delayFrames = 0;
+                ReleaseComfyAnim(task->tComfyAnimId);
+                task->tComfyAnimId = CreateComfyAnim_Easing(&config);
+                task->tPrintTimer = 2;
             }
-            SetGpuReg(REG_OFFSET_BG0HOFS, task->tXOffset);
+            
+            TryAdvanceComfyAnim(&gComfyAnims[task->tComfyAnimId]);
+            s32 xOffset = ReadComfyAnimValueSmooth(&gComfyAnims[task->tComfyAnimId]);
+            SetGpuReg(REG_OFFSET_BG0HOFS, xOffset);
         }
         else
         {
@@ -496,13 +526,15 @@ static void Task_MapNamePopUpWindow(u8 taskId)
                 SetGpuReg(REG_OFFSET_BG0VOFS, task->tYOffset);
         }
 
-        if ((OW_POPUP_GENERATION == GEN_8 && task->tXOffset <= -POPUP_OFFSCREEN_X) ||
+        if ((OW_POPUP_GENERATION == GEN_8 && gComfyAnims[task->tComfyAnimId].completed) ||
             (OW_POPUP_GENERATION != GEN_8 && task->tYOffset >= POPUP_OFFSCREEN_Y))
         {
             if (task->tIncomingPopUp)
             {
                 // A new pop up window is incoming,
                 // return to the first state to show it.
+                if (OW_POPUP_GENERATION == GEN_8)
+                    ReleaseComfyAnim(task->tComfyAnimId);
                 task->tState = STATE_PRINT;
                 task->tPrintTimer = 0;
                 task->tIncomingPopUp = FALSE;
@@ -524,9 +556,7 @@ static void Task_MapNamePopUpWindow(u8 taskId)
         HideMapNamePopUpWindow();
         return;
     }
-    if (OW_POPUP_GENERATION == GEN_8)
-        SetGpuReg(REG_OFFSET_BG0HOFS, task->tXOffset);
-    else if (OW_POPUP_GENERATION != GEN_5)
+    if (OW_POPUP_GENERATION != GEN_5 && OW_POPUP_GENERATION != GEN_8)
         SetGpuReg(REG_OFFSET_BG0VOFS, task->tYOffset);
 }
 
@@ -562,6 +592,7 @@ void HideMapNamePopUpWindow(void)
         }
         else if (OW_POPUP_GENERATION == GEN_8)
         {
+            ReleaseComfyAnim(gTasks[gPopupTaskId].tComfyAnimId);
             ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
             SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG_ALL | WINOUT_WIN01_OBJ | WINOUT_WIN01_CLR);
         }
