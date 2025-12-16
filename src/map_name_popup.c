@@ -500,7 +500,7 @@ static void Task_MapNamePopUpWindow(u8 taskId)
             {
                 struct ComfyAnimEasingConfig config;
                 InitComfyAnimConfig_Easing(&config);
-                config.durationFrames = 20;
+                config.durationFrames = 12;
                 s32 currentPos = ReadComfyAnimValueSmooth(&gComfyAnims[task->tComfyAnimId]);
                 config.from = Q_24_8(currentPos);
                 config.to = Q_24_8(-POPUP_OFFSCREEN_X);
@@ -720,12 +720,10 @@ static void DrawMapNamePopUpFrame(u8 bg, u8 x, u8 y, u8 deltaX, u8 deltaY, u8 un
 #define TILE_SWSH_TOP_EDGE_END   0x22A
 #define TILE_SWSH_LEFT_EDGE_TOP  0x22B
 #define TILE_SWSH_RIGHT_EDGE_TOP 0x22C
-#define TILE_SWSH_LEFT_EDGE_MID  0x22D
-#define TILE_SWSH_RIGHT_EDGE_MID 0x22E
-#define TILE_SWSH_LEFT_EDGE_BOT  0x22F
-#define TILE_SWSH_RIGHT_EDGE_BOT 0x230
-#define TILE_SWSH_BOT_EDGE_START 0x231
-#define TILE_SWSH_BOT_EDGE_END   0x23E
+#define TILE_SWSH_LEFT_EDGE_BOT  0x22D
+#define TILE_SWSH_RIGHT_EDGE_BOT 0x22E
+#define TILE_SWSH_BOT_EDGE_START 0x22F
+#define TILE_SWSH_BOT_EDGE_END   0x23C
 
 static void DrawMapNamePopUpFrame_SwSh(u8 bg, u8 x, u8 y, u8 deltaX, u8 deltaY, u8 unused)
 {
@@ -735,15 +733,13 @@ static void DrawMapNamePopUpFrame_SwSh(u8 bg, u8 x, u8 y, u8 deltaX, u8 deltaY, 
     for (i = 0; i < 1 + TILE_SWSH_TOP_EDGE_END - TILE_SWSH_TOP_EDGE_START; i++)
         FillBgTilemapBufferRect(bg, TILE_SWSH_TOP_EDGE_START + i, x - 1 + i, y - 1, 1, 1, 14);
 
-    // Draw left side (1 tile wide)
+    // Draw sides (Tiles 14-17)
     FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_TOP,       x - 1,     y, 1, 1, 14);
     FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_TOP, deltaX + x,     y, 1, 1, 14);
-    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_MID,       x - 1, y + 1, 1, 1, 14);
-    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_MID, deltaX + x, y + 1, 1, 1, 14);
-    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_BOT,       x - 1, y + 2, 1, 1, 14);
-    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_BOT, deltaX + x, y + 2, 1, 1, 14);
+    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_BOT,       x - 1, y + 1, 1, 1, 14);
+    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_BOT, deltaX + x, y + 1, 1, 1, 14);
 
-    // Draw bottom edge (Tiles 20-33)
+    // Draw bottom edge (Tiles 18-31)
     for (i = 0; i < 1 + TILE_SWSH_BOT_EDGE_END - TILE_SWSH_BOT_EDGE_START; i++)
         FillBgTilemapBufferRect(bg, TILE_SWSH_BOT_EDGE_START + i, x - 1 + i, y + deltaY, 1, 1, 14);
 }
@@ -788,11 +784,11 @@ static void LoadMapNamePopUpWindowBg(void)
     }
     else if (OW_POPUP_GENERATION == GEN_8)
     {
-        LoadBgTiles(GetWindowAttribute(popupWindowId, WINDOW_BG), sMapPopUp_Outline_SwSh, 0x440, 0x21D);
+        LoadBgTiles(GetWindowAttribute(popupWindowId, WINDOW_BG), sMapPopUp_Outline_SwSh, 0x400, 0x21D);
         CallWindowFunction(popupWindowId, DrawMapNamePopUpFrame_SwSh);
         PutWindowTilemap(popupWindowId);
         LoadPalette(sMapPopUp_Palette_SwSh, BG_PLTT_ID(14), sizeof(sMapPopUp_Palette_SwSh));
-        BlitBitmapToWindow(popupWindowId, sMapPopUp_SwSh, 0, 0, 96, 24);
+        BlitBitmapToWindow(popupWindowId, sMapPopUp_SwSh, 0, 0, 96, 16);
     }
     else
     {
