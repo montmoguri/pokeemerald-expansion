@@ -1,6 +1,10 @@
 {
   "map_sections": [
     {
+      "id": "MAPSEC_POSTWICK",
+      "name": "Postwick"
+    },
+    {
       "id": "MAPSEC_LITTLEROOT_TOWN",
       "name": "LITTLEROOT TOWN",
       "x": 4,

@@ -3,7 +3,7 @@
   "name": "Postwick_Coliseum",
   "layout": "LAYOUT_POSTWICK_COLISEUM",
   "music": "MUS_DUMMY",
-  "region_map_section": "MAPSEC_ABANDONED_SHIP",
+  "region_map_section": "MAPSEC_POSTWICK",
   "requires_flash": false,
   "weather": "WEATHER_NONE",
   "map_type": "MAP_TYPE_CITY",
