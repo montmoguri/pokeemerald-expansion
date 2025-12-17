@@ -2000,7 +2000,7 @@ static void PlayerHandleChooseAction(u32 battler)
     TryRestoreLastUsedBall();
     ActionSelectionCreateCursorAt(gActionSelectionCursor[battler], 0);
     PREPARE_MON_NICK_BUFFER(gBattleTextBuff1, battler, gBattlerPartyIndexes[battler]);
-    BattleStringExpandPlaceholdersToDisplayedString(gText_WhatWillPkmnDo);
+    // BattleStringExpandPlaceholdersToDisplayedString(gText_WhatWillPkmnDo);
 
     if (B_SHOW_PARTNER_TARGET && gBattleTypeFlags & BATTLE_TYPE_INGAME_PARTNER && IsBattlerAlive(B_POSITION_PLAYER_RIGHT))
     {
@@ -2031,11 +2031,11 @@ static void PlayerHandleChooseAction(u32 battler)
         {
             StringAppend(gStringVar1, COMPOUND_STRING(" {V_D_ARROW}{V_D_ARROW}"));
         }
-        BattlePutTextOnWindow(gStringVar1, B_WIN_ACTION_PROMPT);
+        // BattlePutTextOnWindow(gStringVar1, B_WIN_ACTION_PROMPT);
     }
     else
     {
-        BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_ACTION_PROMPT);
+        // BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_ACTION_PROMPT);
     }
 }
 
