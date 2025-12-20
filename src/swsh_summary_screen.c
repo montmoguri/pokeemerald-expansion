@@ -2724,16 +2724,15 @@ static void Task_ChangeSummaryMon(u8 taskId)
             if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES)
             {
                 ShowInfoPrompt();
-            }
-            else if (P_SUMMARY_SCREEN_MOVE_RELEARNER
-                && (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES))
-            {
-                gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
-                TryUpdateRelearnType(TRY_SET_UPDATE);
-                if (ShouldShowMoveRelearner())
-                    ShowMoveRelearner();
-                else
-                    HideMoveRelearner();
+                if (P_SUMMARY_SCREEN_MOVE_RELEARNER)
+                {
+                    gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
+                    TryUpdateRelearnType(TRY_SET_UPDATE);
+                    if (ShouldShowMoveRelearner())
+                        ShowMoveRelearner();
+                    else
+                        HideMoveRelearner();
+                }
             }
         }
         break;
