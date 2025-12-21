@@ -2724,16 +2724,15 @@ static void Task_ChangeSummaryMon(u8 taskId)
             if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES)
             {
                 ShowInfoPrompt();
-            }
-            else if (P_SUMMARY_SCREEN_MOVE_RELEARNER
-                && (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES))
-            {
-                gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
-                TryUpdateRelearnType(TRY_SET_UPDATE);
-                if (ShouldShowMoveRelearner())
-                    ShowMoveRelearner();
-                else
-                    HideMoveRelearner();
+                if (P_SUMMARY_SCREEN_MOVE_RELEARNER)
+                {
+                    gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
+                    TryUpdateRelearnType(TRY_SET_UPDATE);
+                    if (ShouldShowMoveRelearner())
+                        ShowMoveRelearner();
+                    else
+                        HideMoveRelearner();
+                }
             }
         }
         break;
@@ -2885,13 +2884,16 @@ static void ChangePage(u8 taskId, s8 delta)
 
     if (summary->isEgg)
         return;
-    else if (delta == -1 && sMonSummaryScreen->currPageIndex == sMonSummaryScreen->minPageIndex)
-        return;
-    else if (delta == 1 && sMonSummaryScreen->currPageIndex == sMonSummaryScreen->maxPageIndex)
-        return;
 
     PlaySE(SE_SELECT);
     ClearPageWindowTilemaps(sMonSummaryScreen->currPageIndex);
+
+    // Wrap around pages (after clearing the old page's tilemaps)
+    if (delta == -1 && sMonSummaryScreen->currPageIndex == sMonSummaryScreen->minPageIndex)
+        sMonSummaryScreen->currPageIndex = sMonSummaryScreen->maxPageIndex + 1; // +1 because we subtract below
+    else if (delta == 1 && sMonSummaryScreen->currPageIndex == sMonSummaryScreen->maxPageIndex)
+        sMonSummaryScreen->currPageIndex = sMonSummaryScreen->minPageIndex - 1; // -1 because we add below
+
     currPageIndex = sMonSummaryScreen->currPageIndex += delta;
     tScrollState = 0;
     SetTaskFuncWithFollowupFunc(taskId, PssScroll, gTasks[taskId].func);
