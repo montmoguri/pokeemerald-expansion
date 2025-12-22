@@ -4298,7 +4298,6 @@ static void PrintSkillsPageText(void)
     PrintHPStats(SKILL_STATE_STATS);
     BufferNonHPStats();
     PrintNonHPStats();
-    PrintMonDynamaxLevel();
     // PrintExpPointsNextLevel();
 }
 
@@ -4331,7 +4330,6 @@ static void Task_PrintSkillsPage(u8 taskId)
         PrintNonHPStats();
         break;
     case 8:
-        PrintMonDynamaxLevel();
         // PrintExpPointsNextLevel();
         break;
     case 9:
@@ -5326,6 +5324,39 @@ static void DestroyHeldItemBoxSprites(void)
     for (i = 0; i < HELD_ITEM_BOX_SPRITES_COUNT; i++)
         DestroySpriteInArray(SPRITE_ARR_ID_HELD_ITEM_BOX + i);
 }
+
+static void CreateAbilityBoxSprites(void)
+{
+    u8 i;
+    u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_ABILITY_BOX];
+    
+    // Always destroy old sprites first
+    DestroyAbilityBoxSprites();
+    
+    // Create sprites
+    for (i = 0; i < ABILITY_BOX_SPRITES_COUNT; i++)
+    {
+        spriteIds[i] = CreateSprite(&sSpriteTemplate_AbilityBox, 16 + (i * 32), 108 + 32, 2);
+        
+        if (spriteIds[i] != MAX_SPRITES)
+        {
+            if (i == 0)
+                StartSpriteAnim(&gSprites[spriteIds[i]], 0);
+            else if (i == 1)
+                StartSpriteAnim(&gSprites[spriteIds[i]], 1);
+            else
+                StartSpriteAnim(&gSprites[spriteIds[i]], 2);
+        }
+    }
+}
+
+static void DestroyAbilityBoxSprites(void)
+{
+    u8 i;    
+    for (i = 0; i < ABILITY_BOX_SPRITES_COUNT; i++)
+        DestroySpriteInArray(SPRITE_ARR_ID_ABILITY_BOX + i);
+}
+
 
 static void CreateHeldItemSprite(void)
 {
