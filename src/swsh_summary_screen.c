@@ -121,6 +121,8 @@ enum SWSHSkillsPageState
 #define MOVE_SELECTOR_SPRITES_COUNT 10
 #define HELD_ITEM_BOX_SPRITES_COUNT 5
 #define ABILITY_BOX_SPRITES_COUNT 5
+#define DYNAMAX_LEVEL_SPRITES_COUNT 10
+#define DYNAMAX_BOX_SPRITES_COUNT 5
 #define TYPE_ICON_SPRITE_COUNT (MAX_MON_MOVES + 1)
 
 // Default font, see PrintTextOnWindow
@@ -156,7 +158,9 @@ enum SwShSummarySprites
     SPRITE_ARR_ID_MOVE_SELECTOR2 = SPRITE_ARR_ID_MOVE_SELECTOR1 + MOVE_SELECTOR_SPRITES_COUNT,
     SPRITE_ARR_ID_HELD_ITEM_BOX = SPRITE_ARR_ID_MOVE_SELECTOR2 + MOVE_SELECTOR_SPRITES_COUNT,
     SPRITE_ARR_ID_ABILITY_BOX = SPRITE_ARR_ID_HELD_ITEM_BOX + HELD_ITEM_BOX_SPRITES_COUNT,
-    SPRITE_ARR_ID_COUNT = SPRITE_ARR_ID_ABILITY_BOX + ABILITY_BOX_SPRITES_COUNT
+    SPRITE_ARR_ID_DYNAMAX_BOX = SPRITE_ARR_ID_ABILITY_BOX + ABILITY_BOX_SPRITES_COUNT,
+    SPRITE_ARR_ID_DYNAMAX_LEVEL = SPRITE_ARR_ID_DYNAMAX_BOX + DYNAMAX_BOX_SPRITES_COUNT,
+    SPRITE_ARR_ID_COUNT = SPRITE_ARR_ID_DYNAMAX_LEVEL + DYNAMAX_LEVEL_SPRITES_COUNT
 };
 
 static EWRAM_DATA struct PokemonSummaryScreenData
@@ -238,7 +242,7 @@ static EWRAM_DATA struct PokemonSummaryScreenData
     bool8 handleDeoxys;
     s16 switchCounter; // Used for various switch statement cases that decompress/load graphics or Pokémon data
     u16 monAnimTimer; // tracks time between re-playing mon anims
-    bool8 monAnimPlayed; // tracks if anim has been played at least once
+    u8 monAnimPlayed; // tracks if anim has been played at least once
     u8 unk_filler4[2];
 } *sMonSummaryScreen = NULL;
 
@@ -265,7 +269,7 @@ static bool8 IsValidToViewInMulti(struct Pokemon *);
 static void ChangePage(u8, s8);
 static void PssScroll(u8);
 static void PssScrollEnd(u8);
-static void TryDrawExperienceProgressBar(void);
+static void UNUSED TryDrawExperienceProgressBar(void);
 static void SwitchToMoveSelection(u8);
 static void Task_HandleInput_MoveSelect(u8);
 static bool8 HasMoreThanOneMove(void);
@@ -326,7 +330,7 @@ static void BufferHPStats(void);
 static void PrintHPStats(u8);
 static void BufferNonHPStats(void);
 static void PrintNonHPStats(void);
-static void PrintExpPointsNextLevel(void);
+static void UNUSED PrintExpPointsNextLevel(void);
 static void PrintBattleMoves(void);
 static void Task_PrintBattleMoves(u8);
 static void PrintMoveNameAndPP(u8);
@@ -354,6 +358,10 @@ static void CreateHeldItemBoxSprites(void);
 static void DestroyHeldItemBoxSprites(void);
 static void CreateAbilityBoxSprites(void);
 static void DestroyAbilityBoxSprites(void);
+static void CreateDynamaxLevelSprites(void);
+static void DestroyDynamaxLevelSprites(void);
+static void CreateDynamaxBoxSprites(void);
+static void DestroyDynamaxBoxSprites(void);
 static void CreateHeldItemSprite(void);
 static void DestroyHeldItemIconSprite(void);
 static void CreateStatusSprite(void);
@@ -466,6 +474,8 @@ static const u32 sRelearnPrompt_Gfx[]               = INCBIN_U32("graphics/summa
 static const u32 sRelearnPromptSwitch_Gfx[]         = INCBIN_U32("graphics/summary_screen/swsh/relearn_prompt_switch.4bpp.lz");
 static const u32 sLRButton_Gfx[]                    = INCBIN_U32("graphics/summary_screen/swsh/lr_button.4bpp.lz");
 static const u32 sInfoPrompt_Gfx[]                  = INCBIN_U32("graphics/summary_screen/swsh/info_prompt.4bpp.lz");
+static const u32 sDynamaxBox_Gfx[]                  = INCBIN_U32("graphics/summary_screen/swsh/dynamax_box.4bpp.lz");
+static const u32 sDynamaxLevels_Gfx[]               = INCBIN_U32("graphics/summary_screen/swsh/dynamax_levels.4bpp.lz");
 static const u32 sGigantamaxIcon_Gfx[]              = INCBIN_U32("graphics/summary_screen/swsh/gigantamax.4bpp.lz");
 
 #if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
@@ -671,28 +681,28 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
         .tilemapLeft = 1,
         .tilemapTop = 4,
         .width = 18,
-        .height = 6,
+        .height = 7,
         .paletteNum = 6,
         .baseBlock = 366,
-    },
-    [PSS_DATA_WINDOW_EXP] = {
-        .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 10,
-        .width = 18,
-        .height = 2,
-        .paletteNum = 6,
-        .baseBlock = 474,
     },
     [PSS_DATA_WINDOW_SKILLS_ABILITY] = {
         .bg = 0,
         .tilemapLeft = 1,
-        .tilemapTop = 13,
+        .tilemapTop = 11, // Shifted up to cover both possible positions
         .width = 18,
-        .height = 5,
+        .height = 7, // Increased height to cover the shift
         .paletteNum = 6,
-        .baseBlock = 510,
+        .baseBlock = 492,
     },
+    // [PSS_DATA_WINDOW_EXP] = {
+    //     .bg = 0,
+    //     .tilemapLeft = 1,
+    //     .tilemapTop = 10,
+    //     .width = 18,
+    //     .height = 2,
+    //     .paletteNum = 6,
+    //     .baseBlock = 474,
+    // },
     // [PSS_DATA_WINDOW_EXP_NEXT_LEVEL] = {
     //     .bg = 0,
     //     .tilemapLeft = 15,
@@ -775,6 +785,8 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
 #define TAG_HELD_ITEM_ICON 30017
 #define TAG_LR_BUTTON 30018
 #define TAG_ABILITY_BOX 30019
+#define TAG_DYNAMAX_BOX 30020
+#define TAG_DYNAMAX_LEVELS 30021
 
 enum SwShCategoryIcon
 {
@@ -1571,6 +1583,132 @@ static const struct SpriteTemplate sSpriteTemplate_AbilityBox =
 };
 
 
+enum DynamaxLevels
+{
+    DYNAMAX_LEVEL_0,
+    DYNAMAX_LEVEL_1,
+    DYNAMAX_LEVEL_2,
+    DYNAMAX_LEVEL_3,
+    DYNAMAX_LEVEL_4,
+    DYNAMAX_LEVEL_5,
+    DYNAMAX_LEVEL_6,
+    DYNAMAX_LEVEL_7,
+    DYNAMAX_LEVEL_8,
+    DYNAMAX_LEVEL_9,
+    DYNAMAX_LEVEL_10,
+    DYNAMAX_LEVEL_COUNT
+};
+
+static const struct OamData sOamData_DynamaxLevel =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .size = SPRITE_SIZE(16x16),
+    .x = 0,
+    .matrixNum = 0,
+    .shape = SPRITE_SHAPE(16x16),
+    .tileNum = 0,
+    .priority = 1,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const struct OamData sOamData_DynamaxBox =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .size = SPRITE_SIZE(32x16),
+    .x = 0,
+    .matrixNum = 0,
+    .shape = SPRITE_SHAPE(32x16),
+    .tileNum = 0,
+    .priority = 1,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk0[] = { ANIMCMD_FRAME(0, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk1[] = { ANIMCMD_FRAME(8, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk2[] = { ANIMCMD_FRAME(16, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk3[] = { ANIMCMD_FRAME(24, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk4[] = { ANIMCMD_FRAME(32, 0), ANIMCMD_END };
+
+static const union AnimCmd *const sSpriteAnimTable_DynamaxBox[] = {
+    sSpriteAnim_DynamaxBoxChunk0,
+    sSpriteAnim_DynamaxBoxChunk1,
+    sSpriteAnim_DynamaxBoxChunk2,
+    sSpriteAnim_DynamaxBoxChunk3,
+    sSpriteAnim_DynamaxBoxChunk4,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_DynamaxBox =
+{
+    .data = sDynamaxBox_Gfx,
+    .size = 5 * (32 * 16) / 2,
+    .tag = TAG_DYNAMAX_BOX,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_DynamaxBox =
+{
+    .tileTag = TAG_DYNAMAX_BOX,
+    .paletteTag = TAG_HELD_ITEM_BOX,
+    .oam = &sOamData_DynamaxBox,
+    .anims = sSpriteAnimTable_DynamaxBox,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCallbackDummy,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_DynamaxLevels =
+{
+    .data = sDynamaxLevels_Gfx,
+    .size = 11 * (16 * 16) / 2,
+    .tag = TAG_DYNAMAX_LEVELS,
+};
+
+// Animation commands for each Dynamax level (0-10)
+static const union AnimCmd sSpriteAnim_DynamaxLevel0[] = { ANIMCMD_FRAME(0, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel1[] = { ANIMCMD_FRAME(4, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel2[] = { ANIMCMD_FRAME(8, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel3[] = { ANIMCMD_FRAME(12, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel4[] = { ANIMCMD_FRAME(16, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel5[] = { ANIMCMD_FRAME(20, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel6[] = { ANIMCMD_FRAME(24, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel7[] = { ANIMCMD_FRAME(28, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel8[] = { ANIMCMD_FRAME(32, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel9[] = { ANIMCMD_FRAME(36, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel10[] = { ANIMCMD_FRAME(40, 0), ANIMCMD_END };
+
+static const union AnimCmd *const sSpriteAnimTable_DynamaxLevels[] = {
+    sSpriteAnim_DynamaxLevel0,
+    sSpriteAnim_DynamaxLevel1,
+    sSpriteAnim_DynamaxLevel2,
+    sSpriteAnim_DynamaxLevel3,
+    sSpriteAnim_DynamaxLevel4,
+    sSpriteAnim_DynamaxLevel5,
+    sSpriteAnim_DynamaxLevel6,
+    sSpriteAnim_DynamaxLevel7,
+    sSpriteAnim_DynamaxLevel8,
+    sSpriteAnim_DynamaxLevel9,
+    sSpriteAnim_DynamaxLevel10,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_DynamaxLevel =
+{
+    .tileTag = TAG_DYNAMAX_LEVELS,
+    .paletteTag = TAG_HELD_ITEM_BOX,
+    .oam = &sOamData_DynamaxLevel,
+    .anims = sSpriteAnimTable_DynamaxLevels,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCallbackDummy,
+};
 
 static const struct OamData sOamData_StatusCondition =
 {
@@ -2293,6 +2431,16 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 27:
+        if (SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
+            LoadCompressedSpriteSheet(&sSpriteSheet_DynamaxLevels);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 28:
+        if (SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
+            LoadCompressedSpriteSheet(&sSpriteSheet_DynamaxBox);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 29:
         LoadSpritePalette(&sSpritePal_HeldItemBox);
         sMonSummaryScreen->switchCounter = 0;
         return TRUE;
@@ -2867,7 +3015,9 @@ static void Task_ChangeSummaryMon(u8 taskId)
         {
             DrawNextSkillsButtonPrompt(SKILL_STATE_STATS);
             CreateAbilityBoxSprites();
+            CreateDynamaxLevelSprites();
         }
+        // TryDrawExperienceProgressBar();
         break;
     case 13:
         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].sDelayAnim = 0;
@@ -2959,7 +3109,10 @@ static void ChangePage(u8 taskId, s8 delta)
     PlaySE(SE_SELECT);
     ClearPageWindowTilemaps(sMonSummaryScreen->currPageIndex);
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
+    {
         DestroyAbilityBoxSprites();
+        DestroyDynamaxLevelSprites();
+    }
 
     // Wrap around pages (after clearing the old page's tilemaps)
     if (delta == -1 && sMonSummaryScreen->currPageIndex == sMonSummaryScreen->minPageIndex)
@@ -3046,7 +3199,10 @@ static void PssScrollEnd(u8 taskId)
     SetTypeIcons();
     TrySetInfoPageIcons();
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
+    {
         CreateAbilityBoxSprites();
+        CreateDynamaxLevelSprites();
+    }
     // TryDrawExperienceProgressBar();
 
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO)
@@ -3061,7 +3217,7 @@ static void PssScrollEnd(u8 taskId)
 #undef tScrollState
 #undef tMosaicStrength
 
-static void TryDrawExperienceProgressBar(void)
+static void UNUSED TryDrawExperienceProgressBar(void)
 {
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
         DrawExperienceProgressBar(&sMonSummaryScreen->currentMon);
@@ -4089,13 +4245,21 @@ static void PrintMonNature(void)
 static void PrintMonAbilityName(void)
 {
     u16 ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].name, 48, 5, 0, 0);
+    u8 y = 21;
+    if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
+        y -= 18;
+
+    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].name, 48, y, 0, 0);
 }
 
 static void PrintMonAbilityDescription(void)
 {
     u16 ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 0, 22, 0, 0);
+    u8 y = 38;
+    if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
+        y -= 18;
+
+    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 0, y, 0, 0);
 }
 
 static void UNUSED BufferMonTrainerMemo(void)
@@ -4501,7 +4665,7 @@ static void BufferHPStats(void)
 static void PrintHPStats(u8 mode)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
-    PrintTextOnWindow(windowId, gStringVar4, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar4, 0), 0, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar4, 0), 2, 0, 0);
 }
 
 
@@ -4520,11 +4684,11 @@ static void PrintNonHPStats(void)
 {
     u8 windowId = AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_STATS);
     
-    PrintTextOnWindow(windowId, gStringVar1, 144 - GetStringWidth(FONT_SHORT_NARROW, gStringVar1, 0), 0, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar2, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar2, 0), 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar3, 144 - GetStringWidth(FONT_SHORT_NARROW, gStringVar3, 0), 16, 0, 0);
-    PrintTextOnWindow(windowId, gStringVar4, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar4, 0), 32, 0, 0);
-    PrintTextOnWindow(windowId, sStringVar5, 144 - GetStringWidth(FONT_SHORT_NARROW, sStringVar5, 0), 32, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar1, 144 - GetStringWidth(FONT_SHORT_NARROW, gStringVar1, 0), 2, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar2, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar2, 0), 19, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar3, 144 - GetStringWidth(FONT_SHORT_NARROW, gStringVar3, 0), 19, 0, 0);
+    PrintTextOnWindow(windowId, gStringVar4, 72 - GetStringWidth(FONT_SHORT_NARROW, gStringVar4, 0), 36, 0, 0);
+    PrintTextOnWindow(windowId, sStringVar5, 144 - GetStringWidth(FONT_SHORT_NARROW, sStringVar5, 0), 36, 0, 0);
 }
 
 static void PrintColoredStatLabel(u8 windowId, s8 statIndex, const u8 *text, u8 x, u8 y, 
@@ -4564,17 +4728,17 @@ static void PrintStatLabels(void)
     u8 natureDownStat = gNaturesInfo[sMonSummaryScreen->summary.mintNature].statDown;
 
     // Print HP label
-    PrintTextOnWindow(windowId, sText_HP_Title, 8, 0, 0, 0);
+    PrintTextOnWindow(windowId, sText_HP_Title, 8, 2, 0, 0);
     
     // Print non-HP stat labels (colored)
-    PrintColoredStatLabel(windowId, STAT_ATK, sText_Attack_Title, 80, 0, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_DEF, sText_Defense_Title, 8, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPATK, sText_SpAtk_Title, 80, 16, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPDEF, sText_SpDef_Title, 8, 32, natureUpStat, natureDownStat, coloredLabel);
-    PrintColoredStatLabel(windowId, STAT_SPEED, sText_Speed_Title, 80, 32, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_ATK, sText_Attack_Title, 80, 2, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_DEF, sText_Defense_Title, 8, 19, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPATK, sText_SpAtk_Title, 80, 19, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPDEF, sText_SpDef_Title, 8, 36, natureUpStat, natureDownStat, coloredLabel);
+    PrintColoredStatLabel(windowId, STAT_SPEED, sText_Speed_Title, 80, 36, natureUpStat, natureDownStat, coloredLabel);
 }
 
-static void PrintExpPointsNextLevel(void)
+static void UNUSED PrintExpPointsNextLevel(void)
 {
     u32 expToNextLevel;
     struct PokeSummary *sum = &sMonSummaryScreen->summary;
@@ -5336,7 +5500,11 @@ static void CreateAbilityBoxSprites(void)
     // Create sprites
     for (i = 0; i < ABILITY_BOX_SPRITES_COUNT; i++)
     {
-        spriteIds[i] = CreateSprite(&sSpriteTemplate_AbilityBox, 16 + (i * 32), 108 + 32, 2);
+        u16 y = 140;
+        if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
+            y -= 18;
+
+        spriteIds[i] = CreateSprite(&sSpriteTemplate_AbilityBox, 16 + (i * 32), y, 2);
         
         if (spriteIds[i] != MAX_SPRITES)
         {
@@ -5357,6 +5525,81 @@ static void DestroyAbilityBoxSprites(void)
         DestroySpriteInArray(SPRITE_ARR_ID_ABILITY_BOX + i);
 }
 
+static void CreateDynamaxLevelSprites(void)
+{
+    u8 i;
+    u8 level = GetMonData(&sMonSummaryScreen->currentMon, MON_DATA_DYNAMAX_LEVEL);
+    u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_DYNAMAX_LEVEL];
+    u8 animFrame;
+    s16 xPos;
+
+    DestroyDynamaxLevelSprites();
+
+    if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
+        return;
+  
+    // Load box even if level is 0
+    CreateDynamaxBoxSprites();
+    
+    if (level >= DYNAMAX_LEVEL_COUNT)
+        level = DYNAMAX_LEVEL_COUNT - 1;
+
+    if (level == 0)
+        return;
+
+    for (i = 0; i < DYNAMAX_LEVEL_SPRITES_COUNT; i++)
+    {
+        if (i < level)
+            animFrame = i + 1;
+        else
+            animFrame = 0;
+        
+        // Start markings at x=36 (centered in 160px box)
+        xPos = 64 + (i * 8) + 8;
+        
+        spriteIds[i] = CreateSprite(&sSpriteTemplate_DynamaxLevel, xPos, 98, 1);
+
+        if (spriteIds[i] != MAX_SPRITES)
+        {
+            StartSpriteAnim(&gSprites[spriteIds[i]], animFrame);
+        }
+    }
+}
+
+static void DestroyDynamaxLevelSprites(void)
+{
+    u8 i;
+    for (i = 0; i < DYNAMAX_LEVEL_SPRITES_COUNT; i++)
+        DestroySpriteInArray(SPRITE_ARR_ID_DYNAMAX_LEVEL + i);
+
+    DestroyDynamaxBoxSprites();
+}
+
+static void CreateDynamaxBoxSprites(void)
+{
+    u8 i;
+    u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_DYNAMAX_BOX];
+    
+    DestroyDynamaxBoxSprites();
+    
+    for (i = 0; i < DYNAMAX_BOX_SPRITES_COUNT; i++)
+    {
+        // 32x16 contiguous chunks starting at x=0
+        spriteIds[i] = CreateSprite(&sSpriteTemplate_DynamaxBox, (i * 32) + 16, 98, 2);
+        
+        if (spriteIds[i] != MAX_SPRITES)
+        {
+            StartSpriteAnim(&gSprites[spriteIds[i]], i);
+        }
+    }
+}
+
+static void DestroyDynamaxBoxSprites(void)
+{
+    u8 i;    
+    for (i = 0; i < DYNAMAX_BOX_SPRITES_COUNT; i++)
+        DestroySpriteInArray(SPRITE_ARR_ID_DYNAMAX_BOX + i);
+}
 
 static void CreateHeldItemSprite(void)
 {
