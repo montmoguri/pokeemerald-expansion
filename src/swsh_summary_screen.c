@@ -121,8 +121,8 @@ enum SWSHSkillsPageState
 #define PSS_DATA_WINDOW_INFO_MEMO 0
 
 #define MOVE_SELECTOR_SPRITES_COUNT 10
-#define HELD_ITEM_BOX_SPRITES_COUNT 5
-#define ABILITY_BOX_SPRITES_COUNT 5
+#define HELD_ITEM_BOX_SPRITES_COUNT 20
+#define ABILITY_BOX_SPRITES_COUNT 15
 #define DYNAMAX_LEVEL_SPRITES_COUNT 10
 #define DYNAMAX_BOX_SPRITES_COUNT 5
 #define TYPE_ICON_SPRITE_COUNT (MAX_MON_MOVES + 1)
@@ -1567,40 +1567,53 @@ static const struct OamData sOamData_HeldItemBox =
     .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = FALSE,
     .bpp = ST_OAM_4BPP,
-    .size = SPRITE_SIZE(32x64),
+    .size = SPRITE_SIZE(32x16),
     .x = 0,
     .matrixNum = 0,
-    .shape = SPRITE_SHAPE(32x64),
+    .shape = SPRITE_SHAPE(32x16),
     .tileNum = 0,
     .priority = 1,
     .paletteNum = 0,
     .affineParam = 0,
 };
 
-// Animations
-static const union AnimCmd sSpriteAnim_HeldItemBoxLeft[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),  // First 32x64 frame (tiles 0-31)
+static const union AnimCmd sSpriteAnim_HeldItemTile0[] = { 
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_HeldItemBoxLeftMiddle[] = {
-    ANIMCMD_FRAME(32, 0, FALSE, FALSE),  // Second 32x64 frame (tiles 32-63)
+static const union AnimCmd sSpriteAnim_HeldItemTile1[] = {
+    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_HeldItemBoxRepeating[] = {
-    ANIMCMD_FRAME(64, 0, FALSE, FALSE),  // Third 32x64 frame (tiles 64-95)
+static const union AnimCmd sSpriteAnim_HeldItemTile2[] = { 
+    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-
+static const union AnimCmd sSpriteAnim_HeldItemTile3[] = { 
+    ANIMCMD_FRAME(24, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_HeldItemTile4[] = { 
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_HeldItemTile5[] = { 
+    ANIMCMD_FRAME(40, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
 static const union AnimCmd *const sSpriteAnimTable_HeldItemBox[] = {
-    sSpriteAnim_HeldItemBoxLeft,
-    sSpriteAnim_HeldItemBoxLeftMiddle,
-    sSpriteAnim_HeldItemBoxRepeating,
+    sSpriteAnim_HeldItemTile0,
+    sSpriteAnim_HeldItemTile1,
+    sSpriteAnim_HeldItemTile2,
+    sSpriteAnim_HeldItemTile3,
+    sSpriteAnim_HeldItemTile4,
+    sSpriteAnim_HeldItemTile5,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_HeldItemBox =
 {
     .data = sHeldItemBox_Gfx,
-    .size = (32 * 64 * 3) / 2,  // 3072 bytes (only need 3 unique tiles)
+    .size = (32 * 16 * 6) / 2,
     .tag = TAG_HELD_ITEM_BOX,
 };
 
@@ -1628,39 +1641,44 @@ static const struct OamData sOamData_AbilityBox =
     .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = FALSE,
     .bpp = ST_OAM_4BPP,
-    .size = SPRITE_SIZE(32x64),
+    .size = SPRITE_SIZE(32x16),
     .x = 0,
     .matrixNum = 0,
-    .shape = SPRITE_SHAPE(32x64),
+    .shape = SPRITE_SHAPE(32x16),
     .tileNum = 0,
     .priority = 1,
-    .paletteNum = 0, // Same palette as held item box
+    .paletteNum = 0,
     .affineParam = 0,
 };
 
-static const union AnimCmd sSpriteAnim_AbilityBoxLeft[] = {
+static const union AnimCmd sSpriteAnim_AbilityTile0[] = {
     ANIMCMD_FRAME(0, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_AbilityBoxLeftMiddle[] = {
-    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
+static const union AnimCmd sSpriteAnim_AbilityTile1[] = {
+    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_AbilityBoxRepeating[] = {
-    ANIMCMD_FRAME(64, 0, FALSE, FALSE),
+static const union AnimCmd sSpriteAnim_AbilityTile2[] = {
+    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_AbilityTile3[] = {
+    ANIMCMD_FRAME(24, 0, FALSE, FALSE),
     ANIMCMD_END
 };
 
 static const union AnimCmd *const sSpriteAnimTable_AbilityBox[] = {
-    sSpriteAnim_AbilityBoxLeft,
-    sSpriteAnim_AbilityBoxLeftMiddle,
-    sSpriteAnim_AbilityBoxRepeating,
+    sSpriteAnim_AbilityTile0,
+    sSpriteAnim_AbilityTile1,
+    sSpriteAnim_AbilityTile2,
+    sSpriteAnim_AbilityTile3,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_AbilityBox =
 {
     .data = sAbilityBox_Gfx,
-    .size = (32 * 64 * 3) / 2,
+    .size = (32 * 16 * 4) / 2,
     .tag = TAG_ABILITY_BOX,
 };
 
@@ -1732,12 +1750,26 @@ static const struct OamData sOamData_DynamaxBox =
     .affineParam = 0,
 };
 
-static const union AnimCmd sSpriteAnim_DynamaxBoxChunk0[] = { ANIMCMD_FRAME(0, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxBoxChunk1[] = { ANIMCMD_FRAME(8, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxBoxChunk2[] = { ANIMCMD_FRAME(16, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxBoxChunk3[] = { ANIMCMD_FRAME(24, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxBoxChunk4[] = { ANIMCMD_FRAME(32, 0), ANIMCMD_END };
-
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk0[] = {
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
+    ANIMCMD_END 
+};
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk1[] = {
+    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk2[] = {
+    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk3[] = {
+    ANIMCMD_FRAME(24, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxBoxChunk4[] = {
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
 static const union AnimCmd *const sSpriteAnimTable_DynamaxBox[] = {
     sSpriteAnim_DynamaxBoxChunk0,
     sSpriteAnim_DynamaxBoxChunk1,
@@ -1772,17 +1804,50 @@ static const struct CompressedSpriteSheet sSpriteSheet_DynamaxLevels =
 };
 
 // Animation commands for each Dynamax level (0-10)
-static const union AnimCmd sSpriteAnim_DynamaxLevel0[] = { ANIMCMD_FRAME(0, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel1[] = { ANIMCMD_FRAME(4, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel2[] = { ANIMCMD_FRAME(8, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel3[] = { ANIMCMD_FRAME(12, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel4[] = { ANIMCMD_FRAME(16, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel5[] = { ANIMCMD_FRAME(20, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel6[] = { ANIMCMD_FRAME(24, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel7[] = { ANIMCMD_FRAME(28, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel8[] = { ANIMCMD_FRAME(32, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel9[] = { ANIMCMD_FRAME(36, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_DynamaxLevel10[] = { ANIMCMD_FRAME(40, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_DynamaxLevel0[] = {
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel1[] = {
+    ANIMCMD_FRAME(4, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel2[] = {
+    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel3[] = {
+    ANIMCMD_FRAME(12, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel4[] = {
+    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel5[] = {
+    ANIMCMD_FRAME(20, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel6[] = {
+    ANIMCMD_FRAME(24, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel7[] = {
+    ANIMCMD_FRAME(28, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel8[] = {
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel9[] = {
+    ANIMCMD_FRAME(36, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_DynamaxLevel10[] = {
+    ANIMCMD_FRAME(40, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
 
 static const union AnimCmd *const sSpriteAnimTable_DynamaxLevels[] = {
     sSpriteAnim_DynamaxLevel0,
@@ -3212,6 +3277,11 @@ static void ChangePage(u8 taskId, s8 delta)
     {
         DestroyAbilityBoxSprites();
         DestroyDynamaxLevelSprites();
+    }
+    else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO)
+    {
+        DestroyHeldItemBoxSprites();
+        DestroyHeldItemIconSprite();
     }
 
     // Wrap around pages (after clearing the old page's tilemaps)
@@ -5688,28 +5758,57 @@ static void CreateCaughtBallSprite(struct Pokemon *mon)
 static void CreateHeldItemBoxSprites(void)
 {
     u16 itemId = sMonSummaryScreen->summary.item;
-    u8 i;
+    u8 col, row;
     u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_HELD_ITEM_BOX];
-    
+
     // Always destroy old sprites first
     DestroyHeldItemBoxSprites();
-    
+
     // Only create sprites if mon has an item
     if (itemId == ITEM_NONE)
         return;
-    
-    for (i = 0; i < HELD_ITEM_BOX_SPRITES_COUNT; i++)
+
+    u16 baseY = 96 + 8;
+
+    for (row = 0; row < 4; row++)
     {
-        spriteIds[i] = CreateSprite(&sSpriteTemplate_HeldItemBox, 16 + (i * 32), 96 + 32, 2);
-        
-        if (spriteIds[i] != MAX_SPRITES)
+        for (col = 0; col < 5; col++)
         {
-            if (i == 0)
-                StartSpriteAnim(&gSprites[spriteIds[i]], 0);
-            else if (i == 1)
-                StartSpriteAnim(&gSprites[spriteIds[i]], 1);
+            u8 idx = row * 5 + col;
+            u16 x = 16 + (col * 32);
+            u16 y = baseY + (row * 16);
+            u8 tileAnim = 4;
+
+            if (row == 0)
+            {
+                if (col == 0)
+                    tileAnim = 0;
+                else if (col == 1)
+                    tileAnim = 1;
+                else
+                    tileAnim = 4;
+            }
+            else if (row == 1)
+            {
+                if (col == 0)
+                    tileAnim = 2;
+                else if (col == 1)
+                    tileAnim = 3;
+                else
+                    tileAnim = 4;
+            }
+            else if (row == 2)
+            {
+                tileAnim = 4;
+            }
             else
-                StartSpriteAnim(&gSprites[spriteIds[i]], 2);
+            {
+                tileAnim = 5;
+            }
+
+            spriteIds[idx] = CreateSprite(&sSpriteTemplate_HeldItemBox, x, y, 2);
+            if (spriteIds[idx] != MAX_SPRITES)
+                StartSpriteAnim(&gSprites[spriteIds[idx]], tileAnim);
         }
     }
 }
@@ -5723,29 +5822,44 @@ static void DestroyHeldItemBoxSprites(void)
 
 static void CreateAbilityBoxSprites(void)
 {
-    u8 i;
+    u8 col, row;
     u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_ABILITY_BOX];
-    
+
     // Always destroy old sprites first
     DestroyAbilityBoxSprites();
-    
-    // Create sprites
-    for (i = 0; i < ABILITY_BOX_SPRITES_COUNT; i++)
-    {
-        u16 y = 140;
-        if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
-            y -= 18;
 
-        spriteIds[i] = CreateSprite(&sSpriteTemplate_AbilityBox, 16 + (i * 32), y, 2);
-        
-        if (spriteIds[i] != MAX_SPRITES)
+    u16 baseY = 116;
+    if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
+        baseY -= 18;
+
+    for (row = 0; row < 3; row++)
+    {
+        for (col = 0; col < 5; col++)
         {
-            if (i == 0)
-                StartSpriteAnim(&gSprites[spriteIds[i]], 0);
-            else if (i == 1)
-                StartSpriteAnim(&gSprites[spriteIds[i]], 1);
+            u8 idx = row * 5 + col;
+            u16 x = 16 + (col * 32);
+            u16 y = baseY + (row * 16);
+            u8 tileAnim = 2;
+
+            if (row == 0)
+            {
+                if (col < 2)
+                    tileAnim = col;
+                else
+                    tileAnim = 2;
+            }
+            else if (row == 1)
+            {
+                tileAnim = 2;
+            }
             else
-                StartSpriteAnim(&gSprites[spriteIds[i]], 2);
+            {
+                tileAnim = 3;
+            }
+
+            spriteIds[idx] = CreateSprite(&sSpriteTemplate_AbilityBox, x, y, 2);
+            if (spriteIds[idx] != MAX_SPRITES)
+                StartSpriteAnim(&gSprites[spriteIds[idx]], tileAnim);
         }
     }
 }
@@ -5769,8 +5883,7 @@ static void CreateDynamaxLevelSprites(void)
 
     if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
         return;
-  
-    // Load box even if level is 0
+
     CreateDynamaxBoxSprites();
     
     if (level >= DYNAMAX_LEVEL_COUNT)
@@ -5786,7 +5899,6 @@ static void CreateDynamaxLevelSprites(void)
         else
             animFrame = 0;
         
-        // Start markings at x=36 (centered in 160px box)
         xPos = 64 + (i * 8) + 8;
         
         spriteIds[i] = CreateSprite(&sSpriteTemplate_DynamaxLevel, xPos, 98, 1);
