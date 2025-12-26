@@ -25,8 +25,9 @@
 #define SWSH_SUMMARY_BG_BLEND                         FALSE     // enables alpha blending for the main UI (semi-transparency)
 #define SWSH_SUMMARY_MON_IDLE_ANIMS                   TRUE      // loops the mon animations regularly as an "idle" anim
 #define SWSH_SUMMARY_MON_SHADOWS                      TRUE      // displays a shadow for the mon sprite
-#define SWSH_SUMMARY_SHOW_GIGANTAMAX                  TRUE      // show gigantamax icon
-#define SWSH_SUMMARY_SHOW_TERA_TYPE                   TRUE      // show tera type icons
+#define SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL               TRUE     // show dynamax level
+#define SWSH_SUMMARY_SHOW_GIGANTAMAX                  TRUE     // show gigantamax icon
+#define SWSH_SUMMARY_SHOW_TERA_TYPE                   TRUE     // show tera type icons
 
 // Looking for configs for renaming mons and relearning moves? Those use the standard expansion configs
 // P_SUMMARY_SCREEN_RENAME and P_SUMMARY_SCREEN_MOVE_RELEARNER in include/config/pokemon.h
