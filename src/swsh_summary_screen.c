@@ -435,7 +435,7 @@ static const u8 sText_RentalPkmn[]              = _("Rental Pokémon");
 static const u8 sText_None[]                    = _("None");
 static const u8 sText_Egg[]                     = _("Egg");
 static const u8 sText_Nature[]                  = _("{DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5}");
-static const u8 sText_MintNature[]              = _("({DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5})");
+static const u8 sText_MintNature[]              = _("{DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5} {EMOJI_LEAF}");
 
 // Trainer Memo page texts
 static const u8 sText_MemoNature[]              = _("{DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5} by nature");
