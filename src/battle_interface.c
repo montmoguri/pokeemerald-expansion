@@ -3254,8 +3254,25 @@ void ArrowsChangeColorLastBallCycle(bool32 showArrows)
 #endif
 }
 
+#define TAG_CATEGORY_ICONS 30004
+static const u16 sCategoryIcons_Pal[] = INCBIN_U16("graphics/battle_interface/swsh/category_icons.gbapal");
+static const u32 sCategoryIcons_Gfx[] = INCBIN_U32("graphics/battle_interface/swsh/category_icons.4bpp.smol");
+
+static const struct CompressedSpriteSheet sSpriteSheet_CategoryIcons =
+{
+    .data = sCategoryIcons_Gfx,
+    .size = 16*16*3/2,
+    .tag = TAG_CATEGORY_ICONS,
+};
+
+static const struct SpritePalette sSpritePal_CategoryIcons =
+{
+    .data = sCategoryIcons_Pal,
+    .tag = TAG_CATEGORY_ICONS
+};
+
 void CategoryIcons_LoadSpritesGfx(void)
 {
-    LoadCompressedSpriteSheet(&gSpriteSheet_CategoryIcons);
-    LoadSpritePalette(&gSpritePal_CategoryIcons);
+    LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcons);
+    LoadSpritePalette(&sSpritePal_CategoryIcons);
 }
