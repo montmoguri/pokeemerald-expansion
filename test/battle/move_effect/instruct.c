@@ -239,6 +239,7 @@ DOUBLE_BATTLE_TEST("Instructed move will be redirected and absorbed by Lightning
     PARAMETRIZE { moveTarget = opponentLeft; }
     PARAMETRIZE { moveTarget = opponentRight; }
     GIVEN {
+        WITH_CONFIG(CONFIG_REDIRECT_ABILITY_IMMUNITY, GEN_5);
         PLAYER(SPECIES_WOBBUFFET);
         PLAYER(SPECIES_WYNAUT);
         OPPONENT(SPECIES_PIKACHU) { Ability(ABILITY_LIGHTNING_ROD); }
@@ -319,5 +320,30 @@ DOUBLE_BATTLE_TEST("Instructed move will be redirected by Rage Powder after inst
         ANIMATION(ANIM_TYPE_MOVE, MOVE_INSTRUCT, playerRight);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_SCRATCH, playerLeft);
         HP_BAR(opponentLeft);
+    }
+}
+
+DOUBLE_BATTLE_TEST("Instruct message references the correct battlers")
+{
+    GIVEN {
+        PLAYER(SPECIES_TREECKO);
+        PLAYER(SPECIES_SCEPTILE);
+        OPPONENT(SPECIES_WOBBUFFET);
+        OPPONENT(SPECIES_WYNAUT);
+    } WHEN {
+        TURN {
+            MOVE(playerLeft, MOVE_CELEBRATE);
+            MOVE(playerRight, MOVE_SCRATCH, target: opponentLeft);
+            MOVE(opponentLeft, MOVE_DRAGON_DARTS, target:playerLeft);
+            MOVE(opponentRight, MOVE_INSTRUCT, target: playerRight);
+        }
+    } SCENE {
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_SCRATCH, playerRight);
+        MESSAGE("The opposing Wynaut used Instruct!");
+        NONE_OF {
+            MESSAGE("Sceptile followed the opposing Wobbuffet's instructions!");
+        }
+        MESSAGE("Sceptile followed the opposing Wynaut's instructions!");
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_SCRATCH, playerRight);
     }
 }
