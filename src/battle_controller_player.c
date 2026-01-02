@@ -29,6 +29,7 @@
 #include "task.h"
 #include "test_runner.h"
 #include "text.h"
+#include "text_window.h"
 #include "util.h"
 #include "window.h"
 #include "line_break.h"
@@ -871,7 +872,7 @@ void HandleInputChooseMove(u32 battler)
             }
 
             FillWindowPixelBuffer(B_WIN_MOVE_DESCRIPTION, PIXEL_FILL(0));
-            ClearStdWindowAndFrame(B_WIN_MOVE_DESCRIPTION, FALSE);
+            ClearSwShMoveDescWindowAndFrame(B_WIN_MOVE_DESCRIPTION, FALSE);
             CopyWindowToVram(B_WIN_MOVE_DESCRIPTION, COPYWIN_GFX);
             PlaySE(SE_SELECT);
             if (B_SHOW_EFFECTIVENESS)
@@ -1731,15 +1732,21 @@ static void MoveSelectionDisplayMoveDescription(u32 battler)
         acc = 0;
     }
 
+    // text colors for CAT, PWR, ACC (different from standard text colors
+    u8 sText_CatPwrAccColors[] = _("{COLOR_HIGHLIGHT_SHADOW 14 5 13}");
     u8 pwr_num[3], acc_num[3];
     u8 cat_desc[7] = _("CAT: ");
     u8 pwr_desc[7] = _("PWR: ");
     u8 acc_desc[7] = _("ACC: ");
     u8 cat_start[] = _("{CLEAR_TO 0x03}");
     u8 pwr_start[] = _("{CLEAR_TO 0x38}");
-    u8 acc_start[] = _("{CLEAR_TO 0x6D}");
-    LoadMessageBoxAndBorderGfx();
-    DrawStdWindowFrame(B_WIN_MOVE_DESCRIPTION, FALSE);
+    u8 acc_start[] = _("{CLEAR_TO 0x6C}");
+    LoadSwShMoveDescBoxGfx(B_WIN_MOVE_DESCRIPTION, SWSH_MOVE_DESC_WINDOW_BASE_TILE_NUM, BG_PLTT_ID(STD_WINDOW_PALETTE_NUM));
+    DrawSwShMoveDescFrame(B_WIN_MOVE_DESCRIPTION, FALSE);
+    
+    // Fill top 2 rows different color than bottom 4 rows
+    FillWindowPixelRect(B_WIN_MOVE_DESCRIPTION, PIXEL_FILL(5), 0, 0, 144, 16);
+    FillWindowPixelRect(B_WIN_MOVE_DESCRIPTION, PIXEL_FILL(14), 0, 16, 144, 32);
     if (pwr < 2)
         StringCopy(pwr_num, gText_BattleSwitchWhich5);
     else
@@ -1748,7 +1755,9 @@ static void MoveSelectionDisplayMoveDescription(u32 battler)
         StringCopy(acc_num, gText_BattleSwitchWhich5);
     else
         ConvertIntToDecimalStringN(acc_num, acc, STR_CONV_MODE_LEFT_ALIGN, 3);
-    StringCopy(gDisplayedStringBattle, cat_start);
+
+    StringCopy(gDisplayedStringBattle, sText_CatPwrAccColors);
+    StringAppend(gDisplayedStringBattle, cat_start);
     StringAppend(gDisplayedStringBattle, cat_desc);
     StringAppend(gDisplayedStringBattle, pwr_start);
     StringAppend(gDisplayedStringBattle, pwr_desc);
@@ -1757,11 +1766,14 @@ static void MoveSelectionDisplayMoveDescription(u32 battler)
     StringAppend(gDisplayedStringBattle, acc_desc);
     StringAppend(gDisplayedStringBattle, acc_num);
     StringAppend(gDisplayedStringBattle, gText_NewLine);
+    // Reset to standard text colors
+    StringAppend(gDisplayedStringBattle, gText_MoveInterfaceDynamicColors);
     StringAppend(gDisplayedStringBattle, GetMoveDescription(move));
-    BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_MOVE_DESCRIPTION);
+    // B_WIN_COPYTOVRAM avoid custom color fills being cleared by a single color
+    BattlePutTextOnWindow(gDisplayedStringBattle, B_WIN_MOVE_DESCRIPTION | B_WIN_COPYTOVRAM);
 
     if (gCategoryIconSpriteId == 0xFF)
-        gCategoryIconSpriteId = CreateSprite(&gSpriteTemplate_CategoryIcons, 38, 64, 1);
+        gCategoryIconSpriteId = CreateSprite(&gSpriteTemplate_CategoryIcons, 39, 63, 1);
 
     StartSpriteAnim(&gSprites[gCategoryIconSpriteId], cat);
 
