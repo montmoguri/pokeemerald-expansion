@@ -49,6 +49,8 @@ static const u16 sTextWindowFrame18_Pal[] = INCBIN_U16("graphics/text_window/18.
 static const u16 sTextWindowFrame19_Pal[] = INCBIN_U16("graphics/text_window/19.gbapal");
 static const u16 sTextWindowFrame20_Pal[] = INCBIN_U16("graphics/text_window/20.gbapal");
 
+const u8 sSwShMoveDescBox_Gfx[] = INCBIN_U8("graphics/text_window/swsh_move_desc_box.4bpp");
+
 static const u16 sTextWindowPalettes[][16] =
 {
     INCBIN_U16("graphics/text_window/message_box.gbapal"),
@@ -120,6 +122,12 @@ void LoadWindowGfx(u8 windowId, u8 frameId, u16 destOffset, u8 palOffset)
 void LoadUserWindowBorderGfx(u8 windowId, u16 destOffset, u8 palOffset)
 {
     LoadWindowGfx(windowId, gSaveBlock2Ptr->optionsWindowFrameType, destOffset, palOffset);
+}
+
+void LoadSwShMoveDescBoxGfx(u8 windowId, u16 destOffset, u8 palOffset)
+{
+    LoadBgTiles(GetWindowAttribute(windowId, WINDOW_BG), sSwShMoveDescBox_Gfx, 0x180, destOffset);
+    LoadPalette(gStandardMenuPalette, palOffset, STD_WINDOW_PALETTE_SIZE);
 }
 
 void DrawTextBorderOuter(u8 windowId, u16 tileNum, u8 palNum)

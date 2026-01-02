@@ -54,8 +54,10 @@ static void WindowFunc_DrawStandardFrame(u8, u8, u8, u8, u8, u8);
 static void WindowFunc_DrawSignFrame(u8, u8, u8, u8, u8, u8);
 static inline void *GetWindowFunc_DialogueFrame(void);
 static void WindowFunc_DrawDialogueFrame(u8, u8, u8, u8, u8, u8);
+static void WindowFunc_DrawSwShMoveDescFrame(u8, u8, u8, u8, u8, u8);
 static void WindowFunc_ClearStdWindowAndFrame(u8, u8, u8, u8, u8, u8);
 static void WindowFunc_ClearDialogWindowAndFrame(u8, u8, u8, u8, u8, u8);
+static void WindowFunc_ClearSwShMoveDescWindowAndFrame(u8, u8, u8, u8, u8, u8);
 static void WindowFunc_DrawDialogFrameWithCustomTileAndPalette(u8, u8, u8, u8, u8, u8);
 static void WindowFunc_ClearDialogWindowAndFrameNullPalette(u8, u8, u8, u8, u8, u8);
 static void WindowFunc_DrawStdFrameWithCustomTileAndPalette(u8, u8, u8, u8, u8, u8);
@@ -75,6 +77,7 @@ static EWRAM_DATA u16 sTempTileDataBufferIdx = 0;
 static EWRAM_DATA void *sTempTileDataBuffer[0x20] = {NULL};
 
 const u16 gStandardMenuPalette[] = INCBIN_U16("graphics/interface/std_menu.gbapal");
+const u8 sSwShMoveDescBoxTilemap[] = INCBIN_U8("graphics/text_window/swsh_move_desc_box.bin");
 
 static const struct WindowTemplate sStandardTextBox_WindowTemplates[] =
 {
@@ -385,6 +388,15 @@ void DrawStdWindowFrame(u8 windowId, bool8 copyToVram)
         CopyWindowToVram(windowId, COPYWIN_FULL);
 }
 
+void DrawSwShMoveDescFrame(u8 windowId, bool8 copyToVram)
+{
+    CallWindowFunction(windowId, WindowFunc_DrawSwShMoveDescFrame);
+    FillWindowPixelBuffer(windowId, PIXEL_FILL(1));
+    PutWindowTilemap(windowId);
+    if (copyToVram == TRUE)
+        CopyWindowToVram(windowId, COPYWIN_FULL);
+}
+
 void ClearDialogWindowAndFrame(u8 windowId, bool8 copyToVram)
 {
     CallWindowFunction(windowId, WindowFunc_ClearDialogWindowAndFrame);
@@ -397,6 +409,15 @@ void ClearDialogWindowAndFrame(u8 windowId, bool8 copyToVram)
 void ClearStdWindowAndFrame(u8 windowId, bool8 copyToVram)
 {
     CallWindowFunction(windowId, WindowFunc_ClearStdWindowAndFrame);
+    FillWindowPixelBuffer(windowId, PIXEL_FILL(1));
+    ClearWindowTilemap(windowId);
+    if (copyToVram == TRUE)
+        CopyWindowToVram(windowId, COPYWIN_FULL);
+}
+
+void ClearSwShMoveDescWindowAndFrame(u8 windowId, bool8 copyToVram)
+{
+    CallWindowFunction(windowId, WindowFunc_ClearSwShMoveDescWindowAndFrame);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(1));
     ClearWindowTilemap(windowId);
     if (copyToVram == TRUE)
@@ -558,6 +579,27 @@ static void WindowFunc_DrawDialogueFrame(u8 bg, u8 tilemapLeft, u8 tilemapTop, u
                             DLG_WINDOW_PALETTE_NUM);
 }
 
+static void WindowFunc_DrawSwShMoveDescFrame(u8 bg, u8 tilemapLeft, u8 tilemapTop, u8 width, u8 height, u8 paletteNum)
+{
+    // Left edge (1 tile wide, col 0 from tilemap)
+    CopyRectToBgTilemapBufferRect(bg, sSwShMoveDescBoxTilemap, 0, 0, 5, 7,
+                                  tilemapLeft - 1, tilemapTop, 1, 7,
+                                  STD_WINDOW_PALETTE_NUM, SWSH_MOVE_DESC_WINDOW_BASE_TILE_NUM, 0);
+
+    // Center column (col 1 from tilemap, repeated for window width)
+    for (u32 i = tilemapLeft; i < tilemapLeft + width; i++)
+    {
+        CopyRectToBgTilemapBufferRect(bg, sSwShMoveDescBoxTilemap, 1, 0, 5, 7,
+                                      i, tilemapTop, 1, 7,
+                                      STD_WINDOW_PALETTE_NUM, SWSH_MOVE_DESC_WINDOW_BASE_TILE_NUM, 0);
+    }
+
+    // Right edge (3 tiles wide, cols 2-4 from tilemap)
+    CopyRectToBgTilemapBufferRect(bg, sSwShMoveDescBoxTilemap, 2, 0, 5, 7,
+                                  tilemapLeft + width, tilemapTop, 3, 7,
+                                  STD_WINDOW_PALETTE_NUM, SWSH_MOVE_DESC_WINDOW_BASE_TILE_NUM, 0);
+}
+
 static void WindowFunc_ClearStdWindowAndFrame(u8 bg, u8 tilemapLeft, u8 tilemapTop, u8 width, u8 height, u8 paletteNum)
 {
     FillBgTilemapBufferRect(bg, 0, tilemapLeft - 1, tilemapTop - 1, width + 2, height + 2, STD_WINDOW_PALETTE_NUM);
@@ -566,6 +608,11 @@ static void WindowFunc_ClearStdWindowAndFrame(u8 bg, u8 tilemapLeft, u8 tilemapT
 static void WindowFunc_ClearDialogWindowAndFrame(u8 bg, u8 tilemapLeft, u8 tilemapTop, u8 width, u8 height, u8 paletteNum)
 {
     FillBgTilemapBufferRect(bg, 0, tilemapLeft - 3, tilemapTop - 1, width + 6, height + 2, STD_WINDOW_PALETTE_NUM);
+}
+
+static void WindowFunc_ClearSwShMoveDescWindowAndFrame(u8 bg, u8 tilemapLeft, u8 tilemapTop, u8 width, u8 height, u8 paletteNum)
+{
+    FillBgTilemapBufferRect(bg, 0, tilemapLeft - 1, tilemapTop, width + 4, height + 1, STD_WINDOW_PALETTE_NUM);
 }
 
 void SetStandardWindowBorderStyle(u8 windowId, bool8 copyToVram)
