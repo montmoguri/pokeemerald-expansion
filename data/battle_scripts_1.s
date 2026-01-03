@@ -1541,10 +1541,10 @@ BattleScript_EffectInstruct::
 	tryinstruct BattleScript_ButItFailed
 	attackanimation
 	waitanimation
-	copybyte gBattlerAttacker, gBattlerTarget
-	copybyte gBattlerTarget, gEffectBattler
 	printstring STRINGID_USEDINSTRUCTEDMOVE
 	waitmessage B_WAIT_TIME_LONG
+	copybyte gBattlerAttacker, gBattlerTarget
+	copybyte gBattlerTarget, gEffectBattler
 	jumptocalledmove TRUE
 
 BattleScript_EffectAutotomize::
@@ -3364,11 +3364,11 @@ BattleScript_NightmareWorked::
 BattleScript_EffectMinimize::
 	attackcanceler
 	setvolatile BS_ATTACKER, VOLATILE_MINIMIZE
-.if B_MINIMIZE_EVASION >= GEN_5
+	jumpifgenconfiglowerthan CONFIG_MINIMIZE_EVASION, GEN_5, BattleScript_EffectMinimizeGen4
 	setstatchanger STAT_EVASION, 2, FALSE
-.else
+	goto BattleScript_EffectStatUpAfterAtkCanceler
+BattleScript_EffectMinimizeGen4:
 	setstatchanger STAT_EVASION, 1, FALSE
-.endif
 	goto BattleScript_EffectStatUpAfterAtkCanceler
 
 BattleScript_EffectCurse::
@@ -5147,6 +5147,7 @@ BattleScript_DmgHazardsOnAttackerFainted::
 	setbyte sGIVEEXP_STATE, 0
 	getexp BS_ATTACKER
 	moveendall
+	tryabsorbtoxicspikesonfaint
 	goto BattleScript_HandleFaintedMon
 
 BattleScript_DmgHazardsOnTarget::
@@ -5161,6 +5162,7 @@ BattleScript_DmgHazardsOnTargetFainted::
 	setbyte sGIVEEXP_STATE, 0
 	getexp BS_TARGET
 	moveendall
+	tryabsorbtoxicspikesonfaint
 	goto BattleScript_HandleFaintedMon
 
 BattleScript_DmgHazardsOnBattlerScripting::
@@ -5175,6 +5177,7 @@ BattleScript_DmgHazardsOnBattlerScriptingFainted::
 	setbyte sGIVEEXP_STATE, 0
 	getexp BS_SCRIPTING
 	moveendall
+	tryabsorbtoxicspikesonfaint
 	goto BattleScript_HandleFaintedMon
 
 BattleScript_DmgHazardsOnFaintedBattler::
@@ -5189,6 +5192,7 @@ BattleScript_DmgHazardsOnFaintedBattlerFainted::
 	setbyte sGIVEEXP_STATE, 0
 	getexp BS_FAINTED
 	moveendall
+	tryabsorbtoxicspikesonfaint
 	goto BattleScript_HandleFaintedMon
 
 BattleScript_PrintHurtByDmgHazards::

@@ -1438,10 +1438,10 @@ static u32 GetBattlerMonData(u32 battler, struct Pokemon *party, u32 monId, u8 *
         #if TESTING
         if (gTestRunnerEnabled)
         {
-            u32 side = GetBattlerSide(battler);
+            u32 array = (!IsPartnerMonFromSameTrainer(battler)) ? battler : GetBattlerSide(battler);
             u32 partyIndex = gBattlerPartyIndexes[battler];
-            if (TestRunner_Battle_GetForcedAbility(side, partyIndex))
-                gBattleMons[battler].ability = TestRunner_Battle_GetForcedAbility(side, partyIndex);
+            if (TestRunner_Battle_GetForcedAbility(array, partyIndex))
+                gBattleMons[battler].ability = TestRunner_Battle_GetForcedAbility(array, partyIndex);
         }
         #endif
         break;
@@ -2639,7 +2639,7 @@ void BtlController_HandleStatusAnimation(u32 battler)
 
 void BtlController_HandleHitAnimation(u32 battler)
 {
-    if (gSprites[gBattlerSpriteIds[battler]].invisible == TRUE || gTestRunnerHeadless)
+    if (gSprites[gBattlerSpriteIds[battler]].invisible == TRUE || (gTestRunnerHeadless && !gBattleTestRunnerState->forceMoveAnim))
     {
         BtlController_Complete(battler);
     }
@@ -2654,7 +2654,7 @@ void BtlController_HandleHitAnimation(u32 battler)
 
 void BtlController_HandlePlaySE(u32 battler)
 {
-    if (gTestRunnerHeadless)
+    if (gTestRunnerHeadless && !gBattleTestRunnerState->forceMoveAnim)
     {
         BtlController_Complete(battler);
         return;
@@ -2667,7 +2667,7 @@ void BtlController_HandlePlaySE(u32 battler)
 
 void BtlController_HandlePlayFanfareOrBGM(u32 battler)
 {
-    if (gTestRunnerHeadless)
+    if (gTestRunnerHeadless && !gBattleTestRunnerState->forceMoveAnim)
     {
         BtlController_Complete(battler);
         return;
