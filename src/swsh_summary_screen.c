@@ -5115,7 +5115,7 @@ static void PrintMoveNameAndPP(u8 moveIndex)
 
     if (move != 0)
     {
-        PrintTextOnWindowToFitPx_WithFont(moveNameWindowId, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, WindowWidthPx(moveNameWindowId) - 3);
+        PrintTextOnWindowToFitPx_WithFont(moveNameWindowId, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, 74);
         pp = CalculatePPWithBonus(move, summary->ppBonuses, moveIndex);
         ConvertIntToDecimalStringN(gStringVar1, summary->pp[moveIndex], STR_CONV_MODE_RIGHT_ALIGN, 2);
         ConvertIntToDecimalStringN(gStringVar2, pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
@@ -5239,9 +5239,9 @@ static void PrintNewMoveDetailsOrCancelText(void)
         u16 move = sMonSummaryScreen->newMove;
 
         if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES)
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, WindowWidthPx(windowId1) - 3);
+            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, 74);
         else
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, WindowWidthPx(windowId1) - 3);
+            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, 74);
 
         ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[move].pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
         DynamicPlaceholderTextUtil_Reset();
