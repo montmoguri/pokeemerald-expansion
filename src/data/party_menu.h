@@ -863,6 +863,43 @@ static const struct SpriteTemplate sSpriteTemplate_HeldItem =
     .callback = SpriteCallbackDummy
 };
 
+static const u32 sSelectCursorGfx[] = INCBIN_U32("graphics/party_menu/swsh/select_cursor.4bpp");
+
+static const struct OamData sOamData_SelectCursor =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(16x16),
+    .x = 0,
+    .matrixNum = 0,
+    .size = SPRITE_SIZE(16x16),
+    .tileNum = 0,
+    .priority = 1,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const struct SpriteSheet sSpriteSheet_SelectCursor =
+{
+    .data = sSelectCursorGfx, 
+    .size = sizeof(sSelectCursorGfx), 
+    .tag = TAG_SELECT_CURSOR
+};
+
+static const struct SpriteTemplate sSpriteTemplate_SelectCursor =
+{
+    .tileTag = TAG_SELECT_CURSOR,
+    .paletteTag = TAG_HELD_ITEM,
+    .oam = &sOamData_SelectCursor,
+    .anims = gDummySpriteAnimTable,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCallbackDummy
+};
+
 static const struct OamData sOamData_MenuPokeball =
 {
     .y = 0,
