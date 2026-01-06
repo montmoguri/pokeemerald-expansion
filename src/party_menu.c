@@ -8,6 +8,7 @@
 #include "battle_pike.h"
 #include "battle_pyramid.h"
 #include "battle_pyramid_bag.h"
+#include "item_icon.h"
 #include "bg.h"
 #include "contest.h"
 #include "data.h"
@@ -236,6 +237,7 @@ EWRAM_DATA u8 gBattlePartyCurrentOrder[PARTY_SIZE / 2] = {0}; // bits 0-3 are th
 static EWRAM_DATA u8 sInitialLevel = 0;
 static EWRAM_DATA u8 sFinalLevel = 0;
 static EWRAM_DATA u8 sSelectCursorSpriteId = 0;
+static EWRAM_DATA u8 sItemIconSpriteId = 0;
 
 // IWRAM common
 COMMON_DATA void (*gItemUseCB)(u8, TaskFunc) = NULL;
@@ -301,6 +303,8 @@ static void CreatePartyMonStatusSprite(struct Pokemon *, struct PartyMenuBox *);
 static void LoadPartyMonSelectCursor(void);
 static void CreatePartyMonSelectSprite(struct PartyMenuBox *, u8);
 static void DestroyPartyMonSelectSprite(void);
+static void CreatePartyMonItemIconSprite(struct PartyMenuBox *, u8, u16);
+static void DestroyPartyMonItemIconSprite(void);
 static u8 CreateSmallPokeballButtonSprite(u8, u8);
 static void DrawCancelConfirmButtons(void);
 static u8 CreatePokeballButtonSprite(u8, u8);
@@ -1621,6 +1625,7 @@ static void HandleChooseMonCancel(u8 taskId, s8 *slotPtr)
         break;
     case PARTY_ACTION_SWITCH:
     case PARTY_ACTION_SOFTBOILED:
+    case PARTY_ACTION_MOVE_ITEM:
         PlaySE(SE_SELECT);
         FinishTwoMonAction(taskId);
         break;
@@ -3366,6 +3371,7 @@ static void FinishTwoMonAction(u8 taskId)
     gPartyMenu.slotId = gPartyMenu.slotId2;
     AnimatePartySlot(gPartyMenu.slotId2, 1);
     DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
+    CreatePartyMonSelectSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
     gTasks[taskId].func = Task_HandleChooseMonInput;
 }
 
@@ -4473,18 +4479,57 @@ static void DestroyPartyMonSelectSprite(void)
     }
 }
 
+static void CreatePartyMonItemIconSprite(struct PartyMenuBox *menuBox, u8 slot, u16 itemId)
+{
+    DestroyPartyMonItemIconSprite();
+    
+    u8 x = menuBox->spriteCoords[0] - 8;
+    u8 y = menuBox->spriteCoords[1];
+    
+    sItemIconSpriteId = AddItemIconSprite(TAG_SELECT_CURSOR + 1, TAG_SELECT_CURSOR + 1, itemId);
+    
+    if (sItemIconSpriteId != MAX_SPRITES)
+    {
+        gSprites[sItemIconSpriteId].x = x;
+        gSprites[sItemIconSpriteId].y = y;
+        gSprites[sItemIconSpriteId].oam.priority = 0;
+    }
+}
+
+static void DestroyPartyMonItemIconSprite(void)
+{
+    if (sItemIconSpriteId != MAX_SPRITES && sItemIconSpriteId != 0)
+    {
+        FreeSpriteTilesByTag(TAG_SELECT_CURSOR + 1);
+        FreeSpritePaletteByTag(TAG_SELECT_CURSOR + 1);
+        DestroySprite(&gSprites[sItemIconSpriteId]);
+        sItemIconSpriteId = MAX_SPRITES;
+    }
+}
+
 static void CreatePartyMonSelectSprite(struct PartyMenuBox *menuBox, u8 slot)
 {
-    DestroyPartyMonSelectSprite();
-    
-    u8 x = menuBox->spriteCoords[0] - 16;
-    u8 y = menuBox->spriteCoords[1] + 4;
-    
-    sSelectCursorSpriteId = CreateSprite(&sSpriteTemplate_SelectCursor, x, y, 0);
-    
-    if (sSelectCursorSpriteId != MAX_SPRITES)
+    // When using or giving an item, show the item icon instead of the select cursor
+    if ((gPartyMenu.action == PARTY_ACTION_USE_ITEM || gPartyMenu.action == PARTY_ACTION_GIVE_ITEM || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM) 
+        && gSpecialVar_ItemId != ITEM_NONE)
     {
-        gSprites[sSelectCursorSpriteId].oam.priority = 0; // Draw above mon sprite
+        DestroyPartyMonSelectSprite();
+        CreatePartyMonItemIconSprite(menuBox, slot, gSpecialVar_ItemId);
+    }
+    else
+    {
+        DestroyPartyMonItemIconSprite();
+        DestroyPartyMonSelectSprite();
+        
+        u8 x = menuBox->spriteCoords[0] - 16;
+        u8 y = menuBox->spriteCoords[1] + 4;
+        
+        sSelectCursorSpriteId = CreateSprite(&sSpriteTemplate_SelectCursor, x, y, 0);
+        
+        if (sSelectCursorSpriteId != MAX_SPRITES)
+        {
+            gSprites[sSelectCursorSpriteId].oam.priority = 0; // Draw above mon sprite
+        }
     }
 }
 
@@ -8276,11 +8321,13 @@ void CursorCb_MoveItemCallback(u8 taskId)
         DisplayPartyMenuMessage(gStringVar4, TRUE);
 
         // update colors of selected boxes
-        AnimatePartySlot(gPartyMenu.slotId2, 0);
+        AnimatePartySlot(gPartyMenu.slotId, 0);
+        gPartyMenu.slotId = gPartyMenu.slotId2;
         AnimatePartySlot(gPartyMenu.slotId, 1);
 
         // return to the main party menu
         ScheduleBgCopyTilemapToVram(2);
+        CreatePartyMonSelectSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
         gTasks[taskId].func = Task_UpdateHeldItemSprite;
         break;
     }
@@ -8298,12 +8345,14 @@ void CursorCb_MoveItem(u8 taskId)
 
     if (GetMonData(mon, MON_DATA_HELD_ITEM) != ITEM_NONE)
     {
-        gPartyMenu.action = PARTY_ACTION_SWITCH;
+        gSpecialVar_ItemId = GetMonData(mon, MON_DATA_HELD_ITEM);
+        gPartyMenu.action = PARTY_ACTION_MOVE_ITEM;
 
         // show "Move item to where" in bottom left
         DisplayPartyMenuStdMessage(PARTY_MSG_MOVE_ITEM_WHERE);
         // update color of first selected box
         AnimatePartySlot(gPartyMenu.slotId, 1);
+        CreatePartyMonSelectSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
 
         // set up callback
         gPartyMenu.slotId2 = gPartyMenu.slotId;
