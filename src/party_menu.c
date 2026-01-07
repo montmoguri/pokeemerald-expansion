@@ -328,7 +328,7 @@ static bool8 PartyBoxPal_ParnterOrDisqualifiedInArena(u8);
 static u8 GetPartyIdFromBattleSlot(u8);
 static void Task_ClosePartyMenuAndSetCB2(u8);
 static void UpdatePartyToFieldOrder(void);
-static void MoveCursorToConfirm(void);
+static void UNUSED MoveCursorToConfirm(void);
 static void HandleChooseMonCancel(u8, s8 *);
 static void HandleChooseMonSelection(u8, s8 *);
 static u16 PartyMenuButtonHandler(s8 *);
@@ -1499,7 +1499,9 @@ void Task_HandleChooseMonInput(u8 taskId)
             if (sPartyMenuInternal->chooseHalf)
             {
                 PlaySE(SE_SELECT);
-                MoveCursorToConfirm();
+                // // TODO: print START Confirm prompt
+                // MoveCursorToConfirm();
+                gPartyMenu.task(taskId);
             }
             break;
         }
@@ -1818,7 +1820,8 @@ static void UpdatePartySelectionSingleLayout(s8 *slotPtr, s8 movementDir)
     case MENU_DIR_UP:
         if (*slotPtr == 0)
         {
-            *slotPtr = PARTY_SIZE + 1;
+            // *slotPtr = PARTY_SIZE + 1;
+            *slotPtr = gPlayerPartyCount - 1; // Disable cursor going to Cancel
         }
         else if (*slotPtr == PARTY_SIZE)
         {
@@ -1826,10 +1829,11 @@ static void UpdatePartySelectionSingleLayout(s8 *slotPtr, s8 movementDir)
         }
         else if (*slotPtr == PARTY_SIZE + 1)
         {
-            if (sPartyMenuInternal->chooseHalf)
-                *slotPtr = PARTY_SIZE;
-            else
-                *slotPtr = gPlayerPartyCount - 1;
+            // // Disable cursor going to Cancel
+            //  if (sPartyMenuInternal->chooseHalf)
+            //     *slotPtr = PARTY_SIZE;
+            // else
+            *slotPtr = gPlayerPartyCount - 1;
         }
         else
         {
@@ -1845,10 +1849,12 @@ static void UpdatePartySelectionSingleLayout(s8 *slotPtr, s8 movementDir)
         {
             if (*slotPtr == gPlayerPartyCount - 1)
             {
-                if (sPartyMenuInternal->chooseHalf)
-                    *slotPtr = PARTY_SIZE;
-                else
-                    *slotPtr = PARTY_SIZE + 1;
+                // // Disable cursor going to Cancel
+                // if (sPartyMenuInternal->chooseHalf)
+                //     *slotPtr = PARTY_SIZE;
+                // else
+                //     *slotPtr = PARTY_SIZE + 1;
+                *slotPtr = 0;
             }
             else
             {
@@ -1886,7 +1892,8 @@ static void UpdatePartySelectionDoubleLayout(s8 *slotPtr, s8 movementDir)
     case MENU_DIR_UP:
         if (*slotPtr == 0)
         {
-            *slotPtr = PARTY_SIZE + 1;
+            // *slotPtr = PARTY_SIZE + 1; // Disable cursor going to Cancel
+            *slotPtr = gPlayerPartyCount - 1;
             break;
         }
         else if (*slotPtr == PARTY_SIZE)
@@ -1896,12 +1903,14 @@ static void UpdatePartySelectionDoubleLayout(s8 *slotPtr, s8 movementDir)
         }
         else if (*slotPtr == PARTY_SIZE + 1)
         {
-            if (sPartyMenuInternal->chooseHalf)
-            {
-                *slotPtr = PARTY_SIZE;
-                break;
-            }
-            (*slotPtr)--;
+            // if (sPartyMenuInternal->chooseHalf) // Disable cursor going to Cancel
+            // {
+            //     *slotPtr = PARTY_SIZE;
+            //     break;
+            // }
+            // (*slotPtr)--;
+            *slotPtr = gPlayerPartyCount - 1;
+            break;
         }
         newSlot = GetNewSlotDoubleLayout(*slotPtr, newSlot);
         if (newSlot != -1)
@@ -1910,7 +1919,8 @@ static void UpdatePartySelectionDoubleLayout(s8 *slotPtr, s8 movementDir)
     case MENU_DIR_DOWN:
         if (*slotPtr == PARTY_SIZE)
         {
-            *slotPtr = PARTY_SIZE + 1;
+            // *slotPtr = PARTY_SIZE + 1; // Disable cursor going to Cancel
+            *slotPtr = 0;
         }
         else if (*slotPtr == PARTY_SIZE + 1)
         {
@@ -1921,10 +1931,11 @@ static void UpdatePartySelectionDoubleLayout(s8 *slotPtr, s8 movementDir)
             newSlot = GetNewSlotDoubleLayout(*slotPtr, MENU_DIR_DOWN);
             if (newSlot == -1)
             {
-                if (sPartyMenuInternal->chooseHalf)
-                    *slotPtr = PARTY_SIZE;
-                else
-                    *slotPtr = PARTY_SIZE + 1;
+                // if (sPartyMenuInternal->chooseHalf) // Disable cursor going to Cancel
+                //     *slotPtr = PARTY_SIZE;
+                // else
+                //     *slotPtr = PARTY_SIZE + 1;
+                *slotPtr = 0;
             }
             else
             {
@@ -3958,8 +3969,9 @@ static void CursorCb_Enter(u8 taskId)
             PlaySE(SE_SELECT);
             gSelectedOrderFromParty[i] = gPartyMenu.slotId + 1;
             DisplayPartyPokemonDescriptionText(i + PARTYBOX_DESC_FIRST, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
-            if (i == (maxBattlers - 1))
-                MoveCursorToConfirm();
+            // // TODO: print START Confirm prompt
+            // if (i == (maxBattlers - 1))
+            //     MoveCursorToConfirm();
             DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
             gTasks[taskId].func = Task_HandleChooseMonInput;
             return;
@@ -3972,7 +3984,7 @@ static void CursorCb_Enter(u8 taskId)
     gTasks[taskId].func = Task_ReturnToChooseMonAfterText;
 }
 
-static void MoveCursorToConfirm(void)
+static void UNUSED MoveCursorToConfirm(void)
 {
     AnimatePartySlot(gPartyMenu.slotId, 0);
     gPartyMenu.slotId = PARTY_SIZE;
