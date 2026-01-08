@@ -1399,7 +1399,7 @@ static u8 GetPartyBoxPaletteFlags(u8 slot, u8 animNum)
         palFlags |= PARTY_PAL_MULTI_ALT;
     if (gPartyMenu.action == PARTY_ACTION_SWITCHING)
         palFlags |= PARTY_PAL_SWITCHING;
-    if (gPartyMenu.action == PARTY_ACTION_SWITCH)
+    if (gPartyMenu.action == PARTY_ACTION_SWITCH || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM)
     {
         if (slot == gPartyMenu.slotId || slot == gPartyMenu.slotId2)
             palFlags |= PARTY_PAL_TO_SWITCH;
@@ -1510,7 +1510,7 @@ void Task_HandleChooseMonInput(u8 taskId)
 
 static s8 *GetCurrentPartySlotPtr(void)
 {
-    if (gPartyMenu.action == PARTY_ACTION_SWITCH || gPartyMenu.action == PARTY_ACTION_SOFTBOILED)
+    if (gPartyMenu.action == PARTY_ACTION_SWITCH || gPartyMenu.action == PARTY_ACTION_SOFTBOILED || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM)
         return &gPartyMenu.slotId2;
     else
         return &gPartyMenu.slotId;
