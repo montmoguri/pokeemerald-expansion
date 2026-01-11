@@ -388,7 +388,7 @@ graphics/party_menu/bg.4bpp: %.4bpp: %.png
 	$(GFX) $< $@ -num_tiles 62 -Wnum_tiles
 
 graphics/party_menu/swsh/tiles.4bpp: %.4bpp: %.png
-	$(GFX) $< $@ -num_tiles 99 -Wnum_tiles
+	$(GFX) $< $@ -num_tiles 60 -Wnum_tiles
 
 $(TYPESGFXDIR)/move_types.4bpp: $(types:%=$(TYPESGFXDIR)/%.4bpp) $(contest_types:%=$(TYPESGFXDIR)/contest_%.4bpp)
 	@cat $^ >$@
