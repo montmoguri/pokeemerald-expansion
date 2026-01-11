@@ -2890,6 +2890,30 @@ void DisplayPartyMenuStdMessage(u32 stringId)
     if (*windowPtr != WINDOW_NONE)
         PartyMenuRemoveWindow(windowPtr);
 
+    // Suppress certain party menu prompts
+    switch (stringId)
+    {
+    case PARTY_MSG_CHOOSE_MON:
+    case PARTY_MSG_MOVE_TO_WHERE:
+    case PARTY_MSG_TEACH_WHICH_MON:
+    case PARTY_MSG_USE_ON_WHICH_MON:
+    case PARTY_MSG_GIVE_TO_WHICH_MON:
+    case PARTY_MSG_RESTORE_WHICH_MOVE:
+    case PARTY_MSG_BOOST_PP_WHICH_MOVE:
+        // Clear WIN_MSG for prompts that appear after item operations
+        ClearStdWindowAndFrameToTransparent(WIN_MSG, FALSE);
+        ClearWindowTilemap(WIN_MSG);
+        ScheduleBgCopyTilemapToVram(2);
+        return;
+
+    case PARTY_MSG_DO_WHAT_WITH_MON:
+    case PARTY_MSG_DO_WHAT_WITH_ITEM:
+    case PARTY_MSG_DO_WHAT_WITH_MAIL:
+    case PARTY_MSG_MOVE_ITEM_WHERE:
+        // Suppress these prompts without clearing WIN_MSG
+        return;
+    }
+
     if (stringId != PARTY_MSG_NONE)
     {
         switch (stringId)
@@ -3630,9 +3654,15 @@ static void CB2_SelectBagItemToGive(void)
 
 static void CB2_GiveHoldItem(void)
 {
+    u8 i;
+    
     if (gSpecialVar_ItemId == ITEM_NONE)
     {
         InitPartyMenu(gPartyMenu.menuType, KEEP_PARTY_LAYOUT, gPartyMenu.action, TRUE, PARTY_MSG_NONE, Task_TryCreateSelectionWindow, gPartyMenu.exitCallback);
+        
+        sPartyMenuInternal->inItemMode = FALSE;
+        for (i = 0; i < PARTY_SIZE; i++)
+            UpdatePartyMonHeldItemSprite(&gPlayerParty[i], &sPartyMenuBoxes[i]);
     }
     else
     {
@@ -3641,7 +3671,13 @@ static void CB2_GiveHoldItem(void)
         // Already holding item
         if (sPartyMenuItemId != ITEM_NONE)
         {
-            InitPartyMenu(gPartyMenu.menuType, KEEP_PARTY_LAYOUT, gPartyMenu.action, TRUE, PARTY_MSG_NONE, Task_SwitchHoldItemsPrompt, gPartyMenu.exitCallback);
+            InitPartyMenu(gPartyMenu.menuType, KEEP_PARTY_LAYOUT, PARTY_ACTION_GIVE_ITEM, TRUE, PARTY_MSG_NONE, Task_SwitchHoldItemsPrompt, gPartyMenu.exitCallback);
+            gPartyMenu.bagItem = gSpecialVar_ItemId;
+            
+            // Restore item mode after InitPartyMenu reset it
+            sPartyMenuInternal->inItemMode = TRUE;
+            for (i = 0; i < PARTY_SIZE; i++)
+                UpdatePartyMonHeldItemSprite(&gPlayerParty[i], &sPartyMenuBoxes[i]);
         }
         // Give mail
         else if (ItemIsMail(gSpecialVar_ItemId))
@@ -3653,7 +3689,13 @@ static void CB2_GiveHoldItem(void)
         // Give item
         else
         {
-            InitPartyMenu(gPartyMenu.menuType, KEEP_PARTY_LAYOUT, gPartyMenu.action, TRUE, PARTY_MSG_NONE, Task_GiveHoldItem, gPartyMenu.exitCallback);
+            InitPartyMenu(gPartyMenu.menuType, KEEP_PARTY_LAYOUT, PARTY_ACTION_GIVE_ITEM, TRUE, PARTY_MSG_NONE, Task_GiveHoldItem, gPartyMenu.exitCallback);
+            gPartyMenu.bagItem = gSpecialVar_ItemId;
+            
+            // Restore item mode after InitPartyMenu reset it
+            sPartyMenuInternal->inItemMode = TRUE;
+            for (i = 0; i < PARTY_SIZE; i++)
+                UpdatePartyMonHeldItemSprite(&gPlayerParty[i], &sPartyMenuBoxes[i]);
         }
     }
 }
@@ -3665,9 +3707,16 @@ static void Task_GiveHoldItem(u8 taskId)
     if (!gPaletteFade.active)
     {
         item = gSpecialVar_ItemId;
-        DisplayGaveHeldItemMessage(&gPlayerParty[gPartyMenu.slotId], item, FALSE, 0);
         GiveItemToMon(&gPlayerParty[gPartyMenu.slotId], item);
         RemoveBagItem(item, 1);
+        
+        // Visually update cursor and held item sprites
+        UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
+        gSpecialVar_ItemId = ITEM_NONE;
+        DestroyPartyMonHoverSprite();
+        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        
+        DisplayGaveHeldItemMessage(&gPlayerParty[gPartyMenu.slotId], item, FALSE, 0);
         gTasks[taskId].func = Task_UpdateHeldItemSprite;
     }
 }
@@ -3714,8 +3763,16 @@ static void Task_HandleSwitchItemsYesNoInput(u8 taskId)
         // Giving item
         else
         {
-            GiveItemToMon(&gPlayerParty[gPartyMenu.slotId], gSpecialVar_ItemId);
-            DisplaySwitchedHeldItemMessage(gSpecialVar_ItemId, sPartyMenuItemId, TRUE);
+            u16 newItem = gSpecialVar_ItemId;
+            GiveItemToMon(&gPlayerParty[gPartyMenu.slotId], newItem);
+            
+            // Visually update cursor and held item sprites
+            UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
+            gSpecialVar_ItemId = ITEM_NONE;
+            DestroyPartyMonHoverSprite();
+            CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+            
+            DisplaySwitchedHeldItemMessage(newItem, sPartyMenuItemId, TRUE);
             gTasks[taskId].func = Task_UpdateHeldItemSprite;
         }
         break;
@@ -3723,7 +3780,12 @@ static void Task_HandleSwitchItemsYesNoInput(u8 taskId)
         PlaySE(SE_SELECT);
         // fallthrough
     case 1: // No
-        gTasks[taskId].func = Task_ReturnToChooseMonAfterText;
+        AddBagItem(gSpecialVar_ItemId, 1);
+        
+        // Reset to choose mon mode via Task_UpdateHeldItemSprite
+        gPartyMenu.action = PARTY_ACTION_GIVE_ITEM; // Keep as GIVE_ITEM so cleanup happens
+        gSpecialVar_ItemId = ITEM_NONE;
+        gTasks[taskId].func = Task_UpdateHeldItemSprite;
         break;
     }
 }
@@ -3789,9 +3851,10 @@ static void Task_UpdateHeldItemSprite(u8 taskId)
     if (IsPartyMenuTextPrinterActive() != TRUE)
     {
         u8 i;
+        bool8 wasGivingItem = (gPartyMenu.action == PARTY_ACTION_GIVE_ITEM);
         
         // Reset to generic icons after finishing item operations
-        if (sPartyMenuInternal->inItemMode) 
+        if (sPartyMenuInternal->inItemMode)
         {
             sPartyMenuInternal->inItemMode = FALSE;
             for (i = 0; i < PARTY_SIZE; i++)
@@ -3799,6 +3862,7 @@ static void Task_UpdateHeldItemSprite(u8 taskId)
         }
         else
         {
+            // Update the held item sprite for the selected mon
             UpdatePartyMonHeldItemSprite(mon, &sPartyMenuBoxes[gPartyMenu.slotId]);
         }
 
@@ -3809,6 +3873,20 @@ static void Task_UpdateHeldItemSprite(u8 taskId)
             else
                 DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_DONT_HAVE, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
         }
+        
+        // After completing give item operation, reset cursor and icons
+        if (wasGivingItem)
+        {
+            gPartyMenu.action = PARTY_ACTION_CHOOSE_MON;
+            gSpecialVar_ItemId = ITEM_NONE;
+            
+            sPartyMenuInternal->inItemMode = FALSE;
+            for (i = 0; i < PARTY_SIZE; i++)
+                UpdatePartyMonHeldItemSprite(&gPlayerParty[i], &sPartyMenuBoxes[i]);
+            DestroyPartyMonHoverSprite();
+            CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        }
+        
         Task_ReturnToChooseMonAfterText(taskId);
     }
 }
@@ -4647,7 +4725,7 @@ static void SpriteCB_UpdatePartyMonIcon(struct Sprite *sprite)
 static const union AffineAnimCmd sAffineAnim_ItemIcon_Small[] =
 {
     // scale to 75% of original item icon sprite
-    AFFINEANIMCMD_FRAME(192, 192, 0, 0),
+    AFFINEANIMCMD_FRAME(206, 206, 0, 0),
     AFFINEANIMCMD_END
 };
 
@@ -7576,9 +7654,16 @@ static void GiveItemToSelectedMon(u8 taskId)
     if (!gPaletteFade.active)
     {
         item = gPartyMenu.bagItem;
-        DisplayGaveHeldItemMessage(&gPlayerParty[gPartyMenu.slotId], item, FALSE, 1);
         GiveItemToMon(&gPlayerParty[gPartyMenu.slotId], item);
         RemoveBagItem(item, 1);
+        
+        // Visually update cursor and held item sprites
+        UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
+        gSpecialVar_ItemId = ITEM_NONE;
+        DestroyPartyMonHoverSprite();
+        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        
+        DisplayGaveHeldItemMessage(&gPlayerParty[gPartyMenu.slotId], item, FALSE, 1);
         gTasks[taskId].func = Task_UpdateHeldItemSpriteAndClosePartyMenu;
     }
 }
@@ -7673,6 +7758,13 @@ static void Task_HandleSwitchItemsFromBagYesNoInput(u8 taskId)
         else
         {
             GiveItemToMon(&gPlayerParty[gPartyMenu.slotId], item);
+            
+            // Visually update cursor and held item sprites
+            UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
+            gSpecialVar_ItemId = ITEM_NONE;
+            DestroyPartyMonHoverSprite();
+            CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+            
             DisplaySwitchedHeldItemMessage(item, sPartyMenuItemId, TRUE);
             gTasks[taskId].func = Task_UpdateHeldItemSpriteAndClosePartyMenu;
         }
