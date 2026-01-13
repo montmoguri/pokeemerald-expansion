@@ -1260,7 +1260,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_SelectFrame =
 static const struct SpritePalette sSpritePal_SelectFrame =
 {
     .data = gHeldItemPalette,
-    .tag = TAG_SELECT_FRAME,
+    .tag = TAG_HELD_ITEM,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_SelectFrame =
@@ -1502,18 +1502,14 @@ static const struct CompressedSpriteSheet sSpriteSheet_StatusIcons =
 
 static const struct SpritePalette sSpritePalette_StatusIcons =
 {
-#if SWSH_PARTY_MENU == TRUE
     .data = sStatusPal_Icons_SwSh,
-#else
-    .data = gStatusPal_Icons,
-#endif
-    .tag = TAG_STATUS_ICONS
+    .tag = TAG_HELD_ITEM
 };
 
 const struct SpriteTemplate gSpriteTemplate_StatusIcons =
 {
     .tileTag = TAG_STATUS_ICONS,
-    .paletteTag = TAG_STATUS_ICONS,
+    .paletteTag = TAG_HELD_ITEM,
     .oam = &sOamData_StatusCondition,
     .anims = sSpriteTemplate_StatusCondition,
     .images = NULL,
