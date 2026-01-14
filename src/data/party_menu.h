@@ -1274,6 +1274,14 @@ static const struct SpriteTemplate sSpriteTemplate_SelectFrame =
     .callback = SpriteCallbackDummy,
 };
 
+static const u16 sPartyMonShadowPalette[] = INCBIN_U16("graphics/party_menu/swsh/shadow.gbapal");
+
+static const struct SpritePalette sSpritePal_PartyMonShadow =
+{
+    .data = sPartyMonShadowPalette,
+    .tag = TAG_PARTY_MON_SHADOW
+};
+
 static const struct OamData sOamData_MenuPokeball =
 {
     .y = 0,
