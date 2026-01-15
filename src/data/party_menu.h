@@ -1279,7 +1279,7 @@ static const u16 sPartyMonShadowPalette[] = INCBIN_U16("graphics/party_menu/swsh
 static const struct SpritePalette sSpritePal_PartyMonShadow =
 {
     .data = sPartyMonShadowPalette,
-    .tag = TAG_PARTY_MON_SHADOW
+    .tag = TAG_MON_SHADOW
 };
 
 static const struct OamData sOamData_MenuPokeball =
