@@ -2308,26 +2308,6 @@ static bool8 LoadGraphics(void)
         break;
     case 12:
         PrintPageSpecificText(sMonSummaryScreen->currPageIndex);
-        if (sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO)
-        { 
-            ScheduleBgCopyTilemapToVram(2);
-
-            if (P_SUMMARY_SCREEN_RENAME)
-            {
-                FillWindowPixelBuffer(PSS_LABEL_WINDOW_PROMPT_CANCEL, PIXEL_FILL(0));
-                ShowCancelOrRenamePrompt();
-                PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_CANCEL);  
-            }
-            CreateHeldItemBoxSprites();
-            CreateHeldItemSprite();
-        } 
-        else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
-        {
-            DrawNextSkillsButtonPrompt(SKILL_STATE_STATS);
-            CreateAbilityBoxSprites();
-            CreateDynamaxLevelSprites();
-        }
-        TryDrawExperienceProgressBar();
         gMain.state++;
         break;
     case 13:
@@ -4166,6 +4146,7 @@ static void PutPageWindowTilemaps(u8 page)
     switch (page)
     {
     case PSS_PAGE_INFO:
+        PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_CANCEL);
         break;
     case PSS_PAGE_SKILLS:
         PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_IVS);
@@ -5563,7 +5544,7 @@ static u8 CreateMonSprite(struct Pokemon *unused, bool32 isShadow)
 {
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
     u8 shadowPalette = 0;
-    u8 spriteId = CreateSprite(&gMultiuseSpriteTemplate, 204, 76, 5);
+    u8 spriteId = CreateSprite(&gMultiuseSpriteTemplate, 202, 76, 5);
 
     FreeSpriteOamMatrix(&gSprites[spriteId]);
     gSprites[spriteId].sSpecies = summary->species2;
@@ -5578,8 +5559,9 @@ static u8 CreateMonSprite(struct Pokemon *unused, bool32 isShadow)
         shadowPalette = LoadSpritePalette(&sSpritePal_MonShadow);
         gSprites[spriteId].oam.paletteNum = shadowPalette;
         gSprites[spriteId].oam.objMode = ST_OAM_OBJ_BLEND;
-        gSprites[spriteId].x -= 5;
-        gSprites[spriteId].y -= 2;
+        gSprites[spriteId].subpriority = 6;
+        gSprites[spriteId].x += 4;
+        gSprites[spriteId].y += 2;
     }
 
     return spriteId;
