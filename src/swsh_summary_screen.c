@@ -2308,6 +2308,26 @@ static bool8 LoadGraphics(void)
         break;
     case 12:
         PrintPageSpecificText(sMonSummaryScreen->currPageIndex);
+        if (sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO)
+        { 
+            ScheduleBgCopyTilemapToVram(2);
+
+            if (P_SUMMARY_SCREEN_RENAME)
+            {
+                FillWindowPixelBuffer(PSS_LABEL_WINDOW_PROMPT_CANCEL, PIXEL_FILL(0));
+                ShowCancelOrRenamePrompt();
+                PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_CANCEL);  
+            }
+            CreateHeldItemBoxSprites();
+            CreateHeldItemSprite();
+        } 
+        else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_SKILLS)
+        {
+            DrawNextSkillsButtonPrompt(SKILL_STATE_STATS);
+            CreateAbilityBoxSprites();
+            CreateDynamaxLevelSprites();
+        }
+        TryDrawExperienceProgressBar();
         gMain.state++;
         break;
     case 13:
