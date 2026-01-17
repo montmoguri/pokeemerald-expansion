@@ -35,6 +35,7 @@
 #include "item.h"
 #include "item_menu.h"
 #include "item_use.h"
+#include "pokemon_storage_system.h"
 #include "caps.h"
 #include "link.h"
 #include "link_rfu.h"
@@ -262,6 +263,14 @@ static EWRAM_DATA u8 sSelectFrameSpriteIds[7] = {0}; // Left + 5 middle + Right
 static EWRAM_DATA u8 sMonSpriteId = 0;
 static EWRAM_DATA u8 sMonShadowSpriteId = 0;
 static EWRAM_DATA u16 sMonAnimTimer = 0;
+// Saved party menu state for reopening after opening the PC Move Pokémon UI
+static EWRAM_DATA u8 sSavedPartyMenuType = 0;
+static EWRAM_DATA u8 sSavedPartyLayout = 0;
+static EWRAM_DATA u8 sSavedPartyAction = 0;
+static EWRAM_DATA u8 sSavedPartyMessageId = 0;
+static EWRAM_DATA TaskFunc sSavedPartyTask = NULL;
+static EWRAM_DATA MainCallback sSavedPartyExitCallback = NULL;
+static EWRAM_DATA u8 sSavedPartySlotId = 0;
 
 
 // IWRAM common
@@ -552,6 +561,8 @@ static void ShowMoveSelectWindow(u8 slot);
 static void Task_HandleWhichMoveInput(u8 taskId);
 static void Task_HideFollowerNPCForTeleport(u8);
 static void FieldCallback_RockClimb(void);
+static void SavePartyMenuStateForPC(void);
+static void CB2_ReopenPartyMenuFromPC(void);
 
 // static const data
 #include "data/party_menu.h"
@@ -1441,7 +1452,7 @@ static void UNUSED CreateCancelConfirmPokeballSprites(void)
         CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
     }
     */
-} 
+}
 
 void AnimatePartySlot(u8 slot, u8 animNum)
 {
@@ -1538,7 +1549,7 @@ static void UNUSED DrawCancelConfirmButtons(void)
     CopyToBgTilemapBufferRect_ChangePalette(1, sCancelButton_Tilemap, 23, 18, 7, 2, 17);
     ScheduleBgCopyTilemapToVram(1);
     */
-} 
+}
 
 bool8 IsMultiBattle(void)
 {
@@ -1583,6 +1594,31 @@ static void Task_ClosePartyMenuAndSetCB2(u8 taskId)
     }
 }
 
+// Save states to recreate the party menu when exiting PC storage
+static void SavePartyMenuStateForPC(void)
+{
+    sSavedPartyMenuType = gPartyMenu.menuType;
+    sSavedPartyLayout = gPartyMenu.layout;
+    sSavedPartyAction = gPartyMenu.action;
+    sSavedPartySlotId = 0;
+    sSavedPartyMessageId = PARTY_MSG_NONE;
+    sSavedPartyTask = Task_HandleChooseMonInput;
+    sSavedPartyExitCallback = gPartyMenu.exitCallback;
+}
+
+static void CB2_ReopenPartyMenuFromPC(void)
+{
+    if (sSavedPartyTask == NULL)
+        sSavedPartyTask = Task_HandleChooseMonInput;
+    if (sSavedPartyExitCallback == NULL)
+        sSavedPartyExitCallback = CB2_ReturnToField;
+    if (sSavedPartySlotId > PARTY_SIZE)
+        sSavedPartySlotId = 0;
+    gPartyMenu.slotId = sSavedPartySlotId;
+
+    InitPartyMenu(sSavedPartyMenuType, sSavedPartyLayout, sSavedPartyAction, TRUE, sSavedPartyMessageId, sSavedPartyTask, sSavedPartyExitCallback);
+}
+
 u8 GetCursorSelectionMonId(void)
 {
     return gPartyMenu.slotId;
@@ -1614,6 +1650,18 @@ void Task_HandleChooseMonInput(u8 taskId)
                 // // TODO: print START Confirm prompt
                 // MoveCursorToConfirm();
                 gPartyMenu.task(taskId);
+            }
+            else if (gPartyMenu.action == PARTY_ACTION_CHOOSE_MON && gPartyMenu.layout == PARTY_LAYOUT_SINGLE
+                     && (gPartyMenu.menuType == PARTY_MENU_TYPE_FIELD || gPartyMenu.menuType == PARTY_MENU_TYPE_DAYCARE))
+            {
+                PlaySE(SE_SELECT);
+
+                SavePartyMenuStateForPC();
+                PokemonPC_SetReturnToPartyCallback(CB2_ReopenPartyMenuFromPC);
+                
+                sPartyMenuInternal->exitCallback = CB2_ShowPokemonPCFromParty;
+                PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
+                Task_ClosePartyMenu(taskId);
             }
             break;
         }
@@ -2596,7 +2644,7 @@ static void ShowConfirmPrompt(void)
         PrintTextOnWindowWithFont(promptWindowId, sMenuText_Confirm, stringXPos, 0, 0, 5, FONT_SMALL);
         CopyWindowToVram(promptWindowId, COPYWIN_GFX);
     }
-}  
+}
 
 static void UNUSED ClearConfirmPrompt(void)
 {
@@ -2607,7 +2655,7 @@ static void UNUSED ClearConfirmPrompt(void)
         sPartyMenuInternal->promptWindowId = WINDOW_NONE;
         ScheduleBgCopyTilemapToVram(0);
     }
-} 
+}
 
 static void UNUSED CreateCancelConfirmWindows(bool8 chooseHalf)
 {
@@ -2655,7 +2703,7 @@ static void UNUSED CreateCancelConfirmWindows(bool8 chooseHalf)
         ScheduleBgCopyTilemapToVram(0);
     }
     */
-} 
+}
 
 static u16 *GetPartyMenuPalBufferPtr(u8 paletteId)
 {
@@ -3122,6 +3170,7 @@ void DisplayPartyMenuStdMessage(u32 stringId)
     switch (stringId)
     {
     case PARTY_MSG_CHOOSE_MON:
+    case PARTY_MSG_CHOOSE_MON_2:
     case PARTY_MSG_MOVE_TO_WHERE:
     case PARTY_MSG_TEACH_WHICH_MON:
     case PARTY_MSG_USE_ON_WHICH_MON:
@@ -5169,7 +5218,7 @@ static void CreatePartyMonHoverSprite(struct PartyMenuBox *menuBox, u8 slot)
     }
 
     // When using or giving an item, show the item icon instead of the select cursor
-    if ((gPartyMenu.action == PARTY_ACTION_USE_ITEM || gPartyMenu.action == PARTY_ACTION_GIVE_ITEM || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM) 
+    if ((gPartyMenu.action == PARTY_ACTION_USE_ITEM || gPartyMenu.action == PARTY_ACTION_GIVE_ITEM || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM)
         && gSpecialVar_ItemId != ITEM_NONE)
     {
         DestroyPartyMonHoverSprite();
@@ -5234,7 +5283,7 @@ static void SpriteCB_ItemSwap(struct Sprite *sprite)
         {
             s32 dx = endX - startX;
             s32 dy = endY - startY;
-            s32 perpX = dy; 
+            s32 perpX = dy;
             s32 perpY = -dx;
             
             // Factor t * (1-t) where t = current/total
@@ -5285,7 +5334,7 @@ static void CreatePartyMonItemMoveSprite(u8 fromSlot, u8 toSlot, u16 itemId)
     DestroyPartyMonItemIconSprite();
     sItemIconSpriteId = MAX_SPRITES;
     
-    DestroyPartyMonHoverSprite(); 
+    DestroyPartyMonHoverSprite();
     // Create stationary cursor at fromSlot
     sHoverCursorSpriteId = CreateSprite(&sSpriteTemplate_HoverCursor, 
                                         sPartyMenuBoxes[fromSlot].spriteCoords[0] - 18, 
