@@ -5632,15 +5632,8 @@ static u8 CreateMonSprite(struct Pokemon *mon, bool32 isShadow)
     return spriteId;
 }
 
-static void SummaryScreen_DestroyAnimDelayTask(void)
-{
-    StopPokemonAnimationDelayTask();
-    StopPokemonAnimationDelayTask();
-}
-
 static void DestroyMonSprite(void)
 {
-    SummaryScreen_DestroyAnimDelayTask();
     if (sMonSpriteId != 0 && sMonSpriteId != MAX_SPRITES)
     {
         DestroySpriteAndFreeResources(&gSprites[sMonSpriteId]);
