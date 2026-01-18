@@ -116,7 +116,45 @@ SINGLE_BATTLE_TEST("Chesto and Lum Berries cure sleep")
     }
 }
 
-TO_DO_BATTLE_TEST("Chesto and Lum Berries don't trigger if the holder has Comatose")
+SINGLE_BATTLE_TEST("Chesto Berry cures sleep when Yawn takes effect")
+{
+    GIVEN {
+        ASSUME(GetMoveEffect(MOVE_YAWN) == EFFECT_YAWN);
+        ASSUME(gItemsInfo[ITEM_CHESTO_BERRY].holdEffect == HOLD_EFFECT_CURE_SLP);
+        PLAYER(SPECIES_WOBBUFFET) { Item(ITEM_CHESTO_BERRY); }
+        OPPONENT(SPECIES_WOBBUFFET);
+    } WHEN {
+        TURN { MOVE(opponent, MOVE_YAWN); }
+        TURN { MOVE(opponent, MOVE_CELEBRATE); }
+    } SCENE {
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_YAWN, opponent);
+        ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_SLP, player);
+        STATUS_ICON(player, sleep: TRUE);
+        ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_HELD_ITEM_EFFECT, player);
+        STATUS_ICON(player, sleep: FALSE);
+    }
+}
+
+SINGLE_BATTLE_TEST("Chesto and Lum Berries don't trigger if the holder has Comatose")
+{
+    u16 item;
+
+    PARAMETRIZE { item = ITEM_CHESTO_BERRY; }
+    PARAMETRIZE { item = ITEM_LUM_BERRY; }
+
+    GIVEN {
+        ASSUME(gItemsInfo[ITEM_CHESTO_BERRY].holdEffect == HOLD_EFFECT_CURE_SLP);
+        ASSUME(gItemsInfo[ITEM_LUM_BERRY].holdEffect == HOLD_EFFECT_CURE_STATUS);
+        PLAYER(SPECIES_WOBBUFFET);
+        OPPONENT(SPECIES_KOMALA) { Ability(ABILITY_COMATOSE); Item(item); }
+    } WHEN {
+        TURN { }
+    } SCENE {
+        NOT ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_HELD_ITEM_EFFECT, opponent);
+    } THEN {
+        EXPECT_EQ(opponent->item, item);
+    }
+}
 
 SINGLE_BATTLE_TEST("Cheri and Lum Berries cure paralysis")
 {
@@ -162,8 +200,7 @@ SINGLE_BATTLE_TEST("Perism and Lum Berries cure confusion")
 
 SINGLE_BATTLE_TEST("Berry hold effect cures status if a Pokémon enters a battle")
 {
-    u16 status;
-    u16 item;
+    u16 status, item;
 
     PARAMETRIZE { status = STATUS1_BURN; item = ITEM_RAWST_BERRY; }
     PARAMETRIZE { status = STATUS1_FREEZE; item = ITEM_ASPEAR_BERRY; }
