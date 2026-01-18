@@ -1,6 +1,10 @@
 #ifndef GUARD_CONSTANTS_PARTY_MENU_H
 #define GUARD_CONSTANTS_PARTY_MENU_H
 
+#define SWSH_PARTY_MENU TRUE
+#define SWSH_PARTY_MON_IDLE_ANIMS TRUE
+#define SWSH_PARTY_MON_IDLE_ANIMS_FRAMES 300 // Number of frames before mon animation loops
+
 #define PARTY_NOTHING_CHOSEN 0xFF
 
 #define AILMENT_NONE  0
@@ -50,6 +54,7 @@
 #define PARTY_ACTION_MINIGAME           13
 #define PARTY_ACTION_SEND_MON_TO_BOX    14
 #define PARTY_ACTION_CHOOSE_FAINTED_MON 15
+#define PARTY_ACTION_MOVE_ITEM          16
 
 // IDs for DisplayPartyMenuStdMessage, to display the message at the bottom of the party menu
 #define PARTY_MSG_CHOOSE_MON                0
