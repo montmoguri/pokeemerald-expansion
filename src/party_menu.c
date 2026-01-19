@@ -829,7 +829,7 @@ static bool8 ShowPartyMenu(void)
         gMain.state++;
         break;
     case 22:
-        if (gPartyMenu.slotId < gPlayerPartyCount && GetMonData(&gPlayerParty[gPartyMenu.slotId], MON_DATA_SPECIES) != SPECIES_NONE)
+        if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE && gPartyMenu.slotId < gPlayerPartyCount && GetMonData(&gPlayerParty[gPartyMenu.slotId], MON_DATA_SPECIES) != SPECIES_NONE)
         {
             sMonSpriteId = LoadMonGfxAndSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuInternal->data[0], FALSE);
             if (sMonSpriteId != 0xFF)
@@ -843,7 +843,7 @@ static bool8 ShowPartyMenu(void)
         gMain.state++;
         break;
     case 24:
-        if (gPartyMenu.slotId < gPlayerPartyCount && GetMonData(&gPlayerParty[gPartyMenu.slotId], MON_DATA_SPECIES) != SPECIES_NONE)
+        if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE && gPartyMenu.slotId < gPlayerPartyCount && GetMonData(&gPlayerParty[gPartyMenu.slotId], MON_DATA_SPECIES) != SPECIES_NONE)
         {
             sMonShadowSpriteId = LoadMonGfxAndSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuInternal->data[0], TRUE);
             if (sMonShadowSpriteId != 0xFF)
@@ -2003,8 +2003,8 @@ static void UpdateCurrentPartySelection(s8 *slotPtr, s8 movementDir)
         AnimatePartySlot(*slotPtr, 1);
         CreatePartyMonHoverSprite(&sPartyMenuBoxes[*slotPtr], *slotPtr);
         
-        // Add animated front sprite of selected mon
-        if (*slotPtr < gPlayerPartyCount && GetMonData(&gPlayerParty[*slotPtr], MON_DATA_SPECIES) != SPECIES_NONE)
+        // Add animated front sprite of selected mon (unless opened in battle or multi-showcase)
+        if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE && *slotPtr < gPlayerPartyCount && GetMonData(&gPlayerParty[*slotPtr], MON_DATA_SPECIES) != SPECIES_NONE)
         {
             DestroyMonSprite();
             state = 0;
@@ -2020,6 +2020,10 @@ static void UpdateCurrentPartySelection(s8 *slotPtr, s8 movementDir)
                 spriteId = LoadMonGfxAndSprite(&gPlayerParty[*slotPtr], &state, FALSE);
             } while (spriteId == 0xFF);
             sMonSpriteId = spriteId;
+        }
+        else
+        {
+            DestroyMonSprite();
         }
     }
 }
