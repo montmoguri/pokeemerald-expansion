@@ -197,6 +197,12 @@ struct PartyMenuBoxInfoRects
     u8 descTextHeight;
 };
 
+struct PartyMenuMoveBoxInfoRects
+{
+    void (*blitFunc)(u8, u8, u8, u8, u8, bool8);
+    u8 dimensions[8];
+};
+
 struct PartyMenuInternal
 {
     TaskFunc task;
@@ -268,6 +274,7 @@ static EWRAM_DATA u8 sHoverCursorSpriteId = 0;
 static EWRAM_DATA u8 sItemIconSpriteId = 0;
 static EWRAM_DATA u8 sSelectFrameSpriteIds[7] = {0}; // Left + 5 middle + Right
 static EWRAM_DATA u8 sMonSpriteId = 0;
+static EWRAM_DATA u8 sMoveWindowIds[MAX_MON_MOVES];
 static EWRAM_DATA u8 sMonShadowSpriteId = 0;
 static EWRAM_DATA u16 sMonAnimTimer = 0;
 // Saved party menu state for reopening after opening the PC Move Pokémon UI
@@ -303,10 +310,10 @@ static void UNUSED CreateCancelConfirmPokeballSprites(void);
 static void UNUSED CreateCancelConfirmWindows(u8);
 static void Task_ExitPartyMenu(u8);
 static void FreePartyPointers(void);
-static u8 LoadMonGfxAndSprite(struct Pokemon *mon, s16 *state, bool32 isShadow);
-static u8 CreateMonSprite(struct Pokemon *mon, bool32 isShadow);
+static u8 LoadMonGfxAndSprite(struct Pokemon *, s16 *, bool32);
+static u8 CreateMonSprite(struct Pokemon *, bool32);
 static void DestroyMonSprite(void);
-static void SpriteCB_PartyMonPokemon(struct Sprite *sprite);
+static void SpriteCB_PartyMonPokemon(struct Sprite *);
 static void RunMonAnimTimer(void);
 static void PartyPaletteBufferCopy(u8);
 static void DisplayPartyPokemonDataForMultiBattle(u8);
@@ -363,6 +370,10 @@ static void PartyMenuStartSpriteAnim(u8, u8);
 static u8 GetPartyBoxPaletteFlags(u8, u8);
 static bool8 PartyBoxPal_ParnterOrDisqualifiedInArena(u8);
 static u8 GetPartyIdFromBattleSlot(u8);
+static void BlitBitmapToPartyMoveWindow_SwSh(u8, u8, u8, u8, u8, bool8);
+static void UpdatePartyMoveWindows(u8);
+static void DisplayPartyPokemonMoves(u8, struct Pokemon *, int);
+static u8 *GetPartyMenuBgTile(u16);
 static void Task_ClosePartyMenuAndSetCB2(u8);
 static void UpdatePartyToFieldOrder(void);
 static void UNUSED MoveCursorToConfirm(void);
@@ -528,6 +539,7 @@ static void Task_ChooseMonForMoveRelearner(u8);
 static void CB2_ChooseMonForMoveRelearner(void);
 static void Task_BattlePyramidChooseMonHeldItems(u8);
 static void ShiftMoveSlot(struct Pokemon *, u8, u8);
+static void BlitBitmapToPartyWindow(u8, const u8 *, u8, u8, u8, u8, u8);
 static void BlitBitmapToPartyWindow_LeftColumn(u8, u8, u8, u8, u8, bool8);
 static void BlitBitmapToPartyWindow_RightColumn(u8, u8, u8, u8, u8, bool8);
 static void BlitBitmapToPartyWindow_SwSh(u8, u8, u8, u8, u8, bool8);
@@ -1016,6 +1028,8 @@ static void ResetPartyMenu(void)
     sMonAnimTimer = 0;
     for (i = 0; i < ARRAY_COUNT(sSelectFrameSpriteIds); i++)
         sSelectFrameSpriteIds[i] = MAX_SPRITES;
+    for (i = 0; i < MAX_MON_MOVES; ++i)
+        sMoveWindowIds[i] = WINDOW_NONE;
 }
 
 static bool8 AllocPartyMenuBg(void)
@@ -1196,6 +1210,21 @@ static void RenderPartyMenuBox(u8 slot)
                 AnimatePartySlot(slot, 0);
         }
         PutWindowTilemap(sPartyMenuBoxes[slot].windowId);
+        if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE && SWSH_PARTY_MENU && gPartyMenu.slotId == slot)
+        {
+            struct Pokemon *mon = &gPlayerParty[slot];
+            int m;
+            for (m = 0; m < MAX_MON_MOVES; ++m)
+            {
+                const u8 *tm = (GetMonData(mon, MON_DATA_MOVE1 + m) != MOVE_NONE) ? sMoveTilemap_Main_SwSh : sMoveTilemap_Empty_SwSh;
+                if (tm != NULL && sMoveWindowIds[m] != WINDOW_NONE)
+                {
+                    BlitBitmapToPartyWindow(sMoveWindowIds[m], tm, 14, 0, 0, 14, 2);
+                    DisplayPartyPokemonMoves(sMoveWindowIds[m], mon, m);
+                    CopyWindowToVram(sMoveWindowIds[m], COPYWIN_GFX);
+                }
+            }
+        }
         ScheduleBgCopyTilemapToVram(0);
     }
 }
@@ -1231,6 +1260,35 @@ static void DisplayPartyPokemonDescriptionData(u8 slot, u8 stringID)
         DisplayPartyPokemonGenderNidoranCheck(mon, &sPartyMenuBoxes[slot], 0);
     }
     DisplayPartyPokemonDescriptionText(stringID, &sPartyMenuBoxes[slot], 0);
+}
+
+
+static void UpdatePartyMoveWindows(u8 slot)
+{
+    int m;
+    const u8 *tm;
+
+    if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE || !SWSH_PARTY_MENU)
+        return;
+
+    for (m = 0; m < MAX_MON_MOVES; ++m)
+    {
+        if (sMoveWindowIds[m] == WINDOW_NONE)
+            continue;
+
+        FillWindowPixelBuffer(sMoveWindowIds[m], PIXEL_FILL(0));
+        tm = (GetMonData(&gPlayerParty[slot], MON_DATA_MOVE1 + m) != MOVE_NONE) ? sMoveTilemap_Main_SwSh : sMoveTilemap_Empty_SwSh;
+        BlitBitmapToPartyWindow(sMoveWindowIds[m], tm, 14, 0, 0, 14, 2);
+        {
+            struct Pokemon *mon = &gPlayerParty[slot];
+            u16 move = GetMonData(mon, MON_DATA_MOVE1 + m);
+            if (move != MOVE_NONE)
+            {
+                DisplayPartyPokemonMoves(sMoveWindowIds[m], mon, m);
+            }
+        }
+        CopyWindowToVram(sMoveWindowIds[m], COPYWIN_GFX);
+    }
 }
 
 static void DisplayPartyPokemonDataForChooseHalf(u8 slot)
@@ -2002,6 +2060,8 @@ static void UpdateCurrentPartySelection(s8 *slotPtr, s8 movementDir)
         AnimatePartySlot(newSlotId, 0);
         AnimatePartySlot(*slotPtr, 1);
         CreatePartyMonHoverSprite(&sPartyMenuBoxes[*slotPtr], *slotPtr);
+        if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE && SWSH_PARTY_MENU)
+            UpdatePartyMoveWindows(*slotPtr);
         
         // Add animated front sprite of selected mon (unless opened in battle or multi-showcase)
         if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE && *slotPtr < gPlayerPartyCount && GetMonData(&gPlayerParty[*slotPtr], MON_DATA_SPECIES) != SPECIES_NONE)
@@ -2624,6 +2684,22 @@ static void LoadPartyMenuWindows(void)
     LoadUserWindowBorderGfx(0, 0x63, BG_PLTT_ID(13));
     LoadPalette(GetOverworldTextboxPalettePtr(), BG_PLTT_ID(14), PLTT_SIZE_4BPP);
     LoadPalette(gStandardMenuPalette, BG_PLTT_ID(15), PLTT_SIZE_4BPP);
+
+    if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE && SWSH_PARTY_MENU)
+    {
+        int i;
+        for (i = 0; i < MAX_MON_MOVES; ++i)
+        {
+            sMoveWindowIds[i] = AddWindow(&sMovePartyMenuWindowTemplate_SwSh[i]);
+            if (sMoveWindowIds[i] != WINDOW_NONE)
+            {
+                FillWindowPixelBuffer(sMoveWindowIds[i], PIXEL_FILL(0));
+                PutWindowTilemap(sMoveWindowIds[i]);
+                CopyWindowToVram(sMoveWindowIds[i], COPYWIN_GFX);
+            }
+        }
+        UpdatePartyMoveWindows(gPartyMenu.slotId);
+    }
 }
 
 static void PrintButtonIcon(u8 windowId, u8 buttonType, u32 x, u32 y)
@@ -2870,6 +2946,19 @@ static void BlitBitmapToPartyWindow_SwSh(u8 windowId, u8 x, u8 y, u8 width, u8 h
     BlitBitmapToPartyWindow(windowId, sSlotTilemap_Main_SwSh, 14, x, y, width, height);
 }
 
+static void BlitBitmapToPartyMoveWindow_SwSh(u8 windowId, u8 x, u8 y, u8 width, u8 height, bool8 isEmpty)
+{
+    if (width == 0 && height == 0)
+    {
+        width = 14;
+        height = 2;
+    }
+    if (isEmpty)
+        BlitBitmapToPartyWindow(windowId, sMoveTilemap_Empty_SwSh, 14, x, y, width, height);
+    else
+        BlitBitmapToPartyWindow(windowId, sMoveTilemap_Main_SwSh, 14, x, y, width, height);
+}
+
 static void DrawEmptySlot(u8 windowId)
 {
     if (SWSH_PARTY_MENU)
@@ -2987,6 +3076,41 @@ static void DisplayPartyPokemonBarDetail(u8 windowId, const u8 *str, u8 color, c
 static void DisplayPartyPokemonBarDetailToFit(u8 windowId, const u8 *str, u8 color, const u8 *align, u32 width)
 {
     AddTextPrinterParameterized3(windowId, GetFontIdToFit(str, FONT_SMALL, 0, width), align[0], align[1], sFontColorTable[color], 0, str);
+}
+
+static u8 GetPpFontColorIndexForMove(struct Pokemon *mon, u16 move, int m)
+{
+    u8 currentPp = GetMonData(mon, MON_DATA_PP1 + m);
+    u8 ppBonuses = GetMonData(mon, MON_DATA_PP_BONUSES);
+    u8 maxPp = CalculatePPWithBonus(move, ppBonuses, m);
+    u8 ppState = GetCurrentPpToMaxPpState(currentPp, maxPp);
+
+    return 7 + ppState;
+}
+
+static void PrintMovePpToWindow(u8 windowId, u8 fontId, struct Pokemon *mon, int m, int xBase, int y, int areaWidth)
+{
+    u16 move = GetMonData(mon, MON_DATA_MOVE1 + m);
+    u8 bufDigits = 3;
+
+    ConvertIntToDecimalStringN(gStringVar1, GetMonData(mon, MON_DATA_PP1 + m), STR_CONV_MODE_RIGHT_ALIGN, bufDigits);
+    int ppX = xBase + GetStringRightAlignXOffset(fontId, gStringVar1, areaWidth);
+    AddTextPrinterParameterized3(windowId, fontId, ppX, y, sFontColorTable[GetPpFontColorIndexForMove(mon, move, m)], 0, gStringVar1);
+}
+
+static void DisplayPartyPokemonMoves(u8 windowId, struct Pokemon *mon, int m)
+{
+    u16 move = GetMonData(mon, MON_DATA_MOVE1 + m);
+    const struct PartyMenuMoveBoxInfoRects *info = &sPartyMoveBoxInfoRects[0];
+
+    if (move == MOVE_NONE)
+        return;
+
+    const u8 *name = GetMoveName(move);
+    AddTextPrinterParameterized3(windowId, GetFontIdToFit(name, FONT_SMALL, 0, info->dimensions[2]),
+                                 info->dimensions[0], info->dimensions[1], sFontColorTable[0], 0, name);
+
+    PrintMovePpToWindow(windowId, FONT_SMALL, mon, m, info->dimensions[4], info->dimensions[5], info->dimensions[6]);
 }
 
 static void DisplayPartyPokemonNickname(struct Pokemon *mon, struct PartyMenuBox *menuBox, u8 c)

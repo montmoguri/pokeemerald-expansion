@@ -164,6 +164,16 @@ static const u8 sPartyMenuSpriteCoords[PARTY_LAYOUT_COUNT][PARTY_SIZE][4 * 2] =
     },
 };
 
+static const struct PartyMenuMoveBoxInfoRects sPartyMoveBoxInfoRects[] =
+{
+    { BlitBitmapToPartyMoveWindow_SwSh,
+        {
+            10,  1, 64, 12, // Move name
+            86,  1, 10, 12, // PP
+        }
+    },
+};
+
 // Used only when both Cancel and Confirm are present
 static const u32 sConfirmButton_Tilemap[] = INCBIN_U32("graphics/party_menu/confirm_button.bin");
 static const u32 sCancelButton_Tilemap[] = INCBIN_U32("graphics/party_menu/cancel_button.bin");
@@ -178,6 +188,10 @@ static const u8 sFontColorTable[][3] =
     {TEXT_COLOR_WHITE,       TEXT_COLOR_BLUE,       TEXT_COLOR_LIGHT_BLUE}, // Field moves
     {TEXT_COLOR_TRANSPARENT, TEXT_COLOR_WHITE,      TEXT_COLOR_DARK_GRAY},  // Unused
     {TEXT_COLOR_WHITE,       TEXT_COLOR_RED,        TEXT_COLOR_LIGHT_RED},  // Move relearner
+    {TEXT_COLOR_TRANSPARENT, TEXT_COLOR_GREEN,      TEXT_COLOR_LIGHT_GREEN},// PP state 0 (FG 6  / SH  7)
+    {TEXT_COLOR_TRANSPARENT, TEXT_COLOR_BLUE,       TEXT_COLOR_LIGHT_BLUE}, // PP state 1 (FG 8  / SH  9)
+    {TEXT_COLOR_TRANSPARENT, TEXT_DYNAMIC_COLOR_1,  TEXT_DYNAMIC_COLOR_2},  // PP state 2 (FG 10 / SH 11)
+    {TEXT_COLOR_TRANSPARENT, TEXT_COLOR_RED,        TEXT_COLOR_LIGHT_RED},  // PP state 3 (FG 4  / SH  5)
 };
 
 static const struct WindowTemplate sSinglePartyMenuWindowTemplate[] =
@@ -717,6 +731,46 @@ static const struct WindowTemplate sShowcaseMultiPartyMenuWindowTemplate_SwSh[] 
     DUMMY_WIN_TEMPLATE
 };
 
+static const struct WindowTemplate sMovePartyMenuWindowTemplate_SwSh[] =
+{
+    { // Move slot 1
+        .bg = 0,
+        .tilemapLeft = 16,
+        .tilemapTop = 2,
+        .width = 14,
+        .height = 2,
+        .paletteNum = 1,
+        .baseBlock = 0x390,
+    },
+    { // Move slot 2
+        .bg = 0,
+        .tilemapLeft = 16,
+        .tilemapTop = 4,
+        .width = 14,
+        .height = 2,
+        .paletteNum = 1,
+        .baseBlock = 0x3AC,
+    },
+    { // Move slot 3
+        .bg = 0,
+        .tilemapLeft = 16,
+        .tilemapTop = 6,
+        .width = 14,
+        .height = 2,
+        .paletteNum = 1,
+        .baseBlock = 0x3C8,
+    },
+    { // Move slot 4
+        .bg = 0,
+        .tilemapLeft = 16,
+        .tilemapTop = 8,
+        .width = 14,
+        .height = 2,
+        .paletteNum = 1,
+        .baseBlock = 0x3E4,
+    },
+};
+
 static const struct WindowTemplate sCancelButtonWindowTemplate =
 {
     .bg = 0,
@@ -936,6 +990,10 @@ static const u8 sSlotTilemap_WideNoHP[]  = INCBIN_U8("graphics/party_menu/slot_w
 static const u8 sSlotTilemap_WideEmpty[] = INCBIN_U8("graphics/party_menu/slot_wide_empty.bin");
 static const u8 sSlotTilemap_Main_SwSh[]  = INCBIN_U8("graphics/party_menu/swsh/slot.bin");
 static const u8 sSlotTilemap_Empty_SwSh[] = INCBIN_U8("graphics/party_menu/swsh/slot_empty.bin");
+
+// Plain tilemaps for move slots
+static const u8 sMoveTilemap_Main_SwSh[]  = INCBIN_U8("graphics/party_menu/swsh/move.bin");
+static const u8 sMoveTilemap_Empty_SwSh[] = INCBIN_U8("graphics/party_menu/swsh/move_empty.bin");
 
 // Palette offsets
 static const u8 sGenderPalOffsets[] = {11, 12};
