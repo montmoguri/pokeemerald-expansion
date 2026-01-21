@@ -160,6 +160,7 @@ enum {
 #define TAG_MON_SHADOW              55140
 #define TAG_SWITCH_ITEM_1           55141
 #define TAG_SWITCH_ITEM_2           55142
+#define TAG_MESSAGE_WINDOW          55150
 
 #define PARTY_PAL_SELECTED     (1 << 0)
 #define PARTY_PAL_FAINTED      (1 << 1)
@@ -273,6 +274,7 @@ static EWRAM_DATA u8 sFinalLevel = 0;
 static EWRAM_DATA u8 sHoverCursorSpriteId = 0;
 static EWRAM_DATA u8 sItemIconSpriteId = 0;
 static EWRAM_DATA u8 sSelectFrameSpriteIds[7] = {0}; // Left + 5 middle + Right
+static EWRAM_DATA u8 sMessageWindowFillSpriteIds[14] = {0}; // 7 across * 2 rows
 static EWRAM_DATA u8 sMonSpriteId = 0;
 static EWRAM_DATA u8 sMoveWindowIds[MAX_MON_MOVES];
 static EWRAM_DATA u8 sAbilityWindowId;
@@ -356,6 +358,9 @@ static void CreatePartyMonIconSprite(struct Pokemon *, struct PartyMenuBox *, u3
 static void CreatePartyMonStatusSprite(struct Pokemon *, struct PartyMenuBox *);
 static void LoadPartyMonHoverCursor(void);
 static void CreatePartyMonHoverSprite(struct PartyMenuBox *, u8);
+static void LoadMessageWindowFillSprite(void);
+static void CreateMessageWindowFillSpriteAt(s16 x, s16 y);
+static void DestroyMessageWindowFillSprite(void);
 static void DestroyPartyMonHoverSprite(void);
 static void CreatePartyMonItemIconSprite(struct PartyMenuBox *, u8, u16);
 static void CreatePartyMonItemMoveSprite(u8 fromSlot, u8 toSlot, u16 itemId);
@@ -791,37 +796,42 @@ static bool8 ShowPartyMenu(void)
         gMain.state++;
         break;
     case 13:
-        LoadPartyMonHoverCursor();
+        LoadSwShPartyMsgBoxGfx(0, SWSH_PARTY_MENU_MSG_BASE_TILE_NUM, BG_PLTT_ID(STD_WINDOW_PALETTE_NUM));
         gMain.state++;
         break;
     case 14:
-        LoadPartyMenuAilmentGfx();
+        LoadPartyMonHoverCursor();
         gMain.state++;
         break;
     case 15:
+        LoadPartyMenuAilmentGfx();
+        gMain.state++;
+        break;
+    case 16:
         if (gMonSpritesGfxPtr == NULL)
             CreateMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A, MON_SPR_GFX_MODE_NORMAL);
         LoadMonIconPalettes();
         gMain.state++;
         break;
-    case 16:
+    case 17:
         if (CreatePartyMonSpritesLoop())
         {
             sPartyMenuInternal->data[0] = 0;
             gMain.state++;
         }
         break;
-    case 17:
+    case 18:
         if (RenderPartyMenuBoxes())
         {
             sPartyMenuInternal->data[0] = 0;
             gMain.state++;
         }
         break;
-    case 18:
+    case 19:
+        LoadMessageWindowFillSprite();
         gMain.state++;
         break;
-    case 19:
+    case 20:
         {
             u8 promptType = GetButtonPromptType();
             if (promptType != BUTTON_PROMPT_NONE && sPartyMenuInternal != NULL && sPartyMenuInternal->promptWindowId != WINDOW_NONE)
@@ -833,16 +843,16 @@ static bool8 ShowPartyMenu(void)
         }
         gMain.state++;
         break;
-    case 20:
+    case 21:
         AnimatePartySlot(gPartyMenu.slotId, 1);
         CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
         gMain.state++;
         break;
-    case 21:
+    case 22:
         sPartyMenuInternal->data[0] = 0;
         gMain.state++;
         break;
-    case 22:
+    case 23:
         if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE && gPartyMenu.slotId < gPlayerPartyCount && GetMonData(&gPlayerParty[gPartyMenu.slotId], MON_DATA_SPECIES) != SPECIES_NONE)
         {
             sMonSpriteId = LoadMonGfxAndSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuInternal->data[0], FALSE);
@@ -852,11 +862,11 @@ static bool8 ShowPartyMenu(void)
         else
             gMain.state++;
         break;
-    case 23:
+    case 24:
         sPartyMenuInternal->data[0] = 0;
         gMain.state++;
         break;
-    case 24:
+    case 25:
         if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE && gPartyMenu.slotId < gPlayerPartyCount && GetMonData(&gPlayerParty[gPartyMenu.slotId], MON_DATA_SPECIES) != SPECIES_NONE)
         {
             sMonShadowSpriteId = LoadMonGfxAndSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuInternal->data[0], TRUE);
@@ -866,17 +876,19 @@ static bool8 ShowPartyMenu(void)
         else
             gMain.state++;
         break;
-    case 25:
+    case 26:
         CreateTask(sPartyMenuInternal->task, 0);
         DisplayPartyMenuStdMessage(sPartyMenuInternal->messageId);
+        // For testing: create the message window composed of 7x2 sprites
+        // CreateMessageWindowFillSpriteAt(24, 128);
         gMain.state++;
         break;
-    case 26:
+    case 27:
         BlendPalettes(PALETTES_ALL, 16, 0);
         gPaletteFade.bufferTransferDisabled = FALSE;
         gMain.state++;
         break;
-    case 27:
+    case 28:
         BeginNormalPaletteFade(PALETTES_ALL, 0, 16, 0, RGB_BLACK);
         gMain.state++;
         break;
@@ -944,31 +956,39 @@ static bool8 ReloadPartyMenu(void)
         gMain.state++;
         break;
     case 12:
-        LoadMonIconPalettes();
+        LoadPartyMenuAilmentGfx();
         gMain.state++;
         break;
     case 13:
-        LoadMonIconPalettes();
+        LoadMessageWindowFillSprite();
         gMain.state++;
         break;
     case 14:
+        LoadMonIconPalettes();
+        gMain.state++;
+        break;
+    case 15:
+        LoadMonIconPalettes();
+        gMain.state++;
+        break;
+    case 16:
         if (CreatePartyMonSpritesLoop())
         {
             sPartyMenuInternal->data[0] = 0;
             gMain.state++;
         }
         break;
-    case 15:
+    case 17:
         if (RenderPartyMenuBoxes())
         {
             sPartyMenuInternal->data[0] = 0;
             gMain.state++;
         }
         break;
-    case 16:
+    case 18:
         gMain.state++;
         break;
-    case 17:
+    case 19:
         {
             u8 promptType = GetButtonPromptType();
             if (promptType != BUTTON_PROMPT_NONE && sPartyMenuInternal != NULL && sPartyMenuInternal->promptWindowId != WINDOW_NONE)
@@ -980,12 +1000,12 @@ static bool8 ReloadPartyMenu(void)
         }
         gMain.state++;
         break;
-    case 18:
+    case 20:
         BlendPalettes(PALETTES_ALL, 16, RGB_WHITEALPHA);
         gPaletteFade.bufferTransferDisabled = FALSE;
         gMain.state++;
         break;
-    case 19:
+    case 21:
         BeginNormalPaletteFade(PALETTES_ALL, 0, 16, 0, RGB_WHITEALPHA);
         gMain.state++;
         break;
@@ -1130,6 +1150,7 @@ static void PartyPaletteBufferCopy(u8 palNum)
 static void FreePartyPointers(void)
 {
     DestroyMonSprite();
+    DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
     // Clear alpha blending from party mon shadows
     SetGpuReg(REG_OFFSET_BLDCNT, 0);
     SetGpuReg(REG_OFFSET_BLDALPHA, 0);
@@ -1626,7 +1647,7 @@ static u8 GetPartyBoxPaletteFlags(u8 slot, u8 animNum)
         palFlags |= PARTY_PAL_MULTI_ALT;
     if (gPartyMenu.action == PARTY_ACTION_SWITCHING)
         palFlags |= PARTY_PAL_SWITCHING;
-    if (gPartyMenu.action == PARTY_ACTION_SWITCH || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM)
+    if (gPartyMenu.action == PARTY_ACTION_SWITCH || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM || gPartyMenu.action == PARTY_ACTION_FUSION)
     {
         if (slot == gPartyMenu.slotId)
             palFlags |= PARTY_PAL_TO_SWITCH;
@@ -1794,7 +1815,7 @@ void Task_HandleChooseMonInput(u8 taskId)
 
 static s8 *GetCurrentPartySlotPtr(void)
 {
-    if (gPartyMenu.action == PARTY_ACTION_SWITCH || gPartyMenu.action == PARTY_ACTION_SOFTBOILED || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM)
+    if (gPartyMenu.action == PARTY_ACTION_SWITCH || gPartyMenu.action == PARTY_ACTION_SOFTBOILED || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM || gPartyMenu.action == PARTY_ACTION_FUSION)
         return &gPartyMenu.slotId2;
     else
         return &gPartyMenu.slotId;
@@ -1819,6 +1840,7 @@ static void HandleChooseMonSelection(u8 taskId, s8 *slotPtr)
             }
             break;
         case PARTY_ACTION_USE_ITEM:
+        case PARTY_ACTION_FUSION:
             if (IsSelectedMonNotEgg((u8 *)slotPtr))
             {
                 if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE)
@@ -1955,6 +1977,7 @@ static void HandleChooseMonCancel(u8 taskId, s8 *slotPtr)
     case PARTY_ACTION_SWITCH:
     case PARTY_ACTION_SOFTBOILED:
     case PARTY_ACTION_MOVE_ITEM:
+    case PARTY_ACTION_FUSION:
         PlaySE(SE_SELECT);
         DestroySelectFrame();
         FinishTwoMonAction(taskId);
@@ -2347,6 +2370,8 @@ static void Task_PrintAndWaitForText(u8 taskId)
         {
             ClearStdWindowAndFrameToTransparent(WIN_MSG, FALSE);
             ClearWindowTilemap(WIN_MSG);
+            DestroyMessageWindowFillSprite();
+            ScheduleBgCopyTilemapToVram(2);
         }
         DestroyTask(taskId);
     }
@@ -2374,6 +2399,8 @@ static void Task_ReturnToChooseMonAfterText(u8 taskId)
     {
         ClearStdWindowAndFrameToTransparent(WIN_MSG, FALSE);
         ClearWindowTilemap(WIN_MSG);
+        DestroyMessageWindowFillSprite();
+        ScheduleBgCopyTilemapToVram(2);
         if (MenuHelpers_IsLinkActive() == TRUE)
         {
             gTasks[taskId].func = Task_WaitForLinkAndReturnToChooseMon;
@@ -3452,6 +3479,7 @@ void DisplayPartyMenuStdMessage(u32 stringId)
         // Clear WIN_MSG for prompts that appear after item operations
         ClearStdWindowAndFrameToTransparent(WIN_MSG, FALSE);
         ClearWindowTilemap(WIN_MSG);
+        DestroyMessageWindowFillSprite();
         ScheduleBgCopyTilemapToVram(2);
         return;
 
@@ -3589,9 +3617,10 @@ static u8 DisplaySelectionWindow(u8 windowType)
 
 static void PrintMessage(const u8 *text)
 {
-    DrawStdFrameWithCustomTileAndPalette(WIN_MSG, FALSE, 0x63, 13);
+    CreateMessageWindowFillSpriteAt(24, 128);
+    DrawSwShPartyMsgFrame(WIN_MSG, FALSE);
     gTextFlags.canABSpeedUpPrint = TRUE;
-    AddTextPrinterParameterized2(WIN_MSG, FONT_NORMAL, text, GetPlayerTextSpeedDelay(), 0, TEXT_COLOR_DARK_GRAY, TEXT_COLOR_WHITE, TEXT_COLOR_LIGHT_GRAY);
+    AddTextPrinterParameterized2(WIN_MSG, FONT_NORMAL, text, GetPlayerTextSpeedDelay(), 0, TEXT_COLOR_WHITE, TEXT_COLOR_TRANSPARENT, TEXT_COLOR_DARK_GRAY);
 }
 
 static void PartyMenuDisplayYesNoMenu(void)
@@ -5296,6 +5325,7 @@ static void CreatePartyMonCustomItemIcon(struct PartyMenuBox *menuBox, u16 item)
         gSprites[spriteId].x = menuBox->spriteCoords[2];
         gSprites[spriteId].y = menuBox->spriteCoords[3];
         gSprites[spriteId].oam.priority = 1;
+        gSprites[spriteId].subpriority = 1;
         
         gSprites[spriteId].oam.affineMode = ST_OAM_AFFINE_NORMAL;
         gSprites[spriteId].affineAnims = sAffineAnims_ItemIcon;
@@ -5315,7 +5345,9 @@ static void CreatePartyMonHeldItemSprite(struct Pokemon *mon, struct PartyMenuBo
         }
         else
         {
-            menuBox->itemSpriteId = CreateSprite(&sSpriteTemplate_HeldItem, menuBox->spriteCoords[2], menuBox->spriteCoords[3], 0);
+            menuBox->itemSpriteId = CreateSprite(&sSpriteTemplate_HeldItem, menuBox->spriteCoords[2], menuBox->spriteCoords[3], 1);
+            if (menuBox->itemSpriteId != MAX_SPRITES)
+                gSprites[menuBox->itemSpriteId].subpriority = 1;
             UpdatePartyMonHeldItemSprite(mon, menuBox);
         }
     }
@@ -5333,8 +5365,9 @@ static void CreatePartyMonHeldItemSpriteParameterized(u16 species, u16 item, str
         }
         else
         {
-            menuBox->itemSpriteId = CreateSprite(&sSpriteTemplate_HeldItem, menuBox->spriteCoords[2], menuBox->spriteCoords[3], 0);
-            gSprites[menuBox->itemSpriteId].oam.priority = 0;
+            menuBox->itemSpriteId = CreateSprite(&sSpriteTemplate_HeldItem, menuBox->spriteCoords[2], menuBox->spriteCoords[3], 1);
+            gSprites[menuBox->itemSpriteId].oam.priority = 1;
+            gSprites[menuBox->itemSpriteId].subpriority = 1;
             ShowOrHideHeldItemSprite(item, menuBox);
         }
     }
@@ -5380,7 +5413,9 @@ static void UpdatePartyMonHeldItemSprite(struct Pokemon *mon, struct PartyMenuBo
         
         if (menuBox->itemSpriteId == MAX_SPRITES && GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE)
         {
-            menuBox->itemSpriteId = CreateSprite(&sSpriteTemplate_HeldItem, menuBox->spriteCoords[2], menuBox->spriteCoords[3], 0);
+            menuBox->itemSpriteId = CreateSprite(&sSpriteTemplate_HeldItem, menuBox->spriteCoords[2], menuBox->spriteCoords[3], 1);
+            if (menuBox->itemSpriteId != MAX_SPRITES)
+                gSprites[menuBox->itemSpriteId].subpriority = 1;
         }
         
         if (menuBox->itemSpriteId != MAX_SPRITES)
@@ -5463,6 +5498,7 @@ static void CreatePartyMonItemIconSprite(struct PartyMenuBox *menuBox, u8 slot, 
             gSprites[sItemIconSpriteId].x = x;
             gSprites[sItemIconSpriteId].y = y;
             gSprites[sItemIconSpriteId].oam.priority = 1;
+            gSprites[sItemIconSpriteId].subpriority = 1;
             sPartyMenuInternal->cursorMoveSteps = 0;
         }
     }
@@ -5509,11 +5545,12 @@ static void CreatePartyMonHoverSprite(struct PartyMenuBox *menuBox, u8 slot)
         }
         else
         {
-            sHoverCursorSpriteId = CreateSprite(&sSpriteTemplate_HoverCursor, x, y, 0);
-            
+            sHoverCursorSpriteId = CreateSprite(&sSpriteTemplate_HoverCursor, x, y, 1);
+
             if (sHoverCursorSpriteId != MAX_SPRITES)
             {
                 gSprites[sHoverCursorSpriteId].oam.priority = 1;
+                gSprites[sHoverCursorSpriteId].subpriority = 1;
                 sPartyMenuInternal->cursorMoveSteps = 0;
             }
         }
@@ -5611,10 +5648,11 @@ static void CreatePartyMonItemMoveSprite(u8 fromSlot, u8 toSlot, u16 itemId)
     sHoverCursorSpriteId = CreateSprite(&sSpriteTemplate_HoverCursor, 
                                         sPartyMenuBoxes[fromSlot].spriteCoords[0] - 18, 
                                         sPartyMenuBoxes[fromSlot].spriteCoords[1] + 3, 
-                                        0);
+                                        1);
     if (sHoverCursorSpriteId != MAX_SPRITES)
     {
         gSprites[sHoverCursorSpriteId].oam.priority = 1;
+        gSprites[sHoverCursorSpriteId].subpriority = 1;
         sPartyMenuInternal->cursorMoveSteps = 0;
     }
 
@@ -5793,9 +5831,83 @@ static void LoadSelectFrame(void)
     u8 i;
     for (i = 0; i < ARRAY_COUNT(sSelectFrameSpriteIds); i++)
         sSelectFrameSpriteIds[i] = MAX_SPRITES;
-    
+
     LoadCompressedSpriteSheet(&sSpriteSheet_SelectFrame);
     LoadSpritePalette(&sSpritePal_SelectFrame);
+}
+
+static void LoadMessageWindowFillSprite(void)
+{
+    int i;
+
+    for (i = 0; i < ARRAY_COUNT(sMessageWindowFillSpriteIds); i++)
+        sMessageWindowFillSpriteIds[i] = MAX_SPRITES;
+
+    LoadCompressedSpriteSheet(&sSpriteSheet_MessageWindowFill);
+    LoadSpritePalette(&sSpritePal_MessageWindowFill);
+}
+
+// Create a 7x2 message window using the pieces defined in data/party_menu.h
+// x,y specify the top-left corner of the overall window. Priority and
+// subpriority are set according to the user's request.
+static void CreateMessageWindowFillSpriteAt(s16 x, s16 y)
+{
+    int i;
+    u8 spriteId;
+
+    if (sMessageWindowFillSpriteIds[0] != MAX_SPRITES)
+        return;
+
+    // Top row: TopLeft, Middle * 5, TopRight
+    for (i = 0; i < 7; i++)
+    {
+        spriteId = CreateSprite(&sSpriteTemplate_MessageWindowFill, x + (i * 32), y, 0);
+        if (spriteId != MAX_SPRITES)
+        {
+            if (i == 0)
+                StartSpriteAnim(&gSprites[spriteId], 0); // TopLeft
+            else if (i == 6)
+                StartSpriteAnim(&gSprites[spriteId], 2); // TopRight
+            else
+                StartSpriteAnim(&gSprites[spriteId], 1); // Middle
+
+            gSprites[spriteId].oam.priority = 1;
+            gSprites[spriteId].subpriority = 0;
+            sMessageWindowFillSpriteIds[i] = spriteId;
+        }
+    }
+
+    // Bottom row: BottomLeft, Middle * 5, BottomRight
+    for (i = 0; i < 7; i++)
+    {
+        spriteId = CreateSprite(&sSpriteTemplate_MessageWindowFill, x + (i * 32), y + 16, 0);
+        if (spriteId != MAX_SPRITES)
+        {
+            if (i == 0)
+                StartSpriteAnim(&gSprites[spriteId], 3); // BottomLeft
+            else if (i == 6)
+                StartSpriteAnim(&gSprites[spriteId], 4); // BottomRight
+            else
+                StartSpriteAnim(&gSprites[spriteId], 1); // Middle (shared)
+
+            gSprites[spriteId].oam.priority = 1;
+            gSprites[spriteId].subpriority = 0;
+            sMessageWindowFillSpriteIds[7 + i] = spriteId;
+        }
+    }
+}
+
+static void DestroyMessageWindowFillSprite(void)
+{
+    int i; 
+    for (i = 0; i < ARRAY_COUNT(sMessageWindowFillSpriteIds); i++)
+    {
+        if (sMessageWindowFillSpriteIds[i] != MAX_SPRITES)
+        {
+            DestroySprite(&gSprites[sMessageWindowFillSpriteIds[i]]);
+            sMessageWindowFillSpriteIds[i] = MAX_SPRITES;
+        }
+    }
 }
 
 static void DestroySelectFrame(void)
@@ -5820,7 +5932,7 @@ static void CreateSelectFrame(struct PartyMenuBox *menuBox, u8 slot)
     DestroySelectFrame();
     
     // Left end
-    sSelectFrameSpriteIds[0] = CreateSprite(&sSpriteTemplate_SelectFrame, x, y, 0);
+    sSelectFrameSpriteIds[0] = CreateSprite(&sSpriteTemplate_SelectFrame, x, y, 1);
     if (sSelectFrameSpriteIds[0] != MAX_SPRITES)
     {
         StartSpriteAnim(&gSprites[sSelectFrameSpriteIds[0]], 0);
@@ -5831,7 +5943,7 @@ static void CreateSelectFrame(struct PartyMenuBox *menuBox, u8 slot)
     // Middle * 5
     for (i = 0; i < 5; i++)
     {
-        sSelectFrameSpriteIds[1 + i] = CreateSprite(&sSpriteTemplate_SelectFrame, x + 16 + (i * 16), y, 0);
+        sSelectFrameSpriteIds[1 + i] = CreateSprite(&sSpriteTemplate_SelectFrame, x + 16 + (i * 16), y, 1);
         if (sSelectFrameSpriteIds[1 + i] != MAX_SPRITES)
         {
             StartSpriteAnim(&gSprites[sSelectFrameSpriteIds[1 + i]], 2);
@@ -5841,7 +5953,7 @@ static void CreateSelectFrame(struct PartyMenuBox *menuBox, u8 slot)
     }
     
     // Right end
-    sSelectFrameSpriteIds[6] = CreateSprite(&sSpriteTemplate_SelectFrame, x + 16 + (5 * 16), y, 0);
+    sSelectFrameSpriteIds[6] = CreateSprite(&sSpriteTemplate_SelectFrame, x + 16 + (5 * 16), y, 1);
     if (sSelectFrameSpriteIds[6] != MAX_SPRITES)
     {
         StartSpriteAnim(&gSprites[sSelectFrameSpriteIds[6]], 1);
@@ -5854,7 +5966,12 @@ static void CreatePartyMonStatusSprite(struct Pokemon *mon, struct PartyMenuBox 
 {
     if (GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE)
     {
-        menuBox->statusSpriteId = CreateSprite(&gSpriteTemplate_StatusIcons, menuBox->spriteCoords[4], menuBox->spriteCoords[5], 0);
+        menuBox->statusSpriteId = CreateSprite(&gSpriteTemplate_StatusIcons, menuBox->spriteCoords[4], menuBox->spriteCoords[5], 1);
+        if (menuBox->statusSpriteId != MAX_SPRITES)
+        {
+            gSprites[menuBox->statusSpriteId].oam.priority = 1;
+            gSprites[menuBox->statusSpriteId].subpriority = 1;
+        }
         SetPartyMonAilmentGfx(mon, menuBox);
     }
 }
@@ -5863,9 +5980,10 @@ static void CreatePartyMonStatusSpriteParameterized(u16 species, u8 status, stru
 {
     if (species != SPECIES_NONE)
     {
-        menuBox->statusSpriteId = CreateSprite(&gSpriteTemplate_StatusIcons, menuBox->spriteCoords[4], menuBox->spriteCoords[5], 0);
+        menuBox->statusSpriteId = CreateSprite(&gSpriteTemplate_StatusIcons, menuBox->spriteCoords[4], menuBox->spriteCoords[5], 1);
         UpdatePartyMonAilmentGfx(status, menuBox);
-        gSprites[menuBox->statusSpriteId].oam.priority = 0;
+        gSprites[menuBox->statusSpriteId].oam.priority = 1;
+        gSprites[menuBox->statusSpriteId].subpriority = 2;
     }
 }
 
@@ -8047,6 +8165,10 @@ void ItemUseCB_Fusion(u8 taskId, TaskFunc taskFunc)
                     gPartyMenuUseExitCallback = FALSE;
                     sPartyMenuInternal->exitCallback = NULL;
                     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[0]);
+                    gPartyMenu.action = PARTY_ACTION_FUSION;
+                    AnimatePartySlot(gPartyMenu.slotId, 1);
+                    gPartyMenu.slotId2 = gPartyMenu.slotId;
+                    CreateSelectFrame(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
                     DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_SECOND_FUSION);
                     return;
                 }

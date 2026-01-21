@@ -26,8 +26,20 @@ static const struct OamData sOamData_Button = {
 
 #if SWSH_PARTY_MENU == TRUE
 static const u32 sStatusGfx_Icons_SwSh[] = INCBIN_U32("graphics/party_menu/swsh/status_icons.4bpp.smol");
+// Palette loaded to keep with vanilla structure, but not actually used
 static const u16 sStatusPal_Icons_SwSh[] = INCBIN_U16("graphics/party_menu/swsh/status_icons.gbapal");
+
+static const u32 sHeldItemGfx[]          = INCBIN_U32("graphics/party_menu/swsh/hold_icons.4bpp");
+const u16 gHeldItemPalette[]             = INCBIN_U16("graphics/party_menu/swsh/hold_icons.gbapal");
+#else
+static const u32 sHeldItemGfx[]          = INCBIN_U32("graphics/party_menu/hold_icons.4bpp");
+const u16 gHeldItemPalette[]             = INCBIN_U16("graphics/party_menu/hold_icons.gbapal");
 #endif
+
+static const u32 sHoverCursorGfx[]        = INCBIN_U32("graphics/party_menu/swsh/hover_cursor.4bpp.smol");
+static const u32 sSelectFrameGfx[]        = INCBIN_U32("graphics/party_menu/swsh/select_frame.4bpp.smol");
+static const u32 sMessageWindowFillGfx[]  = INCBIN_U32("graphics/party_menu/swsh/message_window.4bpp.smol");
+static const u16 sMonShadowPalette[]      = INCBIN_U16("graphics/party_menu/swsh/shadow.gbapal");
 
 static const u8 sText_EggNickname[POKEMON_NAME_LENGTH + 1]  = _("Egg");
 static const u8 sMenuText_Confirm[]                         = _("Confirm");
@@ -1185,14 +1197,6 @@ static const u8 *const sUnionRoomTradeMessages[] =
     [UR_TRADE_MSG_CANT_TRADE_WITH_PARTNER_2 - 1]   = gText_CantTradeWithTrainer,
 };
 
-#if SWSH_PARTY_MENU == TRUE
-static const u32 sHeldItemGfx[] = INCBIN_U32("graphics/party_menu/swsh/hold_icons.4bpp");
-const u16 gHeldItemPalette[] = INCBIN_U16("graphics/party_menu/swsh/hold_icons.gbapal");
-#else
-static const u32 sHeldItemGfx[] = INCBIN_U32("graphics/party_menu/hold_icons.4bpp");
-const u16 gHeldItemPalette[] = INCBIN_U16("graphics/party_menu/hold_icons.gbapal");
-#endif
-
 static const struct OamData sOamData_HeldItem =
 {
     .y = 0,
@@ -1249,8 +1253,6 @@ static const struct SpriteTemplate sSpriteTemplate_HeldItem =
     .callback = SpriteCallbackDummy
 };
 
-static const u32 sHoverCursorGfx[] = INCBIN_U32("graphics/party_menu/swsh/hover_cursor.4bpp.smol");
-
 static const struct OamData sOamData_HoverCursor =
 {
     .y = 0,
@@ -1285,8 +1287,6 @@ static const struct SpriteTemplate sSpriteTemplate_HoverCursor =
     .affineAnims = gDummySpriteAffineAnimTable,
     .callback = SpriteCallbackDummy
 };
-
-static const u32 sSelectFrameGfx[] = INCBIN_U32("graphics/party_menu/swsh/select_frame.4bpp.smol");
 
 static const struct OamData sOamData_SelectFrame =
 {
@@ -1327,7 +1327,7 @@ static const union AnimCmd *const sSpriteAnimTable_SelectFrame[] = {
 static const struct CompressedSpriteSheet sSpriteSheet_SelectFrame =
 {
     .data = sSelectFrameGfx,
-    .size = (16 * 32 * 3) / 2,
+    .size = (16 * 32 * 2) / 2,
     .tag = TAG_SELECT_FRAME,
 };
 
@@ -1348,11 +1348,79 @@ static const struct SpriteTemplate sSpriteTemplate_SelectFrame =
     .callback = SpriteCallbackDummy,
 };
 
-static const u16 sPartyMonShadowPalette[] = INCBIN_U16("graphics/party_menu/swsh/shadow.gbapal");
+static const struct OamData sOamData_MessageWindowFill =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .size = SPRITE_SIZE(32x16),
+    .x = 0,
+    .matrixNum = 0,
+    .shape = SPRITE_SHAPE(32x16),
+    .tileNum = 0,
+    .priority = 0,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const union AnimCmd sSpriteAnim_MessageWindowFill_TopLeft[] = {
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MessageWindowFill_Middle[] = {
+    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MessageWindowFill_TopRight[] = {
+    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MessageWindowFill_BottomLeft[] = {
+    ANIMCMD_FRAME(16, 0, TRUE, TRUE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MessageWindowFill_BottomRight[] = {
+    ANIMCMD_FRAME(0, 0, TRUE, TRUE),
+    ANIMCMD_END
+};
+
+static const union AnimCmd *const sSpriteAnimTable_MessageWindowFill[] = {
+    sSpriteAnim_MessageWindowFill_TopLeft,
+    sSpriteAnim_MessageWindowFill_Middle,
+    sSpriteAnim_MessageWindowFill_TopRight,
+    sSpriteAnim_MessageWindowFill_BottomLeft,
+    sSpriteAnim_MessageWindowFill_BottomRight,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_MessageWindowFill =
+{
+    .data = sMessageWindowFillGfx,
+    .size = (32 * 16 * 3) / 2,
+    .tag = TAG_MESSAGE_WINDOW,
+};
+
+static const struct SpritePalette sSpritePal_MessageWindowFill =
+{
+    .data = gHeldItemPalette,
+    .tag = TAG_HELD_ITEM,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_MessageWindowFill =
+{
+    .tileTag = TAG_MESSAGE_WINDOW,
+    .paletteTag = TAG_HELD_ITEM,
+    .oam = &sOamData_MessageWindowFill,
+    .anims = sSpriteAnimTable_MessageWindowFill,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCallbackDummy,
+};
 
 static const struct SpritePalette sSpritePal_PartyMonShadow =
 {
-    .data = sPartyMonShadowPalette,
+    .data = sMonShadowPalette,
     .tag = TAG_MON_SHADOW
 };
 
