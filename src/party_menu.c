@@ -878,7 +878,6 @@ static bool8 ShowPartyMenu(void)
         break;
     case 26:
         CreateTask(sPartyMenuInternal->task, 0);
-        DisplayPartyMenuStdMessage(sPartyMenuInternal->messageId);
         gMain.state++;
         break;
     case 27:
@@ -1847,6 +1846,32 @@ static s8 *GetCurrentPartySlotPtr(void)
         return &gPartyMenu.slotId;
 }
 
+static void Task_HandleSendMonToBoxYesNoInput(u8 taskId)
+{
+    switch (Menu_ProcessInputNoWrapClearOnChoose())
+    {
+    case 0:
+        PlaySE(SE_SELECT);
+        gSelectedMonPartyId = GetPartyIdFromBattleSlot(gPartyMenu.slotId);
+        Task_ClosePartyMenu(taskId);
+        break;
+    case MENU_B_PRESSED:
+        PlaySE(SE_SELECT);
+    case 1:
+        Task_ReturnToChooseMonAfterText(taskId);
+        break;
+    }
+}
+
+static void Task_SendMonToBoxYesNo(u8 taskId)
+{
+    if (IsPartyMenuTextPrinterActive() != TRUE)
+    {
+        PartyMenuDisplayYesNoMenu();
+        gTasks[taskId].func = Task_HandleSendMonToBoxYesNoInput;
+    }
+}
+
 static void HandleChooseMonSelection(u8 taskId, s8 *slotPtr)
 {
     if (*slotPtr == PARTY_SIZE)
@@ -1954,8 +1979,11 @@ static void HandleChooseMonSelection(u8 taskId, s8 *slotPtr)
             else
             {
                 PlaySE(SE_SELECT);
-                gSelectedMonPartyId = GetPartyIdFromBattleSlot(partyId);
-                Task_ClosePartyMenu(taskId);
+                GetMonNickname(&gPlayerParty[partyId], gStringVar1);
+                StringExpandPlaceholders(gStringVar4, sText_SendThisMonToPC);
+                DisplayPartyMenuMessage(gStringVar4, TRUE);
+                ScheduleBgCopyTilemapToVram(2);
+                gTasks[taskId].func = Task_SendMonToBoxYesNo;
             }
             break;
         }
@@ -2046,6 +2074,7 @@ static bool8 DisplayCancelChooseMonYesNo(u8 taskId)
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     StringExpandPlaceholders(gStringVar4, stringPtr);
     DisplayPartyMenuMessage(gStringVar4, TRUE);
+    ScheduleBgCopyTilemapToVram(2);
     gTasks[taskId].func = Task_CancelChooseMonYesNo;
     return TRUE;
 }
@@ -2414,7 +2443,6 @@ static void Task_WaitForLinkAndReturnToChooseMon(u8 taskId)
 {
     if (MenuHelpers_ShouldWaitForLinkRecv() != TRUE)
     {
-        DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
         gTasks[taskId].func = Task_HandleChooseMonInput;
     }
 }
@@ -2433,10 +2461,6 @@ static void Task_ReturnToChooseMonAfterText(u8 taskId)
         }
         else
         {
-            if (gPartyMenu.action == PARTY_ACTION_SEND_MON_TO_BOX)
-                DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON_FOR_BOX);
-            else
-                DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
             gTasks[taskId].func = Task_HandleChooseMonInput;
         }
     }
@@ -3484,7 +3508,7 @@ static void PartyMenuRemoveWindow(u8 *ptr)
     }
 }
 
-void DisplayPartyMenuStdMessage(u32 stringId)
+void UNUSED DisplayPartyMenuStdMessage(u32 stringId)
 {
     u8 *windowPtr = &sPartyMenuInternal->windowId[1];
 
@@ -3502,6 +3526,7 @@ void DisplayPartyMenuStdMessage(u32 stringId)
     case PARTY_MSG_GIVE_TO_WHICH_MON:
     case PARTY_MSG_RESTORE_WHICH_MOVE:
     case PARTY_MSG_BOOST_PP_WHICH_MOVE:
+    case PARTY_MSG_CHOOSE_MON_FOR_BOX:
         // Clear WIN_MSG for prompts that appear after item operations
         ClearStdWindowAndFrameToTransparent(WIN_MSG, FALSE);
         ClearWindowTilemap(WIN_MSG);
@@ -3521,19 +3546,6 @@ void DisplayPartyMenuStdMessage(u32 stringId)
     {
         switch (stringId)
         {
-        // case PARTY_MSG_DO_WHAT_WITH_MON:
-        //     *windowPtr = AddWindow(&sDoWhatWithMonMsgWindowTemplate);
-        //     break;
-        // case PARTY_MSG_DO_WHAT_WITH_ITEM:
-        //     *windowPtr = AddWindow(&sDoWhatWithItemMsgWindowTemplate);
-        //     break;
-        // case PARTY_MSG_DO_WHAT_WITH_MAIL:
-        //     *windowPtr = AddWindow(&sDoWhatWithMailMsgWindowTemplate);
-        //     break;
-        // case PARTY_MSG_RESTORE_WHICH_MOVE:
-        // case PARTY_MSG_BOOST_PP_WHICH_MOVE:
-        //     *windowPtr = AddWindow(&sWhichMoveMsgWindowTemplate);
-        //     break;
         case PARTY_MSG_ALREADY_HOLDING_ONE:
             *windowPtr = AddWindow(&sAlreadyHoldingOneMsgWindowTemplate);
             break;
@@ -3821,7 +3833,6 @@ static bool8 CreateSelectionWindow(u8 taskId)
     {
         SetPartyMonSelectionActions(gPlayerParty, gPartyMenu.slotId, GetPartyMenuActionsType(mon));
         DisplaySelectionWindow(SELECTWINDOW_ACTIONS);
-        DisplayPartyMenuStdMessage(PARTY_MSG_DO_WHAT_WITH_MON);
     }
     else
     {
@@ -3831,7 +3842,6 @@ static bool8 CreateSelectionWindow(u8 taskId)
             SetPartyMonSelectionActions(gPlayerParty, gPartyMenu.slotId, GetPartyMenuActionsType(mon));
             DisplaySelectionWindow(SELECTWINDOW_ITEM);
             CopyItemName(item, gStringVar2);
-            DisplayPartyMenuStdMessage(PARTY_MSG_ALREADY_HOLDING_ONE);
         }
         else
         {
@@ -3930,7 +3940,6 @@ static void CursorCb_Switch(u8 taskId)
     gPartyMenu.action = PARTY_ACTION_SWITCH;
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[0]);
-    DisplayPartyMenuStdMessage(PARTY_MSG_MOVE_TO_WHERE);
     AnimatePartySlot(gPartyMenu.slotId, 1);
     gPartyMenu.slotId2 = gPartyMenu.slotId;
     CreateSelectFrame(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
@@ -4171,7 +4180,6 @@ static void FinishTwoMonAction(u8 taskId)
     AnimatePartySlot(gPartyMenu.slotId, 0);
     gPartyMenu.slotId = gPartyMenu.slotId2;
     AnimatePartySlot(gPartyMenu.slotId2, 1);
-    DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
     CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
     
     // Reset item icons to generic if we were in item mode
@@ -4216,10 +4224,6 @@ static void CursorCb_Cancel1(u8 taskId)
     PlaySE(SE_SELECT);
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[0]);
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
-    if (gPartyMenu.menuType == PARTY_MENU_TYPE_DAYCARE)
-        DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON_2);
-    else
-        DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
     gTasks[taskId].func = Task_HandleChooseMonInput;
 }
 
@@ -4231,7 +4235,6 @@ static void CursorCb_Item(u8 taskId)
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     SetPartyMonSelectionActions(gPlayerParty, gPartyMenu.slotId, ACTIONS_ITEM);
     DisplaySelectionWindow(SELECTWINDOW_ITEM);
-    DisplayPartyMenuStdMessage(PARTY_MSG_DO_WHAT_WITH_ITEM);
     
     // Switch from generic held item icon to actual item icons
     sPartyMenuInternal->inItemMode = TRUE;
@@ -4599,7 +4602,6 @@ static void CursorCb_Mail(u8 taskId)
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     SetPartyMonSelectionActions(gPlayerParty, gPartyMenu.slotId, ACTIONS_MAIL);
     DisplaySelectionWindow(SELECTWINDOW_MAIL);
-    DisplayPartyMenuStdMessage(PARTY_MSG_DO_WHAT_WITH_MAIL);
     gTasks[taskId].data[0] = 0xFF;
     gTasks[taskId].func = Task_HandleSelectionMenuInput;
 }
@@ -4726,13 +4728,11 @@ static void CursorCb_Cancel2(u8 taskId)
     if (gPartyMenu.menuType != PARTY_MENU_TYPE_STORE_PYRAMID_HELD_ITEMS)
     {
         DisplaySelectionWindow(SELECTWINDOW_ACTIONS);
-        DisplayPartyMenuStdMessage(PARTY_MSG_DO_WHAT_WITH_MON);
     }
     else
     {
         DisplaySelectionWindow(SELECTWINDOW_ITEM);
         CopyItemName(GetMonData(mon, MON_DATA_HELD_ITEM), gStringVar2);
-        DisplayPartyMenuStdMessage(PARTY_MSG_ALREADY_HOLDING_ONE);
     }
     gTasks[taskId].data[0] = 0xFF;
     gTasks[taskId].func = Task_HandleSelectionMenuInput;
@@ -4770,10 +4770,6 @@ static void CursorCb_Enter(u8 taskId)
             PlaySE(SE_SELECT);
             gSelectedOrderFromParty[i] = gPartyMenu.slotId + 1;
             DisplayPartyPokemonDescriptionText(i + PARTYBOX_DESC_FIRST, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
-            // // TODO: print START Confirm prompt
-            // if (i == (maxBattlers - 1))
-            //     MoveCursorToConfirm();
-            DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
             gTasks[taskId].func = Task_HandleChooseMonInput;
             return;
         }
@@ -4817,7 +4813,6 @@ static void CursorCb_NoEntry(u8 taskId)
         if (gSelectedOrderFromParty[i] != 0)
             DisplayPartyPokemonDescriptionText(i + PARTYBOX_DESC_FIRST, &sPartyMenuBoxes[gSelectedOrderFromParty[i] - 1], 1);
     }
-    DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
     gTasks[taskId].func = Task_HandleChooseMonInput;
 }
 
@@ -4953,9 +4948,10 @@ static void CursorCb_FieldMove(u8 taskId)
     if (MenuHelpers_IsLinkActive() == TRUE || InUnionRoom() == TRUE)
     {
         if (fieldMove == FIELD_MOVE_MILK_DRINK || fieldMove == FIELD_MOVE_SOFT_BOILED)
-            DisplayPartyMenuStdMessage(PARTY_MSG_CANT_USE_HERE);
+            DisplayPartyMenuMessage(gText_CantUseHere, TRUE);
         else
-            DisplayPartyMenuStdMessage(FieldMove_GetPartyMsgID(fieldMove));
+            StringExpandPlaceholders(gStringVar4, sActionStringTable[FieldMove_GetPartyMsgID(fieldMove)]);
+            DisplayPartyMenuMessage(gStringVar4, TRUE);
 
         gTasks[taskId].func = Task_CancelAfterAorBPress;
     }
@@ -5011,7 +5007,8 @@ static void CursorCb_FieldMove(u8 taskId)
                 DisplayCantUseFlashMessage();
                 break;
             default:
-                DisplayPartyMenuStdMessage(FieldMove_GetPartyMsgID(fieldMove));
+                StringExpandPlaceholders(gStringVar4, sActionStringTable[FieldMove_GetPartyMsgID(fieldMove)]);
+                DisplayPartyMenuMessage(gStringVar4, TRUE);
                 break;
             }
             gTasks[taskId].func = Task_CancelAfterAorBPress;
@@ -5125,15 +5122,22 @@ static u16 GetFieldMoveMonSpecies(void)
 static void Task_CancelAfterAorBPress(u8 taskId)
 {
     if ((JOY_NEW(A_BUTTON)) || (JOY_NEW(B_BUTTON)))
-        CursorCb_Cancel1(taskId);
+    {
+        PlaySE(SE_SELECT);
+        gTasks[taskId].func = Task_ReturnToChooseMonAfterText;
+    }
 }
 
 static void DisplayCantUseFlashMessage(void)
 {
     if (FlagGet(FLAG_SYS_USE_FLASH) == TRUE)
-        DisplayPartyMenuStdMessage(PARTY_MSG_ALREADY_IN_USE);
+    {
+        DisplayPartyMenuMessage(gText_InUseAlready_PM, TRUE);
+    }
     else
-        DisplayPartyMenuStdMessage(PARTY_MSG_CANT_USE_HERE);
+    {
+        DisplayPartyMenuMessage(gText_CantUseHere, TRUE);
+    }
 }
 
 static void FieldCallback_Surf(void)
@@ -5159,9 +5163,13 @@ bool32 SetUpFieldMove_Surf(void)
 static void DisplayCantUseSurfMessage(void)
 {
     if (TestPlayerAvatarFlags(PLAYER_AVATAR_FLAG_SURFING))
-        DisplayPartyMenuStdMessage(PARTY_MSG_ALREADY_SURFING);
+    {
+        DisplayPartyMenuMessage(gText_AlreadySurfing, TRUE);
+    }
     else
-        DisplayPartyMenuStdMessage(PARTY_MSG_CANT_SURF_HERE);
+    {
+        DisplayPartyMenuMessage(gText_CantSurfHere, TRUE);
+    }
 }
 
 bool32 SetUpFieldMove_Fly(void)
@@ -6386,7 +6394,6 @@ void ItemUseCB_BattleScript(u8 taskId, TaskFunc task)
 void ItemUseCB_BattleChooseMove(u8 taskId, TaskFunc task)
 {
     PlaySE(SE_SELECT);
-    DisplayPartyMenuStdMessage(PARTY_MSG_RESTORE_WHICH_MOVE);
     ShowMoveSelectWindow(gPartyMenu.slotId);
     gTasks[taskId].func = Task_HandleWhichMoveInput;
 }
@@ -6522,7 +6529,6 @@ void Task_AbilityCapsule(u8 taskId)
             // Don't exit party selections screen, return to choosing a mon.
             ClearStdWindowAndFrameToTransparent(6, 0);
             ClearWindowTilemap(6);
-            DisplayPartyMenuStdMessage(5);
             gTasks[taskId].func = (void *)GetWordTaskArg(taskId, tOldFunc);
             return;
         }
@@ -6609,7 +6615,6 @@ void Task_AbilityPatch(u8 taskId)
             // Don't exit party selections screen, return to choosing a mon.
             ClearStdWindowAndFrameToTransparent(6, 0);
             ClearWindowTilemap(6);
-            DisplayPartyMenuStdMessage(5);
             gTasks[taskId].func = (void *)GetWordTaskArg(taskId, tOldFunc);
             return;
         }
@@ -6709,7 +6714,6 @@ void Task_Mint(u8 taskId)
             // Don't exit party selections screen, return to choosing a mon.
             ClearStdWindowAndFrameToTransparent(6, 0);
             ClearWindowTilemap(6);
-            DisplayPartyMenuStdMessage(5);
             gTasks[taskId].func = (void *)GetWordTaskArg(taskId, tOldFunc);
             return;
         }
@@ -6942,7 +6946,6 @@ void ItemUseCB_PPRecovery(u8 taskId, TaskFunc task)
     else
     {
         PlaySE(SE_SELECT);
-        DisplayPartyMenuStdMessage(PARTY_MSG_RESTORE_WHICH_MOVE);
         ShowMoveSelectWindow(gPartyMenu.slotId);
         gTasks[taskId].func = Task_HandleWhichMoveInput;
     }
@@ -6960,7 +6963,6 @@ static void ReturnToUseOnWhichMon(u8 taskId)
     gTasks[taskId].func = Task_HandleChooseMonInput;
     sPartyMenuInternal->exitCallback = NULL;
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[0]);
-    DisplayPartyMenuStdMessage(PARTY_MSG_USE_ON_WHICH_MON);
 }
 
 static void TryUseItemOnMove(u8 taskId)
@@ -7021,7 +7023,6 @@ static void TryUseItemOnMove(u8 taskId)
 void ItemUseCB_PPUp(u8 taskId, TaskFunc task)
 {
     PlaySE(SE_SELECT);
-    DisplayPartyMenuStdMessage(PARTY_MSG_BOOST_PP_WHICH_MOVE);
     ShowMoveSelectWindow(gPartyMenu.slotId);
     gTasks[taskId].func = Task_HandleWhichMoveInput;
 }
@@ -8238,7 +8239,6 @@ void ItemUseCB_Fusion(u8 taskId, TaskFunc taskFunc)
                     AnimatePartySlot(slotId, 1);
                     gPartyMenu.slotId2 = slotId;
                     CreateSelectFrame(&sPartyMenuBoxes[slotId], slotId);
-                    // DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_SECOND_FUSION);
                     return;
                 }
             }
@@ -8440,7 +8440,6 @@ void ItemUseCB_RotomCatalog(u8 taskId, TaskFunc task)
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     SetPartyMonSelectionActions(gPlayerParty, gPartyMenu.slotId, ACTIONS_ROTOM_CATALOG);
     DisplaySelectionWindow(SELECTWINDOW_CATALOG);
-    DisplayPartyMenuStdMessage(PARTY_MSG_WHICH_APPLIANCE);
     gTasks[taskId].data[0] = 0xFF;
     gTasks[taskId].func = Task_HandleSelectionMenuInput;
 }
@@ -8933,7 +8932,7 @@ static bool8 GetBattleEntryEligibility(struct Pokemon *mon)
     }
 }
 
-static u8 CheckBattleEntriesAndGetMessage(void)
+static const u8 *CheckBattleEntriesAndGetMessage(void)
 {
     u8 maxBattlers;
     u8 i, j;
@@ -8945,14 +8944,15 @@ static u8 CheckBattleEntriesAndGetMessage(void)
     if (order[minBattlers - 1] == 0)
     {
         if (minBattlers == 1)
-            return PARTY_MSG_NO_MON_FOR_BATTLE;
+            return sActionStringTable[PARTY_MSG_NO_MON_FOR_BATTLE];
         ConvertIntToDecimalStringN(gStringVar1, minBattlers, STR_CONV_MODE_LEFT_ALIGN, 1);
-        return PARTY_MSG_X_MONS_ARE_NEEDED;
+        StringExpandPlaceholders(gStringVar4, sActionStringTable[PARTY_MSG_X_MONS_ARE_NEEDED]);
+        return gStringVar4;
     }
 
     facility = VarGet(VAR_FRONTIER_FACILITY);
     if (facility == FACILITY_UNION_ROOM || facility == FACILITY_MULTI_OR_EREADER)
-        return 0xFF;
+        return NULL;
 
     maxBattlers = GetMaxBattleEntries();
     for (i = 0; i < maxBattlers - 1; i++)
@@ -8962,13 +8962,13 @@ static u8 CheckBattleEntriesAndGetMessage(void)
         for (j = i + 1; j < maxBattlers; j++)
         {
             if (species == GetMonData(&party[order[j] - 1], MON_DATA_SPECIES))
-                return PARTY_MSG_MONS_CANT_BE_SAME;
+                return sActionStringTable[PARTY_MSG_MONS_CANT_BE_SAME];
             if (item != ITEM_NONE && item == GetMonData(&party[order[j] - 1], MON_DATA_HELD_ITEM))
-                return PARTY_MSG_NO_SAME_HOLD_ITEMS;
+                return sActionStringTable[PARTY_MSG_NO_SAME_HOLD_ITEMS];
         }
     }
 
-    return 0xFF;
+    return NULL;
 }
 
 static bool8 HasPartySlotAlreadyBeenSelected(u8 slot)
@@ -8985,12 +8985,13 @@ static bool8 HasPartySlotAlreadyBeenSelected(u8 slot)
 
 static void Task_ValidateChosenHalfParty(u8 taskId)
 {
-    u8 msgId = CheckBattleEntriesAndGetMessage();
+    const u8 *msg = CheckBattleEntriesAndGetMessage();
 
-    if (msgId != 0xFF)
+    if (msg != NULL)
     {
         PlaySE(SE_FAILURE);
-        DisplayPartyMenuStdMessage(msgId);
+        DisplayPartyMenuMessage(msg, TRUE);
+        ScheduleBgCopyTilemapToVram(2);
         gTasks[taskId].func = Task_ContinueChoosingHalfParty;
     }
     else
@@ -9005,7 +9006,6 @@ static void Task_ContinueChoosingHalfParty(u8 taskId)
     if ((JOY_NEW(A_BUTTON)) || (JOY_NEW(B_BUTTON)))
     {
         PlaySE(SE_SELECT);
-        DisplayPartyMenuStdMessage(PARTY_MSG_CHOOSE_MON);
         gTasks[taskId].func = Task_HandleChooseMonInput;
     }
 }
@@ -9822,7 +9822,6 @@ static void CursorCb_LearnMovesSubMenu(u8 taskId)
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     SetPartyMonSelectionActions(gPlayerParty, gPartyMenu.slotId, ACTIONS_MOVES_SUB);
     DisplaySelectionWindow(SELECTWINDOW_ACTIONS);
-    DisplayPartyMenuStdMessage(PARTY_MSG_DO_WHAT_WITH_MON);
     gTasks[taskId].data[0] = 0xFF;
     gTasks[taskId].func = Task_HandleSelectionMenuInput;
 }
@@ -9944,8 +9943,6 @@ void CursorCb_MoveItem(u8 taskId)
         gSpecialVar_ItemId = GetMonData(mon, MON_DATA_HELD_ITEM);
         gPartyMenu.action = PARTY_ACTION_MOVE_ITEM;
 
-        // show "Move item to where" in bottom left
-        DisplayPartyMenuStdMessage(PARTY_MSG_MOVE_ITEM_WHERE);
         // update color of first selected box
         AnimatePartySlot(gPartyMenu.slotId, 1);
         
