@@ -80,6 +80,7 @@
 #include "constants/items.h"
 #include "constants/moves.h"
 #include "constants/party_menu.h"
+#include "constants/pokemon_icon.h"
 #include "constants/rgb.h"
 #include "constants/songs.h"
 
@@ -162,6 +163,7 @@ enum {
 #define TAG_SWITCH_ITEM_1           55141
 #define TAG_SWITCH_ITEM_2           55142
 #define TAG_MESSAGE_WINDOW          55150
+#define TAG_MOVE_TYPES              55160
 
 #define PARTY_PAL_SELECTED     (1 << 0)
 #define PARTY_PAL_FAINTED      (1 << 1)
@@ -277,6 +279,7 @@ static EWRAM_DATA u8 sMoveWindowIds[MAX_MON_MOVES];
 static EWRAM_DATA u8 sAbilityWindowId;
 static EWRAM_DATA u8 sMonShadowSpriteId = 0;
 static EWRAM_DATA u16 sMonAnimTimer = 0;
+static EWRAM_DATA u8 sMoveTypeSpriteIds[MAX_MON_MOVES];
 // Saved party menu state for reopening after opening the PC Move Pokémon UI
 static EWRAM_DATA u8 sSavedPartyMenuType = 0;
 static EWRAM_DATA u8 sSavedPartyLayout = 0;
@@ -375,6 +378,8 @@ static bool8 PartyBoxPal_ParnterOrDisqualifiedInArena(u8);
 static u8 GetPartyIdFromBattleSlot(u8);
 static void BlitBitmapToPartyMoveWindow_SwSh(u8, u8, u8, u8, u8, bool8);
 static void UpdatePartyMoveWindows(u8);
+static void LoadMoveTypeIcons(void);
+static void DestroyMoveTypeSprites(void);
 static void DisplayPartyPokemonMoves(u8, struct Pokemon *, int);
 static void DisplayPartyPokemonAbility(u8, u8);
 static u8 *GetPartyMenuBgTile(u16);
@@ -796,7 +801,11 @@ static bool8 ShowPartyMenu(void)
         break;
     case 8:
         if (AllocPartyMenuBgGfx())
+        {
+            if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE)
+                LoadMoveTypeIcons();
             gMain.state++;
+        }
         break;
     case 9:
         InitPartyMenuWindows(gPartyMenu.layout);
@@ -927,6 +936,7 @@ static bool8 ShowPartyMenu(void)
 
 static bool8 ReloadPartyMenu(void)
 {
+    u8 i;
     switch (gMain.state)
     {
     case 0:
@@ -935,83 +945,86 @@ static bool8 ReloadPartyMenu(void)
         gMain.state++;
         break;
     case 1:
-        ScanlineEffect_Stop();
+        for (i = 0; i < MAX_MON_MOVES; i++)
+            sMoveTypeSpriteIds[i] = MAX_SPRITES;
         gMain.state++;
         break;
     case 2:
+        ScanlineEffect_Stop();
+        gMain.state++;
+        break;
+    case 3:
         ResetPaletteFade();
         gPaletteFade.bufferTransferDisabled = TRUE;
         gMain.state++;
         break;
-    case 3:
+    case 4:
         ResetSpriteData();
         gMain.state++;
         break;
-    case 4:
+    case 5:
         FreeAllSpritePalettes();
         gMain.state++;
         break;
-    case 5:
+    case 6:
         SetPartyMonsAllowedInMinigame();
         gMain.state++;
         break;
-    case 6:
-        sPartyMenuInternal->data[0] = 0;
-        gMain.state++;
-        break;
     case 7:
-        LoadPartyMenuWindows();
+        if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE)
+            LoadMoveTypeIcons();
         gMain.state++;
         break;
     case 8:
-        LoadPartyMenuBoxes(gPartyMenu.layout);
         sPartyMenuInternal->data[0] = 0;
         gMain.state++;
         break;
     case 9:
-        LoadHeldItemIcons();
+        LoadPartyMenuWindows();
         gMain.state++;
         break;
     case 10:
-        LoadSelectFrame();
+        LoadPartyMenuBoxes(gPartyMenu.layout);
+        sPartyMenuInternal->data[0] = 0;
         gMain.state++;
         break;
     case 11:
-        LoadPartyMonHoverCursor();
+        LoadHeldItemIcons();
         gMain.state++;
         break;
     case 12:
-        LoadPartyMenuAilmentGfx();
+        LoadSelectFrame();
         gMain.state++;
         break;
     case 13:
-        LoadMessageWindowFillSprite();
+        LoadPartyMonHoverCursor();
         gMain.state++;
         break;
     case 14:
-        LoadMonIconPalettes();
+        LoadPartyMenuAilmentGfx();
         gMain.state++;
         break;
     case 15:
-        LoadMonIconPalettes();
+        LoadMessageWindowFillSprite();
         gMain.state++;
         break;
     case 16:
+        LoadMonIconPalettes();
+        gMain.state++;
+        break;
+    case 17:
         if (CreatePartyMonSpritesLoop())
         {
             sPartyMenuInternal->data[0] = 0;
             gMain.state++;
         }
         break;
-    case 17:
+    case 18:
         if (RenderPartyMenuBoxes())
         {
             sPartyMenuInternal->data[0] = 0;
             gMain.state++;
         }
-        break;
-    case 18:
-        gMain.state++;
         break;
     case 19:
         {
@@ -1112,7 +1125,10 @@ static void ResetPartyMenu(void)
     for (i = 0; i < ARRAY_COUNT(sSelectFrameSpriteIds); i++)
         sSelectFrameSpriteIds[i] = MAX_SPRITES;
     for (i = 0; i < MAX_MON_MOVES; ++i)
+    {
         sMoveWindowIds[i] = WINDOW_NONE;
+        sMoveTypeSpriteIds[i] = MAX_SPRITES;
+    }
     sAbilityWindowId = WINDOW_NONE;
 }
 
@@ -1212,6 +1228,7 @@ static void FreePartyPointers(void)
 {
     DestroyMonSprite();
     DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
+    DestroyMoveTypeSprites();
     // Clear alpha blending from party mon shadows
     SetGpuReg(REG_OFFSET_BLDCNT, 0);
     SetGpuReg(REG_OFFSET_BLDALPHA, 0);
@@ -1303,18 +1320,7 @@ static void RenderPartyMenuBox(u8 slot)
         PutWindowTilemap(sPartyMenuBoxes[slot].windowId);
         if (SWSH_PARTY_MENU && gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE && gPartyMenu.slotId == slot)
         {
-            struct Pokemon *mon = &gPlayerParty[slot];
-            int m;
-            for (m = 0; m < MAX_MON_MOVES; ++m)
-            {
-                const u8 *tm = (GetMonData(mon, MON_DATA_MOVE1 + m) != MOVE_NONE) ? sMoveTilemap_Main_SwSh : sMoveTilemap_Empty_SwSh;
-                if (tm != NULL && sMoveWindowIds[m] != WINDOW_NONE)
-                {
-                    BlitBitmapToPartyWindow(sMoveWindowIds[m], tm, 14, 0, 0, 14, 2);
-                    DisplayPartyPokemonMoves(sMoveWindowIds[m], mon, m);
-                    CopyWindowToVram(sMoveWindowIds[m], COPYWIN_GFX);
-                }
-            }
+            UpdatePartyMoveWindows(slot);
         }
         ScheduleBgCopyTilemapToVram(0);
     }
@@ -1362,6 +1368,7 @@ static void UpdatePartyMoveWindows(u8 slot)
     if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE || !SWSH_PARTY_MENU)
         return;
 
+    DestroyMoveTypeSprites();
     for (m = 0; m < MAX_MON_MOVES; ++m)
     {
         if (sMoveWindowIds[m] == WINDOW_NONE)
@@ -2805,7 +2812,6 @@ static void LoadPartyMenuWindows(void)
             PutWindowTilemap(sAbilityWindowId);
             DisplayPartyPokemonAbility(sAbilityWindowId, gPartyMenu.slotId);
         }
-        UpdatePartyMoveWindows(gPartyMenu.slotId);
     }
 }
 
@@ -3229,6 +3235,15 @@ static void DisplayPartyPokemonMoves(u8 windowId, struct Pokemon *mon, int m)
         return;
 
     const u8 *name = GetMoveName(move);
+    u8 type = gMovesInfo[move].type;
+    struct SpriteTemplate template = sSpriteTemplate_MoveTypes;
+    template.paletteTag = POKE_ICON_BASE_PAL_TAG + sMoveTypeToPalOffset[type];
+    
+    sMoveTypeSpriteIds[m] = CreateSprite(&template, 204, 24 + 16 * m, 0);
+    if (sMoveTypeSpriteIds[m] != MAX_SPRITES)
+    {
+        StartSpriteAnim(&gSprites[sMoveTypeSpriteIds[m]], type);
+    }
     AddTextPrinterParameterized3(windowId, GetFontIdToFit(name, FONT_SMALL, 0, info->dimensions[2]),
                                  info->dimensions[0], info->dimensions[1], sFontColorTable[0], 0, name);
 
@@ -5466,6 +5481,24 @@ void LoadHeldItemIcons(void)
 {
     LoadSpriteSheet(&gSpriteSheet_HeldItem);
     LoadSpritePalette(&sSpritePalette_HeldItem);
+}
+
+static void LoadMoveTypeIcons(void)
+{
+    LoadCompressedSpriteSheet(&sSpriteSheet_MoveTypes);
+}
+
+static void DestroyMoveTypeSprites(void)
+{
+    u8 i;
+    for (i = 0; i < MAX_MON_MOVES; i++)
+    {
+        if (sMoveTypeSpriteIds[i] != MAX_SPRITES)
+        {
+            DestroySprite(&gSprites[sMoveTypeSpriteIds[i]]);
+            sMoveTypeSpriteIds[i] = MAX_SPRITES;
+        }
+    }
 }
 
 static void LoadPartyMonHoverCursor(void)
