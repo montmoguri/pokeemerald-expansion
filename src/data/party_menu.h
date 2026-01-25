@@ -39,6 +39,7 @@ const u16 gHeldItemPalette[]             = INCBIN_U16("graphics/party_menu/hold_
 static const u32 sHoverCursorGfx[]        = INCBIN_U32("graphics/party_menu/swsh/hover_cursor.4bpp.smol");
 static const u32 sSelectFrameGfx[]        = INCBIN_U32("graphics/party_menu/swsh/select_frame.4bpp.smol");
 static const u32 sMessageWindowFillGfx[]  = INCBIN_U32("graphics/party_menu/swsh/message_window.4bpp.smol");
+static const u32 sMultiuseWindowFillGfx[] = INCBIN_U32("graphics/party_menu/swsh/multiuse_window.4bpp.smol");
 static const u16 sMonShadowPalette[]      = INCBIN_U16("graphics/party_menu/swsh/shadow.gbapal");
 static const u32 sMoveTypes_Gfx[]         = INCBIN_U32("graphics/party_menu/swsh/types/move_types.4bpp.smol");
 
@@ -206,6 +207,7 @@ static const u8 sFontColorTable[][3] =
     {TEXT_COLOR_TRANSPARENT, TEXT_COLOR_BLUE,       TEXT_COLOR_LIGHT_BLUE}, // PP state 1 (FG 8  / SH  9)
     {TEXT_COLOR_TRANSPARENT, TEXT_DYNAMIC_COLOR_1,  TEXT_DYNAMIC_COLOR_2},  // PP state 2 (FG 10 / SH 11)
     {TEXT_COLOR_TRANSPARENT, TEXT_COLOR_RED,        TEXT_COLOR_LIGHT_RED},  // PP state 3 (FG 4  / SH  5)
+    {TEXT_COLOR_TRANSPARENT, TEXT_COLOR_RED,        TEXT_COLOR_LIGHT_GREEN},  // Item multiuse (FG 4 / SH 7)
 };
 
 static const struct WindowTemplate sSinglePartyMenuWindowTemplate[] =
@@ -899,6 +901,17 @@ static const struct WindowTemplate sLevelUpStatsWindowTemplate =
     .baseBlock = 0x283,
 };
 
+static const struct WindowTemplate sGiveHowManyItemsWindowTemplate =
+{
+    .bg = 2,
+    .tilemapLeft = 20,
+    .tilemapTop = 11,
+    .width = 4,
+    .height = 2,
+    .paletteNum = 1,
+    .baseBlock = 0x283,
+};
+
 static const struct WindowTemplate sMoveInfoWindowTemplate_SwSh[] =
 {
     { // Move slot 1
@@ -1416,6 +1429,71 @@ static const struct SpriteTemplate sSpriteTemplate_MessageWindowFill =
     .paletteTag = TAG_HELD_ITEM,
     .oam = &sOamData_MessageWindowFill,
     .anims = sSpriteAnimTable_MessageWindowFill,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCallbackDummy,
+};
+
+static const struct OamData sOamData_MultiuseWindowFill =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .size = SPRITE_SIZE(32x16),
+    .x = 0,
+    .matrixNum = 0,
+    .shape = SPRITE_SHAPE(32x16),
+    .tileNum = 0,
+    .priority = 0,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const union AnimCmd sSpriteAnim_MultiuseWindowFill_TopLeft[] = {
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MultiuseWindowFill_TopRight[] = {
+    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MultiuseWindowFill_BottomLeft[] = {
+    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_MultiuseWindowFill_BottomRight[] = {
+    ANIMCMD_FRAME(8, 0, TRUE, TRUE),
+    ANIMCMD_END
+};
+
+static const union AnimCmd *const sSpriteAnimTable_MultiuseWindowFill[] = {
+    sSpriteAnim_MultiuseWindowFill_TopLeft,
+    sSpriteAnim_MultiuseWindowFill_TopRight,
+    sSpriteAnim_MultiuseWindowFill_BottomLeft,
+    sSpriteAnim_MultiuseWindowFill_BottomRight,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_MultiuseWindowFill =
+{
+    .data = sMultiuseWindowFillGfx,
+    .size = (32 * 16 * 3) / 2,
+    .tag = TAG_MULTIUSE_WINDOW,
+};
+
+static const struct SpritePalette sSpritePal_MultiuseWindowFill =
+{
+    .data = gHeldItemPalette,
+    .tag = TAG_HELD_ITEM,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_MultiuseWindowFill =
+{
+    .tileTag = TAG_MULTIUSE_WINDOW,
+    .paletteTag = TAG_HELD_ITEM,
+    .oam = &sOamData_MultiuseWindowFill,
+    .anims = sSpriteAnimTable_MultiuseWindowFill,
     .images = NULL,
     .affineAnims = gDummySpriteAffineAnimTable,
     .callback = SpriteCallbackDummy,
