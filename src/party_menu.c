@@ -2451,6 +2451,17 @@ static void Task_ReturnToChooseMonAfterText(u8 taskId)
         ClearWindowTilemap(WIN_MSG);
         DestroyMessageWindowFillSprite();
         ScheduleBgCopyTilemapToVram(2);
+        {
+            u8 promptType = GetButtonPromptType();
+            if (promptType != BUTTON_PROMPT_NONE
+                && sPartyMenuInternal != NULL
+                && sPartyMenuInternal->promptWindowId != WINDOW_NONE)
+            {
+                ShowButtonPrompt(promptType);
+                PutWindowTilemap(sPartyMenuInternal->promptWindowId);
+                ScheduleBgCopyTilemapToVram(0);
+            }
+        }
         if (MenuHelpers_IsLinkActive() == TRUE)
         {
             gTasks[taskId].func = Task_WaitForLinkAndReturnToChooseMon;
