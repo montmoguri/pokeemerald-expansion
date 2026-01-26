@@ -3247,24 +3247,24 @@ static void DisplayPartyPokemonBarDetailToFit(u8 windowId, const u8 *str, u8 col
     AddTextPrinterParameterized3(windowId, GetFontIdToFit(str, FONT_SMALL, 0, width), align[0], align[1], sFontColorTable[color], 0, str);
 }
 
-static u8 GetPpFontColorIndexForMove(struct Pokemon *mon, u16 move, int m)
+static u8 GetPPFontColorIndexForMove(struct Pokemon *mon, u16 move, int m)
 {
-    u8 currentPp = GetMonData(mon, MON_DATA_PP1 + m);
+    u8 currentPP = GetMonData(mon, MON_DATA_PP1 + m);
     u8 ppBonuses = GetMonData(mon, MON_DATA_PP_BONUSES);
-    u8 maxPp = CalculatePPWithBonus(move, ppBonuses, m);
-    u8 ppState = GetCurrentPpToMaxPpState(currentPp, maxPp);
+    u8 maxPP = CalculatePPWithBonus(move, ppBonuses, m);
+    u8 ppState = GetCurrentPpToMaxPpState(currentPP, maxPP);
 
     return 7 + ppState;
 }
 
-static void PrintMovePpToWindow(u8 windowId, u8 fontId, struct Pokemon *mon, int m, int xBase, int y, int areaWidth)
+static void PrintMovePPToWindow(u8 windowId, u8 fontId, struct Pokemon *mon, int m, int xBase, int y, int areaWidth)
 {
     u16 move = GetMonData(mon, MON_DATA_MOVE1 + m);
     u8 bufDigits = 3;
 
     ConvertIntToDecimalStringN(gStringVar1, GetMonData(mon, MON_DATA_PP1 + m), STR_CONV_MODE_RIGHT_ALIGN, bufDigits);
     int ppX = xBase + GetStringRightAlignXOffset(fontId, gStringVar1, areaWidth);
-    AddTextPrinterParameterized3(windowId, fontId, ppX, y, sFontColorTable[GetPpFontColorIndexForMove(mon, move, m)], 0, gStringVar1);
+    AddTextPrinterParameterized3(windowId, fontId, ppX, y, sFontColorTable[GetPPFontColorIndexForMove(mon, move, m)], 0, gStringVar1);
 }
 
 static void DisplayPartyPokemonMoves(u8 windowId, struct Pokemon *mon, int m)
@@ -3287,8 +3287,7 @@ static void DisplayPartyPokemonMoves(u8 windowId, struct Pokemon *mon, int m)
     }
     AddTextPrinterParameterized3(windowId, GetFontIdToFit(name, FONT_SMALL, 0, info->dimensions[2]),
                                  info->dimensions[0], info->dimensions[1], sFontColorTable[0], 0, name);
-
-    PrintMovePpToWindow(windowId, FONT_SMALL, mon, m, info->dimensions[4], info->dimensions[5], info->dimensions[6]);
+    PrintMovePPToWindow(windowId, FONT_SMALL, mon, m, info->dimensions[4], info->dimensions[5], info->dimensions[6]);
 }
 
 static void DisplayPartyPokemonNickname(struct Pokemon *mon, struct PartyMenuBox *menuBox, u8 c)

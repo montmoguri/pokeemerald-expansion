@@ -41,7 +41,7 @@ static const u32 sSelectFrameGfx[]        = INCBIN_U32("graphics/party_menu/swsh
 static const u32 sMessageWindowGfx[]      = INCBIN_U32("graphics/party_menu/swsh/message_window.4bpp.smol");
 static const u32 sMultiuseWindowGfx[]     = INCBIN_U32("graphics/party_menu/swsh/multiuse_window.4bpp.smol");
 static const u16 sMonShadowPalette[]      = INCBIN_U16("graphics/party_menu/swsh/shadow.gbapal");
-static const u32 sMoveTypes_Gfx[]         = INCBIN_U32("graphics/party_menu/swsh/types/move_types.4bpp.smol");
+static const u32 sMoveTypes_Gfx[]         = INCBIN_U32("graphics/party_menu/swsh/move_types.4bpp.smol");
 
 static const u8 sText_EggNickname[POKEMON_NAME_LENGTH + 1]  = _("Egg");
 static const u8 sMenuText_Confirm[]                         = _("Confirm");
@@ -183,7 +183,7 @@ static const struct PartyMenuMoveBoxInfoRects sPartyMoveBoxInfoRects[] =
 {
     { BlitBitmapToPartyMoveWindow_SwSh,
         {
-            10,  1, 64, 12, // Move name
+            10,  1, 62, 12, // Move name
             86,  1, 10, 12, // PP
         }
     },
