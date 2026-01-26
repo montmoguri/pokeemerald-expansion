@@ -318,6 +318,7 @@ static void FreePartyPointers(void);
 static u8 LoadMonGfxAndSprite(struct Pokemon *, s16 *, bool32);
 static u8 CreateMonSprite(struct Pokemon *, bool32);
 static void DestroyMonSprite(void);
+static void UpdatePartyMonSprite(u8);
 static void SpriteCB_PartyMonPokemon(struct Sprite *);
 static void RunMonAnimTimer(void);
 static void PartyPaletteBufferCopy(u8);
@@ -359,17 +360,17 @@ static void UNUSED CreatePartyMonPokeballSprite(struct Pokemon *, struct PartyMe
 static void CreatePartyMonIconSprite(struct Pokemon *, struct PartyMenuBox *, u32);
 static void CreatePartyMonStatusSprite(struct Pokemon *, struct PartyMenuBox *);
 static void LoadPartyMonHoverCursor(void);
-static void CreatePartyMonHoverSprite(struct PartyMenuBox *, u8);
+static void CreateHoverSprite(struct PartyMenuBox *, u8);
 static void LoadMessageWindowSprite(void);
 static void CreateMessageWindowSprite(void);
 static void DestroyMessageWindowSprite(void);
 static void LoadMultiuseWindowSprite(void);
 static void CreateMultiuseWindowSprite(void);
 static void DestroyMultiuseWindowSprite(void);
-static void DestroyPartyMonHoverSprite(void);
-static void CreatePartyMonItemIconSprite(struct PartyMenuBox *, u8, u16);
-static void CreatePartyMonItemMoveSprite(u8 fromSlot, u8 toSlot, u16 itemId);
-static void DestroyPartyMonItemIconSprite(void);
+static void DestroyHoverSprite(void);
+static void CreateItemIconSprite(struct PartyMenuBox *, u8, u16);
+static void CreateItemMoveSprite(u8, u8, u16);
+static void DestroyItemIconSprite(void);
 static void LoadSelectFrame(void);
 static void CreateSelectFrame(struct PartyMenuBox *, u8);
 static void DestroySelectFrame(void);
@@ -902,7 +903,7 @@ static bool8 ShowPartyMenu(void)
         break;
     case 22:
         AnimatePartySlot(gPartyMenu.slotId, 1);
-        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
         gMain.state++;
         break;
     case 23:
@@ -1681,7 +1682,7 @@ static void UNUSED CreateCancelConfirmPokeballSprites(void)
             sPartyMenuInternal->spriteIdCancelPokeball = CreatePokeballButtonSprite(198, 148);
         }
         AnimatePartySlot(gPartyMenu.slotId, 1);
-        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
     }
     */
 }
@@ -2244,6 +2245,38 @@ static u16 PartyMenuButtonHandler(s8 *slotPtr)
     return JOY_NEW(A_BUTTON | B_BUTTON);
 }
 
+
+static void UpdatePartyMonSprite(u8 slotId)
+{
+    s16 state;
+    u8 spriteId;
+
+    if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE
+        && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE
+        && slotId < gPlayerPartyCount
+        && GetMonData(&gPlayerParty[slotId], MON_DATA_SPECIES) != SPECIES_NONE)
+    {
+        DestroyMonSprite();
+        state = 0;
+        do
+        {
+            spriteId = LoadMonGfxAndSprite(&gPlayerParty[slotId], &state, TRUE);
+        } while (spriteId == 0xFF);
+        sMonShadowSpriteId = spriteId;
+
+        state = 0;
+        do
+        {
+            spriteId = LoadMonGfxAndSprite(&gPlayerParty[slotId], &state, FALSE);
+        } while (spriteId == 0xFF);
+        sMonSpriteId = spriteId;
+    }
+    else
+    {
+        DestroyMonSprite();
+    }
+}
+
 static void UpdateCurrentPartySelection(s8 *slotPtr, s8 movementDir)
 {
     s8 newSlotId = *slotPtr;
@@ -2256,39 +2289,14 @@ static void UpdateCurrentPartySelection(s8 *slotPtr, s8 movementDir)
 
     if (*slotPtr != newSlotId)
     {
-        s16 state;
-        u8 spriteId;
         PlaySE(SE_SELECT);
         AnimatePartySlot(newSlotId, 0);
         AnimatePartySlot(*slotPtr, 1);
-        CreatePartyMonHoverSprite(&sPartyMenuBoxes[*slotPtr], *slotPtr);
+        CreateHoverSprite(&sPartyMenuBoxes[*slotPtr], *slotPtr);
         if (gPartyMenu.menuType == PARTY_MENU_TYPE_IN_BATTLE && SWSH_PARTY_MENU)
             UpdatePartyMoveWindows(*slotPtr);
-        
-        if (gPartyMenu.menuType != PARTY_MENU_TYPE_IN_BATTLE
-            && gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE
-            && *slotPtr < gPlayerPartyCount
-            && GetMonData(&gPlayerParty[*slotPtr], MON_DATA_SPECIES) != SPECIES_NONE)
-        {
-            DestroyMonSprite();
-            state = 0;
-            do
-            {
-                spriteId = LoadMonGfxAndSprite(&gPlayerParty[*slotPtr], &state, TRUE);
-            } while (spriteId == 0xFF);
-            sMonShadowSpriteId = spriteId;
-            
-            state = 0;
-            do
-            {
-                spriteId = LoadMonGfxAndSprite(&gPlayerParty[*slotPtr], &state, FALSE);
-            } while (spriteId == 0xFF);
-            sMonSpriteId = spriteId;
-        }
-        else
-        {
-            DestroyMonSprite();
-        }
+
+        UpdatePartyMonSprite(*slotPtr);
     }
 }
 
@@ -4044,7 +4052,8 @@ static void SwitchSelectedMons(u8 taskId)
     u8 windowIds[2];
 
     DestroySelectFrame();
-    DestroyPartyMonHoverSprite();
+    DestroyHoverSprite();
+    DestroyMonSprite();
 
     if (gPartyMenu.slotId2 == gPartyMenu.slotId)
     {
@@ -4259,7 +4268,8 @@ static void FinishTwoMonAction(u8 taskId)
     AnimatePartySlot(gPartyMenu.slotId, 0);
     gPartyMenu.slotId = gPartyMenu.slotId2;
     AnimatePartySlot(gPartyMenu.slotId2, 1);
-    CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+    UpdatePartyMonSprite(gPartyMenu.slotId);
+    CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
     
     // Reset item icons to generic if we were in item mode
     if (sPartyMenuInternal->inItemMode)
@@ -4400,8 +4410,8 @@ static void Task_GiveHoldItem(u8 taskId)
         // Visually update cursor and held item sprites
         UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
         gSpecialVar_ItemId = ITEM_NONE;
-        DestroyPartyMonHoverSprite();
-        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        DestroyHoverSprite();
+        CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
         
         DisplayGaveHeldItemMessage(&gPlayerParty[gPartyMenu.slotId], item, FALSE, 0);
         gTasks[taskId].func = Task_UpdateHeldItemSprite;
@@ -4456,8 +4466,8 @@ static void Task_HandleSwitchItemsYesNoInput(u8 taskId)
             // Visually update cursor and held item sprites
             UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
             gSpecialVar_ItemId = ITEM_NONE;
-            DestroyPartyMonHoverSprite();
-            CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+            DestroyHoverSprite();
+            CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
             
             DisplaySwitchedHeldItemMessage(newItem, sPartyMenuItemId, TRUE);
             gTasks[taskId].func = Task_UpdateHeldItemSprite;
@@ -4570,8 +4580,8 @@ static void Task_UpdateHeldItemSprite(u8 taskId)
             sPartyMenuInternal->inItemMode = FALSE;
             for (i = 0; i < PARTY_SIZE; i++)
                 UpdatePartyMonHeldItemSprite(&gPlayerParty[i], &sPartyMenuBoxes[i]);
-            DestroyPartyMonHoverSprite();
-            CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+            DestroyHoverSprite();
+            CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
         }
         
         Task_ReturnToChooseMonAfterText(taskId);
@@ -5581,7 +5591,7 @@ static void LoadPartyMonHoverCursor(void)
     LoadCompressedSpriteSheet(&sSpriteSheet_HoverCursor);
 }
 
-static void DestroyPartyMonHoverSprite(void)
+static void DestroyHoverSprite(void)
 {
     if (sHoverCursorSpriteId != MAX_SPRITES && sHoverCursorSpriteId != 0)
     {
@@ -5615,7 +5625,7 @@ static void InitPartyMenuCursorMove(u8 spriteId, s16 targetX, s16 targetY)
     sPartyMenuInternal->comfyAnimY = CreateComfyAnim_Easing(&config);
 }
 
-static void CreatePartyMonItemIconSprite(struct PartyMenuBox *menuBox, u8 slot, u16 itemId)
+static void CreateItemIconSprite(struct PartyMenuBox *menuBox, u8 slot, u16 itemId)
 {
     u8 x = menuBox->spriteCoords[0] - 8;
     u8 y = menuBox->spriteCoords[1];
@@ -5626,7 +5636,7 @@ static void CreatePartyMonItemIconSprite(struct PartyMenuBox *menuBox, u8 slot, 
     }
     else
     {
-        DestroyPartyMonItemIconSprite();
+        DestroyItemIconSprite();
         
         sItemIconSpriteId = AddItemIconSprite(TAG_HOVER_ITEM, TAG_HOVER_ITEM, itemId);
         
@@ -5650,24 +5660,25 @@ static void CreatePartyMonItemIconSprite(struct PartyMenuBox *menuBox, u8 slot, 
     }
 }
 
-static void DestroyPartyMonItemIconSprite(void)
+static void DestroyItemIconSprite(void)
 {
     if (sItemIconSpriteId != MAX_SPRITES && sItemIconSpriteId != 0)
     {
         FreeSpriteTilesByTag(TAG_HOVER_ITEM);
         FreeSpritePaletteByTag(TAG_HOVER_ITEM);
+        FreeSpriteOamMatrix(&gSprites[sItemIconSpriteId]);
         DestroySprite(&gSprites[sItemIconSpriteId]);
         sItemIconSpriteId = MAX_SPRITES;
     }
 }
 
-static void CreatePartyMonHoverSprite(struct PartyMenuBox *menuBox, u8 slot)
+static void CreateHoverSprite(struct PartyMenuBox *menuBox, u8 slot)
 {
     // Do not show hover cursor in MULTI_SHOWCASE
     if (gPartyMenu.menuType == PARTY_MENU_TYPE_MULTI_SHOWCASE)
     {
-        DestroyPartyMonHoverSprite();
-        DestroyPartyMonItemIconSprite();
+        DestroyHoverSprite();
+        DestroyItemIconSprite();
         return;
     }
 
@@ -5679,12 +5690,12 @@ static void CreatePartyMonHoverSprite(struct PartyMenuBox *menuBox, u8 slot)
             || gPartyMenu.action == PARTY_ACTION_FUSION)
         )
     {
-        DestroyPartyMonHoverSprite();
-        CreatePartyMonItemIconSprite(menuBox, slot, gSpecialVar_ItemId);
+        DestroyHoverSprite();
+        CreateItemIconSprite(menuBox, slot, gSpecialVar_ItemId);
     }
     else
     {
-        DestroyPartyMonItemIconSprite();
+        DestroyItemIconSprite();
         
         u8 x = menuBox->spriteCoords[0] - 18;
         u8 y = menuBox->spriteCoords[1] + 3;
@@ -5788,7 +5799,7 @@ static void InitItemSwapMotion(struct Sprite *sprite, u8 destSlot, u16 tag)
     sprite->callback = SpriteCB_ItemSwap;
 }
 
-static void CreatePartyMonItemMoveSprite(u8 fromSlot, u8 toSlot, u16 itemId)
+static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, u16 itemId)
 {    
     // Animate tasks
     // item1: mon1 (fromSlot) -> mon2 (toSlot)
@@ -5799,10 +5810,10 @@ static void CreatePartyMonItemMoveSprite(u8 fromSlot, u8 toSlot, u16 itemId)
     u16 item1 = itemId;
 
     // 1. Reset from item sprite to hover cursor
-    DestroyPartyMonItemIconSprite();
+    DestroyItemIconSprite();
     sItemIconSpriteId = MAX_SPRITES;
     
-    DestroyPartyMonHoverSprite();
+    DestroyHoverSprite();
     // Create stationary cursor at fromSlot
     sHoverCursorSpriteId = CreateSprite(&sSpriteTemplate_HoverCursor, 
                                         sPartyMenuBoxes[fromSlot].spriteCoords[0] - 18, 
@@ -6328,11 +6339,13 @@ static void DestroyMonSprite(void)
 {
     if (sMonSpriteId != 0 && sMonSpriteId != MAX_SPRITES)
     {
+        StopPokemonAnimationDelayTask();
         DestroySpriteAndFreeResources(&gSprites[sMonSpriteId]);
         sMonSpriteId = MAX_SPRITES;
     }
     if (sMonShadowSpriteId != 0 && sMonShadowSpriteId != MAX_SPRITES)
     {
+        StopPokemonAnimationDelayTask();
         DestroySpriteAndFreeResources(&gSprites[sMonShadowSpriteId]);
         sMonShadowSpriteId = MAX_SPRITES;
     }
@@ -8955,8 +8968,8 @@ static void GiveItemToSelectedMon(u8 taskId)
         // Visually update cursor and held item sprites
         UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
         gSpecialVar_ItemId = ITEM_NONE;
-        DestroyPartyMonHoverSprite();
-        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        DestroyHoverSprite();
+        CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
         
         DisplayGaveHeldItemMessage(&gPlayerParty[gPartyMenu.slotId], item, FALSE, 1);
         gTasks[taskId].func = Task_UpdateHeldItemSpriteAndClosePartyMenu;
@@ -9057,8 +9070,8 @@ static void Task_HandleSwitchItemsFromBagYesNoInput(u8 taskId)
             // Visually update cursor and held item sprites
             UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
             gSpecialVar_ItemId = ITEM_NONE;
-            DestroyPartyMonHoverSprite();
-            CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+            DestroyHoverSprite();
+            CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
             
             DisplaySwitchedHeldItemMessage(item, sPartyMenuItemId, TRUE);
             gTasks[taskId].func = Task_UpdateHeldItemSpriteAndClosePartyMenu;
@@ -10113,7 +10126,7 @@ void CursorCb_MoveItemCallback(u8 taskId)
                 gSprites[sPartyMenuBoxes[gPartyMenu.slotId2].itemSpriteId].invisible = TRUE;
 
             // Create moving sprite
-            CreatePartyMonItemMoveSprite(gPartyMenu.slotId2, gPartyMenu.slotId, item2);
+            CreateItemMoveSprite(gPartyMenu.slotId2, gPartyMenu.slotId, item2);
 
             // Update destination slot to show its new item (item1)
             UpdatePartyMonHeldItemSprite(&gPlayerParty[gPartyMenu.slotId2], &sPartyMenuBoxes[gPartyMenu.slotId2]);
@@ -10156,7 +10169,7 @@ void CursorCb_MoveItemCallback(u8 taskId)
         // return to the main party menu
         DestroySelectFrame();
         ScheduleBgCopyTilemapToVram(2);
-        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
         gTasks[taskId].func = Task_UpdateHeldItemSprite;
         break;
     }
@@ -10185,7 +10198,7 @@ void CursorCb_MoveItem(u8 taskId)
             gSprites[sPartyMenuBoxes[gPartyMenu.slotId].itemSpriteId].invisible = TRUE;
         
         CreateSelectFrame(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
-        CreatePartyMonHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
+        CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
 
         // set up callback
         gPartyMenu.slotId2 = gPartyMenu.slotId;
