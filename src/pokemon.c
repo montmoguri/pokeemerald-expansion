@@ -3677,16 +3677,16 @@ void CopyPartyMonToBattleData(u32 battler, u32 partyIndex)
     ClearTemporarySpeciesSpriteData(battler, FALSE, FALSE);
 }
 
-bool8 ExecuteTableBasedItemEffect(struct Pokemon *mon, u16 item, u8 partyIndex, u8 moveIndex)
+bool8 ExecuteTableBasedItemEffect(struct Pokemon *mon, u16 item, u8 partyIndex, u8 moveIndex, u8 modifyStats, u16 itemCount)
 {
-    return PokemonUseItemEffects(mon, item, partyIndex, moveIndex, FALSE);
+    return PokemonUseItemEffects(mon, item, partyIndex, moveIndex, FALSE, modifyStats, itemCount);
 }
 
 #define UPDATE_FRIENDSHIP_FROM_ITEM()                                                                   \
 {                                                                                                       \
     if ((retVal == 0 || friendshipOnly) && !ShouldSkipFriendshipChange() && friendshipChange == 0)      \
     {                                                                                                   \
-        friendshipChange = itemEffect[itemEffectParam];                                                 \
+        friendshipChange = itemEffect[itemEffectParam] * itemCount;                                                \
         friendship = GetMonData(mon, MON_DATA_FRIENDSHIP, NULL);                                        \
         friendship += CalculateFriendshipBonuses(mon,friendshipChange,holdEffect);                      \
         if (friendship < 0)                                                                             \
@@ -3708,7 +3708,7 @@ const u32 sExpCandyExperienceTable[] = {
 };
 
 // Returns TRUE if the item has no effect on the Pokémon, FALSE otherwise
-bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 moveIndex, bool8 usedByAI)
+bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 moveIndex, bool8 usedByAI, u8 modifyStats, u16 itemCount)
 {
     u32 dataUnsigned;
     s32 dataSigned, evCap;
@@ -3724,7 +3724,7 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
     bool32 friendshipOnly = FALSE;
     u16 heldItem;
     u8 effectFlags;
-    s8 evChange;
+    s16 evChange;
     u16 evCount;
 
     // Determine the EV cap to use
@@ -3778,12 +3778,12 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
 
                 if (param == 0) // Rare Candy
                 {
-                    dataUnsigned = gExperienceTables[gSpeciesInfo[GetMonData(mon, MON_DATA_SPECIES, NULL)].growthRate][GetMonData(mon, MON_DATA_LEVEL, NULL) + 1];
+                    dataUnsigned = gExperienceTables[gSpeciesInfo[GetMonData(mon, MON_DATA_SPECIES, NULL)].growthRate][GetMonData(mon, MON_DATA_LEVEL, NULL) + itemCount];
                 }
                 else if (param - 1 < ARRAY_COUNT(sExpCandyExperienceTable)) // EXP Candies
                 {
                     u16 species = GetMonData(mon, MON_DATA_SPECIES, NULL);
-                    dataUnsigned = sExpCandyExperienceTable[param - 1] + GetMonData(mon, MON_DATA_EXP, NULL);
+                    dataUnsigned = (sExpCandyExperienceTable[param - 1] * itemCount) + GetMonData(mon, MON_DATA_EXP, NULL);
 
                     if (B_RARE_CANDY_CAP && B_EXP_CAP_TYPE == EXP_CAP_HARD)
                     {
@@ -3799,8 +3799,11 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
 
                 if (dataUnsigned != 0) // Failsafe
                 {
-                    SetMonData(mon, MON_DATA_EXP, &dataUnsigned);
-                    CalculateMonStats(mon);
+                    if (modifyStats)
+                    {
+                        SetMonData(mon, MON_DATA_EXP, &dataUnsigned);
+                        CalculateMonStats(mon);
+                    }
                     retVal = FALSE;
                 }
             }
@@ -3854,7 +3857,8 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
                         evCount = GetMonEVCount(mon);
                         temp2 = itemEffect[itemEffectParam];
                         dataSigned = GetMonData(mon, sGetMonDataEVConstants[temp1], NULL);
-                        evChange = temp2;
+                        s8 evDelta = (s8)itemEffect[itemEffectParam];
+                        s16 evChange = evDelta * itemCount;
 
                         if (evChange > 0) // Increasing EV (HP or Atk)
                         {
@@ -3909,8 +3913,11 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
                         }
 
                         // Update EVs and stats
-                        SetMonData(mon, sGetMonDataEVConstants[temp1], &dataSigned);
-                        CalculateMonStats(mon);
+                        if (modifyStats)
+                        {
+                            SetMonData(mon, sGetMonDataEVConstants[temp1], &dataSigned);
+                            CalculateMonStats(mon);
+                        }
                         itemEffectParam++;
                         retVal = FALSE;
                         break;
@@ -4043,7 +4050,8 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
                         evCount = GetMonEVCount(mon);
                         temp2 = itemEffect[itemEffectParam];
                         dataSigned = GetMonData(mon, sGetMonDataEVConstants[temp1 + 2], NULL);
-                        evChange = temp2;
+                        s8 evDelta = (s8)itemEffect[itemEffectParam];
+                        evChange = evDelta * itemCount;
                         if (evChange > 0) // Increasing EV
                         {
                             // Check if the total EV limit is reached
@@ -4097,8 +4105,11 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
                         }
 
                         // Update EVs and stats
-                        SetMonData(mon, sGetMonDataEVConstants[temp1 + 2], &dataSigned);
-                        CalculateMonStats(mon);
+                        if (modifyStats)
+                        {
+                            SetMonData(mon, sGetMonDataEVConstants[temp1 + 2], &dataSigned);
+                            CalculateMonStats(mon);
+                        }
                         retVal = FALSE;
                         itemEffectParam++;
                         break;
@@ -4129,20 +4140,29 @@ bool8 PokemonUseItemEffects(struct Pokemon *mon, u16 item, u8 partyIndex, u8 mov
                         // how much friendship the Pokémon already has.
                         // In general, Pokémon with lower friendship receive more,
                         // and Pokémon with higher friendship receive less.
+                    if (modifyStats)
+                    {
                         if (GetMonData(mon, MON_DATA_FRIENDSHIP, NULL) < 100)
                             UPDATE_FRIENDSHIP_FROM_ITEM();
+                    }
                         itemEffectParam++;
                         break;
 
                     case 6: // ITEM5_FRIENDSHIP_MID
+                    if (modifyStats)
+                    {
                         if (GetMonData(mon, MON_DATA_FRIENDSHIP, NULL) >= 100 && GetMonData(mon, MON_DATA_FRIENDSHIP, NULL) < 200)
                             UPDATE_FRIENDSHIP_FROM_ITEM();
+                    }
                         itemEffectParam++;
                         break;
 
                     case 7: // ITEM5_FRIENDSHIP_HIGH
+                    if (modifyStats)
+                    {
                         if (GetMonData(mon, MON_DATA_FRIENDSHIP, NULL) >= 200)
                             UPDATE_FRIENDSHIP_FROM_ITEM();
+                    }
                         itemEffectParam++;
                         break;
                     }

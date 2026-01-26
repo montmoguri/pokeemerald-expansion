@@ -10,6 +10,7 @@ BATTRANSGFXDIR := graphics/battle_transitions
 TYPESGFXDIR := graphics/types
 TYPESSWSHGFXDIR := graphics/types_swsh_summary_screen
 TYPESSWSHTERAGFXDIR := graphics/types_swsh_summary_screen/tera
+SWSHPARTYTYPESGFXDIR := graphics/party_menu/swsh/types
 RAYQUAZAGFXDIR := graphics/rayquaza_scene
 ROULETTEGFXDIR := graphics/roulette
 SLOTMACHINEGFXDIR := graphics/slot_machine
@@ -413,6 +414,9 @@ $(TYPESSWSHGFXDIR)/move_types_sv.gbapal: $(TYPESSWSHGFXDIR)/move_types_sv_1.gbap
 	@cat $^ >$@
 	
 $(TYPESSWSHTERAGFXDIR)/tera_types_swsh.4bpp: $(types:%=$(TYPESSWSHTERAGFXDIR)/%.4bpp)
+	@cat $^ >$@
+
+$(SWSHPARTYTYPESGFXDIR)/move_types.4bpp: $(types:%=$(SWSHPARTYTYPESGFXDIR)/%.4bpp)
 	@cat $^ >$@
 
 graphics/bag/menu.4bpp: %.4bpp: %.png
