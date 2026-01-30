@@ -308,11 +308,8 @@ static void InitPartyMenuWindows(u8);
 static void LoadPartyMenuWindows(void);
 static void InitPartyMenuBoxes(u8);
 static void LoadPartyMenuBoxes(u8);
-static void UNUSED LoadPartyMenuPokeballGfx(void);
 static bool8 CreatePartyMonSpritesLoop(void);
 static bool8 RenderPartyMenuBoxes(void);
-static void UNUSED CreateCancelConfirmPokeballSprites(void);
-static void UNUSED CreateCancelConfirmWindows(u8);
 static void Task_ExitPartyMenu(u8);
 static void FreePartyPointers(void);
 static u8 LoadMonGfxAndSprite(struct Pokemon *, s16 *, bool32);
@@ -351,12 +348,10 @@ static void DisplayPartyPokemonMaxHP(u16, struct PartyMenuBox *);
 static void DisplayPartyPokemonHPBar(u16, u16, struct PartyMenuBox *);
 static void CreatePartyMonIconSpriteParameterized(u16, u32, struct PartyMenuBox *, u8);
 static void CreatePartyMonHeldItemSpriteParameterized(u16, u16, struct PartyMenuBox *);
-static void UNUSED CreatePartyMonPokeballSpriteParameterized(u16, struct PartyMenuBox *);
 static void CreatePartyMonStatusSpriteParameterized(u16, u8, struct PartyMenuBox *);
 // These next 4 functions are essentially redundant with the above 4
 // The only difference is that rather than receive the data directly they retrieve it from the mon struct
 static void CreatePartyMonHeldItemSprite(struct Pokemon *, struct PartyMenuBox *);
-static void UNUSED CreatePartyMonPokeballSprite(struct Pokemon *, struct PartyMenuBox *);
 static void CreatePartyMonIconSprite(struct Pokemon *, struct PartyMenuBox *, u32);
 static void CreatePartyMonStatusSprite(struct Pokemon *, struct PartyMenuBox *);
 static void LoadPartyMonHoverCursor(void);
@@ -374,9 +369,6 @@ static void DestroyItemIconSprite(void);
 static void LoadSelectFrame(void);
 static void CreateSelectFrame(struct PartyMenuBox *, u8);
 static void DestroySelectFrame(void);
-static u8 CreateSmallPokeballButtonSprite(u8, u8);
-static void DrawCancelConfirmButtons(void);
-static u8 CreatePokeballButtonSprite(u8, u8);
 static void AnimateSelectedPartyIcon(u8, u8);
 static void PartyMenuStartSpriteAnim(u8, u8);
 static u8 GetPartyBoxPaletteFlags(u8, u8);
@@ -391,7 +383,6 @@ static void DisplayPartyPokemonAbility(u8, u8);
 static u8 *GetPartyMenuBgTile(u16);
 static void Task_ClosePartyMenuAndSetCB2(u8);
 static void UpdatePartyToFieldOrder(void);
-static void UNUSED MoveCursorToConfirm(void);
 static void HandleChooseMonCancel(u8, s8 *);
 static void HandleChooseMonSelection(u8, s8 *);
 static u16 PartyMenuButtonHandler(s8 *);
@@ -409,7 +400,6 @@ static void TryEnterMonForMinigame(u8, u8);
 static void Task_TryCreateSelectionWindow(u8);
 static inline u8 GetButtonPromptType(void);
 static void ShowButtonPrompt(u8 type);
-static void UNUSED ClearConfirmPrompt(void);
 static void PrintButtonIcon(u8 windowId, u8 buttonType, u32 x, u32 y);
 static void PrintTextOnWindowWithFont(u8 windowId, const u8 *string, u8 x, u8 y, u8 lineSpacing, u8 colorId, u32 fontId);
 static void FinishTwoMonAction(u8);
@@ -1659,34 +1649,6 @@ static bool8 CreatePartyMonSpritesLoop(void)
         return FALSE;
 }
 
-static void UNUSED CreateCancelConfirmPokeballSprites(void)
-{
-    // Confirm/Cancel visuals disabled: buttons and pokeball sprites are intentionally not created.
-    // The original implementation (left commented) created BG tiles, windows, and sprites for Confirm/Cancel.
-    /*
-    if (gPartyMenu.menuType == PARTY_MENU_TYPE_MULTI_SHOWCASE)
-    {
-        // The showcase has no Cancel/Confirm buttons
-        FillBgTilemapBufferRect(1, 14, 23, 17, 7, 2, 1);
-    }
-    else
-    {
-        if (sPartyMenuInternal->chooseHalf)
-        {
-            sPartyMenuInternal->spriteIdConfirmPokeball = CreateSmallPokeballButtonSprite(0xBF, 0x88);
-            DrawCancelConfirmButtons();
-            sPartyMenuInternal->spriteIdCancelPokeball = CreateSmallPokeballButtonSprite(0xBF, 0x98);
-        }
-        else
-        {
-            sPartyMenuInternal->spriteIdCancelPokeball = CreatePokeballButtonSprite(198, 148);
-        }
-        AnimatePartySlot(gPartyMenu.slotId, 1);
-        CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
-    }
-    */
-}
-
 void AnimatePartySlot(u8 slot, u8 animNum)
 {
     u8 spriteId;
@@ -1774,16 +1736,6 @@ static bool8 PartyBoxPal_ParnterOrDisqualifiedInArena(u8 slot)
         return TRUE;
 
     return FALSE;
-}
-
-static void UNUSED DrawCancelConfirmButtons(void)
-{
-    // Confirm/Cancel BG tile copies disabled. Kept here for reference and future replacement.
-    /*
-    CopyToBgTilemapBufferRect_ChangePalette(1, sConfirmButton_Tilemap, 23, 16, 7, 2, 17);
-    CopyToBgTilemapBufferRect_ChangePalette(1, sCancelButton_Tilemap, 23, 18, 7, 2, 17);
-    ScheduleBgCopyTilemapToVram(1);
-    */
 }
 
 bool8 IsMultiBattle(void)
@@ -3004,65 +2956,6 @@ static void ShowButtonPrompt(u8 type)
     PrintButtonIcon(promptWindowId, iconType, iconXPos, 4);
     PrintTextOnWindowWithFont(promptWindowId, text, stringXPos, 0, 0, 5, FONT_SMALL);
     CopyWindowToVram(promptWindowId, COPYWIN_GFX);
-}
-
-static void UNUSED ClearConfirmPrompt(void)
-{
-    if (sPartyMenuInternal != NULL && sPartyMenuInternal->promptWindowId != WINDOW_NONE)
-    {
-        FillWindowPixelBuffer(sPartyMenuInternal->promptWindowId, PIXEL_FILL(0));
-        ClearWindowTilemap(sPartyMenuInternal->promptWindowId);
-        sPartyMenuInternal->promptWindowId = WINDOW_NONE;
-        ScheduleBgCopyTilemapToVram(0);
-    }
-}
-
-static void UNUSED CreateCancelConfirmWindows(bool8 chooseHalf)
-{
-    // u8 confirmWindowId;
-    // u8 cancelWindowId;
-    // u8 offset;
-    // u8 mainOffset;
-
-    // Confirm/Cancel windows and text are disabled. The original logic is retained here (commented)
-    // for future rework; it used AddWindow and AddTextPrinterParameterized* to draw the text inside small windows.
-    /*
-    if (gPartyMenu.menuType != PARTY_MENU_TYPE_MULTI_SHOWCASE)
-    {
-        if (chooseHalf == TRUE)
-        {
-            confirmWindowId = AddWindow(&sConfirmButtonWindowTemplate);
-            FillWindowPixelBuffer(confirmWindowId, PIXEL_FILL(0));
-            mainOffset = GetStringCenterAlignXOffset(FONT_SMALL, gMenuText_Confirm, 48);
-            AddTextPrinterParameterized4(confirmWindowId, FONT_SMALL, mainOffset, 1, 0, 0, sFontColorTable[0], TEXT_SKIP_DRAW, gMenuText_Confirm);
-            PutWindowTilemap(confirmWindowId);
-            CopyWindowToVram(confirmWindowId, COPYWIN_GFX);
-            cancelWindowId = AddWindow(&sMultiCancelButtonWindowTemplate);
-            offset = 0;
-        }
-        else
-        {
-            cancelWindowId = AddWindow(&sCancelButtonWindowTemplate);
-            offset = 3;
-        }
-        FillWindowPixelBuffer(cancelWindowId, PIXEL_FILL(0));
-
-        // Branches are functionally identical. Second branch is never reached, Spin Trade wasnt fully implemented
-        if (gPartyMenu.menuType != PARTY_MENU_TYPE_SPIN_TRADE)
-        {
-            mainOffset = GetStringCenterAlignXOffset(FONT_SMALL, gText_Cancel, 48);
-            AddTextPrinterParameterized3(cancelWindowId, FONT_SMALL, mainOffset + offset, 1, sFontColorTable[0], TEXT_SKIP_DRAW, gText_Cancel);
-        }
-        else
-        {
-            mainOffset = GetStringCenterAlignXOffset(FONT_SMALL, gText_Cancel2, 48);
-            AddTextPrinterParameterized3(cancelWindowId, FONT_SMALL, mainOffset + offset, 1, sFontColorTable[0], TEXT_SKIP_DRAW, gText_Cancel2);
-        }
-        PutWindowTilemap(cancelWindowId);
-        CopyWindowToVram(cancelWindowId, COPYWIN_GFX);
-        ScheduleBgCopyTilemapToVram(0);
-    }
-    */
 }
 
 static u16 *GetPartyMenuPalBufferPtr(u8 paletteId)
@@ -4870,13 +4763,6 @@ static void CursorCb_Enter(u8 taskId)
     gTasks[taskId].func = Task_ReturnToChooseMonAfterText;
 }
 
-static void UNUSED MoveCursorToConfirm(void)
-{
-    AnimatePartySlot(gPartyMenu.slotId, 0);
-    gPartyMenu.slotId = PARTY_SIZE;
-    AnimatePartySlot(gPartyMenu.slotId, 1);
-}
-
 static void CursorCb_NoEntry(u8 taskId)
 {
     u8 maxBattlers;
@@ -5940,69 +5826,9 @@ static void SpriteCB_HeldItem(struct Sprite *sprite)
     }
 }
 
-static void UNUSED CreatePartyMonPokeballSprite(struct Pokemon *mon, struct PartyMenuBox *menuBox)
-{
-    if (GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE)
-        menuBox->pokeballSpriteId = CreateSprite(&sSpriteTemplate_MenuPokeball, menuBox->spriteCoords[6], menuBox->spriteCoords[7], 8);
-}
-
-static void UNUSED CreatePartyMonPokeballSpriteParameterized(u16 species, struct PartyMenuBox *menuBox)
-{
-    if (species != SPECIES_NONE)
-    {
-        menuBox->pokeballSpriteId = CreateSprite(&sSpriteTemplate_MenuPokeball, menuBox->spriteCoords[6], menuBox->spriteCoords[7], 8);
-        gSprites[menuBox->pokeballSpriteId].oam.priority = 0;
-    }
-}
-
-// For Cancel when Confirm isnt present
-static u8 UNUSED CreatePokeballButtonSprite(u8 x, u8 y)
-{
-    u8 spriteId = CreateSprite(&sSpriteTemplate_MenuPokeball, x, y, 8);
-
-    gSprites[spriteId].oam.priority = 2;
-    return spriteId;
-}
-
-// For Confirm and Cancel when both are present
-static u8 UNUSED CreateSmallPokeballButtonSprite(u8 x, u8 y)
-{
-    return CreateSprite(&sSpriteTemplate_MenuPokeballSmall, x, y, 8);
-}
-
 static void PartyMenuStartSpriteAnim(u8 spriteId, u8 animNum)
 {
     StartSpriteAnim(&gSprites[spriteId], animNum);
-}
-
-// Might explain the large blank section in gPartyMenuPokeballSmall_Gfx
-// At the very least this is how the unused anim cmds for sSpriteAnimTable_MenuPokeballSmall were meant to be accessed
-static void UNUSED SpriteCB_BounceConfirmCancelButton(u8 spriteId, u8 spriteId2, u8 animNum)
-{
-    if (animNum == 0)
-    {
-        StartSpriteAnim(&gSprites[spriteId], 2);
-        StartSpriteAnim(&gSprites[spriteId2], 4);
-        gSprites[spriteId].y2 = 0;
-        gSprites[spriteId2].y2 = 0;
-    }
-    else
-    {
-        StartSpriteAnim(&gSprites[spriteId], 3);
-        StartSpriteAnim(&gSprites[spriteId2], 5);
-        gSprites[spriteId].y2 = -4;
-        gSprites[spriteId2].y2 = 4;
-    }
-}
-
-static void UNUSED LoadPartyMenuPokeballGfx(void)
-{
-    // Disabled - no longer using pokeball sprites
-    /*
-    LoadCompressedSpriteSheet(&sSpriteSheet_MenuPokeball);
-    LoadCompressedSpriteSheet(&sSpriteSheet_MenuPokeballSmall);
-    LoadSpritePalette(&sSpritePalette_MenuPokeball);
-    */
 }
 
 static void LoadMessageWindowSprite(void)
