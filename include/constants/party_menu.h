@@ -1,6 +1,8 @@
 #ifndef GUARD_CONSTANTS_PARTY_MENU_H
 #define GUARD_CONSTANTS_PARTY_MENU_H
 
+#define SWSH_PARTY_MENU                   TRUE
+
 #define PARTY_NOTHING_CHOSEN 0xFF
 
 #define AILMENT_NONE  0

@@ -80,7 +80,7 @@
 #include "constants/rgb.h"
 #include "constants/songs.h"
 
-#if !SWSH_PARTY_MENU
+#if SWSH_PARTY_MENU
 
 enum {
     MENU_SUMMARY,
@@ -507,7 +507,7 @@ static void Task_HideFollowerNPCForTeleport(u8);
 static void FieldCallback_RockClimb(void);
 
 // static const data
-#include "data/party_menu.h"
+#include "data/swsh_party_menu.h"
 
 // code
 static void InitPartyMenu(u8 menuType, u8 layout, u8 partyAction, bool8 keepCursorPos, u8 messageId, TaskFunc task, MainCallback callback)
@@ -8283,4 +8283,4 @@ static void FieldCallback_RockClimb(void)
     FieldEffectStart(FLDEFF_USE_ROCK_CLIMB);
 }
 
-#endif // !SWSH_PARTY_MENU
+#endif // SWSH_PARTY_MENU
