@@ -366,7 +366,7 @@ enum {
 
 #define POPUP_OFFSCREEN_Y  ((OW_POPUP_GENERATION == GEN_5) ? 24 : 40)
 #define POPUP_OFFSCREEN_X  ((OW_POPUP_GENERATION == GEN_8) ? 112 : 0)
-#define POPUP_SLIDE_SPEED  ((OW_POPUP_GENERATION == GEN_8) ? 4 : 2)
+#define POPUP_SLIDE_SPEED  ((OW_POPUP_GENERATION == GEN_8) ? 12 : 2)
 
 #define tState         data[0]
 #define tOnscreenTimer data[1]
