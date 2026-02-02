@@ -474,7 +474,7 @@ bool32 AI_CanBattlerEscape(u32 battler)
 {
     enum HoldEffect holdEffect = gAiLogicData->holdEffects[battler];
 
-    if (B_GHOSTS_ESCAPE >= GEN_6 && IS_BATTLER_OF_TYPE(battler, TYPE_GHOST))
+    if (GetConfig(CONFIG_GHOSTS_ESCAPE) >= GEN_6 && IS_BATTLER_OF_TYPE(battler, TYPE_GHOST))
         return TRUE;
     if (holdEffect == HOLD_EFFECT_SHED_SHELL)
         return TRUE;
@@ -573,8 +573,8 @@ bool32 MovesWithCategoryUnusable(u32 attacker, u32 target, enum DamageCategory c
     ctx.updateFlags = FALSE;
     ctx.abilityAtk = gAiLogicData->abilities[attacker];
     ctx.abilityDef = gAiLogicData->abilities[target];
-    ctx.holdEffectAtk = gAiLogicData->items[attacker];
-    ctx.holdEffectDef = gAiLogicData->items[target];
+    ctx.holdEffectAtk = gAiLogicData->holdEffects[attacker];
+    ctx.holdEffectDef = gAiLogicData->holdEffects[target];
 
     for (u32 i = 0; i < MAX_MON_MOVES; i++)
     {
@@ -901,6 +901,10 @@ struct SimulatedDamage AI_CalcDamage(u32 move, u32 battlerAtk, u32 battlerDef, u
     struct AiLogicData *aiData = gAiLogicData;
     gAiLogicData->aiCalcInProgress = TRUE;
 
+    if (moveEffect == EFFECT_HIT_ENEMY_HEAL_ALLY
+     && battlerDef == BATTLE_PARTNER(battlerAtk))
+        return simDamage;
+
     if (moveEffect == EFFECT_NATURE_POWER)
         move = GetNaturePowerMove(battlerAtk);
 
@@ -1029,6 +1033,9 @@ static bool32 AI_IsMoveEffectInPlus(u32 battlerAtk, u32 battlerDef, u32 move, s3
     u32 i;
     enum Ability abilityDef = gAiLogicData->abilities[battlerDef];
     enum Ability abilityAtk = gAiLogicData->abilities[battlerAtk];
+
+    if (IsSheerForceAffected(move, abilityAtk))
+        return FALSE;
 
     switch (GetMoveEffect(move))
     {
@@ -1387,8 +1394,8 @@ uq4_12_t AI_GetMoveEffectiveness(u32 move, u32 battlerAtk, u32 battlerDef)
     ctx.updateFlags = FALSE;
     ctx.abilityAtk = gAiLogicData->abilities[battlerAtk];
     ctx.abilityDef = gAiLogicData->abilities[battlerDef];
-    ctx.holdEffectAtk = gAiLogicData->items[battlerAtk];
-    ctx.holdEffectDef = gAiLogicData->items[battlerDef];
+    ctx.holdEffectAtk = gAiLogicData->holdEffects[battlerAtk];
+    ctx.holdEffectDef = gAiLogicData->holdEffects[battlerDef];
     typeEffectiveness = CalcTypeEffectivenessMultiplier(&ctx);
 
     RestoreBattlerData(battlerAtk);
@@ -1469,7 +1476,7 @@ bool32 CanEndureHit(u32 battler, u32 battlerTarget, u32 move)
 
     if (!DoesBattlerIgnoreAbilityChecks(battler, gAiLogicData->abilities[battler], move))
     {
-        if (B_STURDY >= GEN_5 && gAiLogicData->abilities[battlerTarget] == ABILITY_STURDY)
+        if (GetConfig(CONFIG_STURDY) >= GEN_5 && gAiLogicData->abilities[battlerTarget] == ABILITY_STURDY)
             return TRUE;
         if (IsMimikyuDisguised(battlerTarget))
             return TRUE;
@@ -1823,7 +1830,7 @@ u32 AI_GetSwitchinWeather(struct BattlePokemon battleMon)
     case ABILITY_SAND_STREAM:
         return B_WEATHER_SANDSTORM;
     case ABILITY_SNOW_WARNING:
-        return B_SNOW_WARNING >= GEN_9 ? B_WEATHER_SNOW : B_WEATHER_HAIL;
+        return GetConfig(CONFIG_SNOW_WARNING) >= GEN_9 ? B_WEATHER_SNOW : B_WEATHER_HAIL;
     default:
         return gBattleWeather;
     }
@@ -1953,40 +1960,45 @@ bool32 IsAllyProtectingFromMove(u32 battlerAtk, u32 attackerMove, u32 allyMove)
     {
         return FALSE;
     }
-    else
+
+    enum ProtectMethod protectMethod = GetMoveProtectMethod(allyMove);
+
+    switch (protectMethod)
     {
-        enum ProtectMethod protectMethod = GetMoveProtectMethod(allyMove);
-
-        if (protectMethod == PROTECT_QUICK_GUARD)
+    case PROTECT_CRAFTY_SHIELD:
+        if (!IsBattleMoveStatus(attackerMove))
         {
-            u32 priority = GetBattleMovePriority(battlerAtk, gAiLogicData->abilities[battlerAtk], attackerMove);
-            return (priority > 0);
+            return FALSE;
         }
-
-        if (IsBattleMoveStatus(attackerMove))
+        else if (GetMoveEffect(attackerMove) == EFFECT_HOLD_HANDS)
         {
-            switch (protectMethod)
-            {
-            case PROTECT_NORMAL:
-            case PROTECT_CRAFTY_SHIELD:
-            case PROTECT_MAX_GUARD:
-            case PROTECT_WIDE_GUARD:
-                return TRUE;
-
-            default:
-                return FALSE;
-            }
+            return TRUE;
         }
         else
         {
-            switch (protectMethod)
-            {
-            case PROTECT_CRAFTY_SHIELD:
-                return FALSE;
-            default:
-                return TRUE;
-            }
+            u32 moveTarget = GetBattlerMoveTargetType(battlerAtk, attackerMove);
+            return (GetBattlerSide(battlerAtk) != GetBattlerSide(BATTLE_PARTNER(battlerAtk))
+                && moveTarget != MOVE_TARGET_OPPONENTS_FIELD
+                && moveTarget != MOVE_TARGET_ALL_BATTLERS);
         }
+    case PROTECT_WIDE_GUARD:
+        return IsSpreadMove(GetBattlerMoveTargetType(battlerAtk, attackerMove));
+    case PROTECT_NORMAL:
+    case PROTECT_SPIKY_SHIELD:
+    case PROTECT_MAX_GUARD:
+    case PROTECT_BANEFUL_BUNKER:
+    case PROTECT_BURNING_BULWARK:
+        return TRUE;
+    case PROTECT_OBSTRUCT:
+    case PROTECT_SILK_TRAP:
+    case PROTECT_KINGS_SHIELD:
+        return !IsBattleMoveStatus(attackerMove);
+    case PROTECT_QUICK_GUARD:
+        return (GetChosenMovePriority(battlerAtk, gAiLogicData->abilities[battlerAtk]) > 0);
+    case PROTECT_MAT_BLOCK:
+        return !IsBattleMoveStatus(attackerMove);
+    default:
+        return FALSE;
     }
 }
 
@@ -3084,7 +3096,9 @@ static u32 GetLeechSeedDamage(u32 battler)
 static u32 GetNightmareDamage(u32 battlerId)
 {
     u32 damage = 0;
-    if (gBattleMons[battlerId].volatiles.nightmare && gBattleMons[battlerId].status1 & STATUS1_SLEEP)
+    if (gBattleMons[battlerId].volatiles.nightmare
+     && ((gBattleMons[battlerId].status1 & STATUS1_SLEEP)
+     || gAiLogicData->abilities[battlerId] == ABILITY_COMATOSE))
     {
         damage = GetNonDynamaxMaxHP(battlerId) / 4;
         if (damage == 0)
@@ -3351,7 +3365,7 @@ enum AIPivot ShouldPivot(u32 battlerAtk, u32 battlerDef, enum Ability defAbility
 
                     if (!IsBattleMoveStatus(move) && ((gAiLogicData->shouldSwitch & (1u << battlerAtk))
                         || (AI_BattlerAtMaxHp(battlerDef) && (gAiLogicData->holdEffects[battlerDef] == HOLD_EFFECT_FOCUS_SASH
-                        || (B_STURDY >= GEN_5 && defAbility == ABILITY_STURDY)
+                        || (GetConfig(CONFIG_STURDY) >= GEN_5 && defAbility == ABILITY_STURDY)
                         || defAbility == ABILITY_MULTISCALE
                         || defAbility == ABILITY_SHADOW_SHIELD))))
                         return SHOULD_PIVOT;   // pivot to break sash/sturdy/multiscale
@@ -3359,7 +3373,7 @@ enum AIPivot ShouldPivot(u32 battlerAtk, u32 battlerDef, enum Ability defAbility
                 else if (!hasStatBoost)
                 {
                     if (!IsBattleMoveStatus(move) && (AI_BattlerAtMaxHp(battlerDef) && (gAiLogicData->holdEffects[battlerDef] == HOLD_EFFECT_FOCUS_SASH
-                        || (B_STURDY >= GEN_5 && defAbility == ABILITY_STURDY)
+                        || (GetConfig(CONFIG_STURDY) >= GEN_5 && defAbility == ABILITY_STURDY)
                         || defAbility == ABILITY_MULTISCALE
                         || defAbility == ABILITY_SHADOW_SHIELD)))
                         return SHOULD_PIVOT;   // pivot to break sash/sturdy/multiscale
@@ -3815,24 +3829,21 @@ bool32 HasChoiceEffect(u32 battler)
     }
 }
 
-static u32 FindMoveUsedXTurnsAgo(u32 battlerId, u32 x)
-{
-    s32 i, index = gBattleHistory->moveHistoryIndex[battlerId];
-    for (i = 0; i < x; i++)
-    {
-        if (--index < 0)
-            index = AI_MOVE_HISTORY_COUNT - 1;
-    }
-    return gBattleHistory->moveHistory[battlerId][index];
-}
-
 bool32 IsWakeupTurn(u32 battler)
 {
-    // Check if rest was used 2 turns ago
-    if ((gBattleMons[battler].status1 & STATUS1_SLEEP) == 1 && GetMoveEffect(FindMoveUsedXTurnsAgo(battler, 2)) == EFFECT_REST)
-        return TRUE;
-    else // no way to know
+    u32 sleepTurns = gBattleMons[battler].status1 & STATUS1_SLEEP;
+    u32 toSub;
+
+    if (sleepTurns == 0)
         return FALSE;
+
+    // Early Bird reduces the sleep timer twice as fast.
+    if (gAiLogicData->abilities[battler] == ABILITY_EARLY_BIRD)
+        toSub = 2;
+    else
+        toSub = 1;
+
+    return sleepTurns <= toSub;
 }
 
 bool32 AnyPartyMemberStatused(u32 battlerId, bool32 checkSoundproof)
@@ -5241,6 +5252,9 @@ bool32 ShouldUseZMove(u32 battlerAtk, u32 battlerDef, u32 chosenMove)
             return FALSE;
         }
 
+        if (GetMoveEffect(chosenMove) == EFFECT_LAST_RESORT && !CanUseLastResort(battlerAtk))
+            return TRUE;
+
         uq4_12_t effectiveness;
         struct SimulatedDamage dmg;
 
@@ -5766,7 +5780,7 @@ bool32 ShouldTriggerAbility(u32 battlerAtk, u32 battlerDef, enum Ability ability
         {
         case ABILITY_LIGHTNING_ROD:
         case ABILITY_STORM_DRAIN:
-            if (B_REDIRECT_ABILITY_IMMUNITY < GEN_5)
+            if (GetConfig(CONFIG_REDIRECT_ABILITY_IMMUNITY) < GEN_5)
                 return FALSE;
             else
                 return (BattlerStatCanRise(battlerDef, ability, STAT_SPATK) && HasMoveWithCategory(battlerDef, DAMAGE_CATEGORY_SPECIAL));

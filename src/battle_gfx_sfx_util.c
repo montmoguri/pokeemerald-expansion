@@ -919,6 +919,8 @@ void HandleSpeciesGfxDataChange(u8 battlerAtk, u8 battlerDef, u8 changeType)
     bool32 isShiny;
     const void *src;
     const u16 *paletteData;
+    struct Pokemon *monAtk = GetBattlerMon(battlerAtk);
+    struct Pokemon *monDef = GetBattlerMon(battlerDef);
     void *dst;
 
     if (IsContest())
@@ -944,23 +946,23 @@ void HandleSpeciesGfxDataChange(u8 battlerAtk, u8 battlerDef, u8 changeType)
             else if (gBattleStruct->illusion[battlerDef].state == ILLUSION_ON)
                 targetSpecies = GetIllusionMonSpecies(battlerDef);
             else
-                targetSpecies = gBattleMons[battlerDef].species;
+                targetSpecies = GetMonData(monDef, MON_DATA_SPECIES);
         }
         else
         {
-            targetSpecies = gBattleMons[battlerAtk].species;
+            targetSpecies = GetMonData(monAtk, MON_DATA_SPECIES);
         }
         gBattleSpritesDataPtr->battlerData[battlerAtk].transformSpecies = targetSpecies;
 
         if (changeType == SPECIES_GFX_CHANGE_TRANSFORM)
         {
-            personalityValue = gDisableStructs[battlerAtk].transformedMonPersonality;
-            isShiny = gDisableStructs[battlerAtk].transformedMonShininess;
+            personalityValue = gTransformedPersonalities[battlerAtk];
+            isShiny = gTransformedShininess[battlerAtk];
         }
         else
         {
-            personalityValue = gBattleMons[battlerAtk].personality;
-            isShiny = gBattleMons[battlerAtk].isShiny;
+            personalityValue = GetMonData(monAtk, MON_DATA_PERSONALITY);
+            isShiny = GetMonData(monAtk, MON_DATA_IS_SHINY);
         }
         HandleLoadSpecialPokePic(!IsOnPlayerSide(battlerAtk),
                                  gMonSpritesGfxPtr->spritesGfx[position],
@@ -1266,9 +1268,12 @@ void SpriteCB_EnemyShadow(struct Sprite *shadowSprite)
     }
     else if (transformSpecies != SPECIES_NONE)
     {
-        xOffset = gSpeciesInfo[transformSpecies].enemyShadowXOffset + (shadowSprite->tSpriteSide == SPRITE_SIDE_LEFT ? -16 : 16);
+        xOffset = gSpeciesInfo[transformSpecies].enemyShadowXOffset;
         yOffset = gSpeciesInfo[transformSpecies].enemyShadowYOffset + 16;
         size = gSpeciesInfo[transformSpecies].enemyShadowSize;
+
+        if (B_ENEMY_MON_SHADOW_STYLE >= GEN_4)
+            xOffset += (shadowSprite->tSpriteSide == SPRITE_SIDE_LEFT ? -16 : 16);
 
         invisible = (B_ENEMY_MON_SHADOW_STYLE >= GEN_4 && P_GBA_STYLE_SPECIES_GFX == FALSE)
                   ? gSpeciesInfo[transformSpecies].suppressEnemyShadow
