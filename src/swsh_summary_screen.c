@@ -4146,6 +4146,7 @@ static void PutPageWindowTilemaps(u8 page)
     switch (page)
     {
     case PSS_PAGE_INFO:
+        PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_CANCEL);
         break;
     case PSS_PAGE_SKILLS:
         PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_IVS);
@@ -5543,7 +5544,7 @@ static u8 CreateMonSprite(struct Pokemon *unused, bool32 isShadow)
 {
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
     u8 shadowPalette = 0;
-    u8 spriteId = CreateSprite(&gMultiuseSpriteTemplate, 204, 76, 5);
+    u8 spriteId = CreateSprite(&gMultiuseSpriteTemplate, 202, 76, 5);
 
     FreeSpriteOamMatrix(&gSprites[spriteId]);
     gSprites[spriteId].sSpecies = summary->species2;
@@ -5558,8 +5559,9 @@ static u8 CreateMonSprite(struct Pokemon *unused, bool32 isShadow)
         shadowPalette = LoadSpritePalette(&sSpritePal_MonShadow);
         gSprites[spriteId].oam.paletteNum = shadowPalette;
         gSprites[spriteId].oam.objMode = ST_OAM_OBJ_BLEND;
-        gSprites[spriteId].x -= 5;
-        gSprites[spriteId].y -= 2;
+        gSprites[spriteId].subpriority = 6;
+        gSprites[spriteId].x += 4;
+        gSprites[spriteId].y += 2;
     }
 
     return spriteId;
