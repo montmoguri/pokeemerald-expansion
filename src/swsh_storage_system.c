@@ -2107,7 +2107,6 @@ static void Task_InitPokeStorage(u8 taskId)
         PutWindowTilemap(WIN_DISPLAY_INFO);
         ClearWindowTilemap(WIN_MESSAGE);
         CpuFill32(0, (void *)VRAM, 0x200);
-        LoadUserWindowBorderGfx(WIN_MESSAGE, 0xB, BG_PLTT_ID(14));
         break;
     case 3:
         ResetAllBgCoords();
@@ -4265,7 +4264,7 @@ static void UpdateBoxToSendMons(void)
 static void InitPokeStorageBg0(void)
 {
     SetGpuReg(REG_OFFSET_BG0CNT, BGCNT_PRIORITY(0) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(29));
-    LoadUserWindowBorderGfx(WIN_MESSAGE, 2, BG_PLTT_ID(13));
+    LoadUserWindowBorderGfx(WIN_MESSAGE, 2, BG_PLTT_ID(14));
     FillBgTilemapBufferRect(0, 0, 0, 0, 32, 20, 17);
     CopyBgTilemapBufferToVram(0);
 }
@@ -4314,7 +4313,7 @@ static void PrintMessage(u8 id)
 
 static void ShowYesNoWindow(s8 cursorPos)
 {
-    CreateYesNoMenu(&sYesNoWindowTemplate, 11, 14, 0);
+    CreateYesNoMenu(&sYesNoWindowTemplate, 2, 14, 0);
     Menu_MoveCursorNoWrapAround(cursorPos);
 }
 
@@ -8075,7 +8074,7 @@ static void AddMenu(void)
     sStorage->menuWindow.tilemapTop = 15 - sStorage->menuWindow.height;
     sStorage->menuWindowId = AddWindow(&sStorage->menuWindow);
     ClearWindowTilemap(sStorage->menuWindowId);
-    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, 11, 14);
+    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, 2, 14);
     PrintMenuTable(sStorage->menuWindowId, sStorage->menuItemsCount, (void *)sStorage->menuItems);
     InitMenuInUpperLeftCornerNormal(sStorage->menuWindowId, sStorage->menuItemsCount, 0);
     ScheduleBgCopyTilemapToVram(0);
@@ -9606,16 +9605,19 @@ u8 *GetBoxNamePtr(u8 boxId)
 
 static u8 GetBoxWallpaper(u8 boxId)
 {
-    if (boxId < TOTAL_BOXES_COUNT)
-        return gPokemonStoragePtr->boxWallpapers[boxId];
-    else
-        return 0;
+    // if (boxId < TOTAL_BOXES_COUNT)
+    //     return gPokemonStoragePtr->boxWallpapers[boxId];
+    // else
+    //     return 0;
+    return WALLPAPER_FOREST;
 }
 
 static void SetBoxWallpaper(u8 boxId, u8 wallpaperId)
 {
-    if (boxId < TOTAL_BOXES_COUNT && wallpaperId < WALLPAPER_COUNT)
-        gPokemonStoragePtr->boxWallpapers[boxId] = wallpaperId;
+    // if (boxId < TOTAL_BOXES_COUNT && wallpaperId < WALLPAPER_COUNT)
+    //     gPokemonStoragePtr->boxWallpapers[boxId] = wallpaperId;
+    if (boxId < TOTAL_BOXES_COUNT)
+        gPokemonStoragePtr->boxWallpapers[boxId] = WALLPAPER_FOREST;
 }
 
 // For moving to the next Pokémon while viewing the summary screen
