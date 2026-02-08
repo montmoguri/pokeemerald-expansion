@@ -1293,8 +1293,6 @@ static const u16 sUnusedColor = RGB(26, 29, 8);
 #define BOX_TITLE_TEXT_MAIN        RGB_BLACK
 #define BOX_TITLE_FRAME_MAIN       RGB_WHITE
 
-static const struct SpriteSheet sSpriteSheet_Arrow = {sArrow_Gfx, sizeof(sArrow_Gfx), GFXTAG_ARROW};
-
 static const struct OamData sOamData_BoxTitle =
 {
     .shape = SPRITE_SHAPE(32x16),
@@ -2286,7 +2284,7 @@ static void Task_InitPokeStorage(u8 taskId)
     case 10:
         // Alpha blend BG2 with BG3
         SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG3);
-        SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(12, 4));
+        SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(10, 6));
         SetMonIconTransparency();
         if (!sStorage->isReopening)
         {
@@ -3948,9 +3946,9 @@ static void FreePokeStorageData(void)
 static void SetScrollingBackground(void)
 {
     SetGpuReg(REG_OFFSET_BG3CNT, BGCNT_PRIORITY(3) | BGCNT_CHARBASE(3) | BGCNT_16COLOR | BGCNT_SCREENBASE(31));
-    DecompressAndLoadBgGfxUsingHeap(3, sWallpaperTiles_Normal, 0, 0, 0);
-    DecompressDataWithHeaderVram(sWallpaperTilemap_Normal, (void *)BG_SCREEN_ADDR(31));
-    LoadPalette(sWallpaperPalette_Normal, BG_PLTT_ID(1), PLTT_SIZE_4BPP);
+    DecompressAndLoadBgGfxUsingHeap(3, sWallpaperTiles_Box, 0, 0, 0);
+    DecompressDataWithHeaderVram(sWallpaperTilemap_Box, (void *)BG_SCREEN_ADDR(31));
+    LoadPalette(sWallpaperPalette_Box, BG_PLTT_ID(1), PLTT_SIZE_4BPP);
     // TODO: Load incoming BG3 palette into BG_PLTT_ID(2) for scrolling transitions
 }
 
