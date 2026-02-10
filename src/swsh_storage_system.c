@@ -4612,12 +4612,17 @@ static void SpriteCB_BoxMonIconScrollIn(struct Sprite *sprite)
         // Icon moving
         sprite->sDistance--;
         sprite->x += sprite->sSpeed;
+        if (sprite->x <= 84 || sprite->x >= 252)
+            sprite->invisible = TRUE;
+        else
+            sprite->invisible = FALSE;
     }
     else
     {
         // Icon arrived
         sStorage->iconScrollNumIncoming--;
         sprite->x = sprite->sScrollInDestX;
+        sprite->invisible = FALSE;
         sprite->callback = SpriteCallbackDummy;
     }
 }
@@ -4635,7 +4640,7 @@ static void SpriteCB_BoxMonIconScrollOut(struct Sprite *sprite)
         sprite->sScrollOutX = sprite->x + sprite->x2;
 
         // Check if icon offscreen
-        if (sprite->sScrollOutX <= 68 || sprite->sScrollOutX >= 252)
+        if (sprite->sScrollOutX <= 84 || sprite->sScrollOutX >= 252)
             sprite->callback = SpriteCallbackDummy;
     }
 }
@@ -4684,6 +4689,8 @@ static u8 CreateBoxMonIconsInColumn(u8 column, u16 distance, s16 speed)
                     sStorage->boxMonsSprites[boxPosition]->sSpeed = speed;
                     sStorage->boxMonsSprites[boxPosition]->sScrollInDestX = xDest;
                     sStorage->boxMonsSprites[boxPosition]->callback = SpriteCB_BoxMonIconScrollIn;
+                    if (sStorage->boxMonsSprites[boxPosition]->x <= 84 || sStorage->boxMonsSprites[boxPosition]->x >= 252)
+                        sStorage->boxMonsSprites[boxPosition]->invisible = TRUE;
                     iconsCreated++;
                 }
             }
@@ -4710,6 +4717,8 @@ static u8 CreateBoxMonIconsInColumn(u8 column, u16 distance, s16 speed)
                     sStorage->boxMonsSprites[boxPosition]->callback = SpriteCB_BoxMonIconScrollIn;
                     if (GetBoxMonDataAt(sStorage->incomingBoxId, boxPosition, MON_DATA_HELD_ITEM) == ITEM_NONE)
                         sStorage->boxMonsSprites[boxPosition]->oam.objMode = ST_OAM_OBJ_BLEND;
+                    if (sStorage->boxMonsSprites[boxPosition]->x <= 84 || sStorage->boxMonsSprites[boxPosition]->x >= 252)
+                        sStorage->boxMonsSprites[boxPosition]->invisible = TRUE;
                     iconsCreated++;
                 }
             }
@@ -4753,7 +4762,7 @@ static bool8 UpdateBoxMonIconScroll(void)
     {
     case 0:
         sStorage->iconScrollPos += sStorage->iconScrollSpeed;
-        if (sStorage->iconScrollPos <= 64 || sStorage->iconScrollPos >= 252)
+        if (sStorage->iconScrollPos <= 80 || sStorage->iconScrollPos >= 252)
         {
             // A column of icons has gone offscreen, destroy them
             DestroyBoxMonIconsInColumn(sStorage->iconScrollCurColumn);
@@ -6003,6 +6012,8 @@ static void InitCursor(void)
 
 static void InitCursorOnReopen(void)
 {
+    if (sStorage->partySprites[0] == NULL)
+        CreatePartyMonsSprites(TRUE);
     CreateCursorSprites();
     ReshowDisplayMon();
     sStorage->cursorPrevHorizPos = 1;
