@@ -7534,7 +7534,7 @@ static u8 HandleInput_OnBox(void)
 
 static u8 HandleInput(void)
 {
-    if (JOY_NEW(START_BUTTON))
+    if (JOY_NEW(START_BUTTON) && sCursorMode != CURSOR_MODE_MULTI_MOVE)
         return INPUT_TOGGLE_MON_INFO;
     struct
     {
