@@ -2436,49 +2436,45 @@ static void Task_DepositMon(u8 taskId)
                 ClearBottomWindow();
                 DestroyChooseBoxMenuSprites();
                 FreeChooseBoxMenu();
-                sStorage->state++;
+                if (sStorage->newCurrBoxId == StorageGetCurrentBox())
+                    sStorage->state = 4;
+                else
+                    sStorage->state++;
             }
             break;
         }
         break;
     case 2:
+        SetUpScrollToBox(sStorage->newCurrBoxId);
+        sStorage->state++;
+        break;
+    case 3:
+        if (!ScrollToBox())
+        {
+            SetCurrentBox(sStorage->newCurrBoxId);
+            sStorage->state++;
+        }
+        break;
+    case 4:
         SaveCursorPos();
         InitMonPlaceChange(CHANGE_GRAB);
         sStorage->state++;
         break;
-    case 3:
+    case 5:
         if (!DoMonPlaceChange())
         {
             SetMovingMonPriority(1);
             sStorage->state++;
         }
         break;
-    case 4:
+    case 6:
         CompactPartySlots();
         CompactPartySprites();
         sStorage->state++;
         break;
-    case 5:
+    case 7:
         if (GetNumPartySpritesCompacting() == 0)
         {
-            sStorage->state++;
-        }
-        break;
-    case 6:
-        if (sStorage->newCurrBoxId == StorageGetCurrentBox())
-        {
-            sStorage->state = 8;
-        }
-        else
-        {
-            SetUpScrollToBox(sStorage->newCurrBoxId);
-            sStorage->state++;
-        }
-        break;
-    case 7:
-        if (!ScrollToBox())
-        {
-            SetCurrentBox(sStorage->newCurrBoxId);
             sStorage->state++;
         }
         break;
