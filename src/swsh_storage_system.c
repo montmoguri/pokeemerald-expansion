@@ -821,7 +821,6 @@ static u8 GetCurrentBoxOption(void);
 static void ScrollBackground(void);
 static void GiveChosenBagItem(void);
 static void LoadPokeStorageMenuGfx(void);
-static void LoadBoxTitleFrameSpritePalette(void);
 static void InitPokeStorageBg0(void);
 static void SetScrollingBackground(void);
 static void UpdateBoxToSendMons(void);
@@ -1192,7 +1191,6 @@ static void Task_PCMainMenu(u8 taskId)
 
 void ShowPokemonStorageSystemPC(void)
 {
-    PlaySE(SE_PIN); // TODO: Remove this
     u8 taskId = CreateTask(Task_PCMainMenu, 80);
     gTasks[taskId].tState = 0;
     gTasks[taskId].tSelectedOption = 0;
@@ -1632,7 +1630,7 @@ static void Task_InitPokeStorage(u8 taskId)
     case 0:
         SetVBlankCallback(NULL);
         SetGpuReg(REG_OFFSET_DISPCNT, 0);
-        CpuFill32(0, (void *)VRAM, VRAM_SIZE); // Clear VRAM to help debug tile loading
+        CpuFill32(0, (void *)VRAM, VRAM_SIZE);
         ResetForPokeStorage();
         if (sStorage->isReopening)
         {
@@ -1653,7 +1651,6 @@ static void Task_InitPokeStorage(u8 taskId)
             }
         }
         LoadPokeStorageMenuGfx();
-        LoadBoxTitleFrameSpritePalette();
         break;
     case 1:
         if (!InitPokeStorageWindows())
@@ -1696,8 +1693,6 @@ static void Task_InitPokeStorage(u8 taskId)
         break;
     case 7:
         CreateCursorSprites();
-        // NOTE: Disabled old info panel sprites
-        // CreateDisplayMonSprite();
         RefreshDisplayMonData();
         break;
     case 8:
@@ -3070,12 +3065,11 @@ static void Task_HandleWallpapers(u8 taskId)
             }
             else
             {
-                // input is the textId (MENU_BASE etc.)
                 PlaySE(SE_SELECT);
                 DestroyListMenuTask(sStorage->listMenuTaskId, &sStorage->listMenuScrollRow, &sStorage->listMenuSelectedRow);
                 RemoveScrollIndicatorArrowPair(sStorage->listMenuScrollArrowTaskId);
                 RemoveMenu();
-                sStorage->wallpaperId = input - MENU_BASE; // Convert to WALLPAPER_BASE...
+                sStorage->wallpaperId = input - MENU_BASE;
                 SetWallpaperForCurrentBox(sStorage->wallpaperId);
                 ClearBottomWindow();
                 SetPokeStorageTask(Task_WallpaperChange);
@@ -3459,11 +3453,6 @@ static bool8 InitPokeStorageWindows(void)
     }
 }
 
-static void LoadBoxTitleFrameSpritePalette(void)
-{
-    // LoadSpritePalette(&sSpritePal_BoxTitleFrame);
-}
-
 static bool8 InitPalettesAndSprites(void)
 {
     switch (sStorage->graphicsLoadState)
@@ -3482,42 +3471,34 @@ static bool8 InitPalettesAndSprites(void)
         sStorage->graphicsLoadState++;
         break;
     case 3:
-        // Load type icon sprite sheet (only 2 slots)
         LoadSpriteSheet(&sSpriteSheet_TypeIcons);
         sStorage->graphicsLoadState++;
         break;
     case 4:
-        // Load stat labels sprite sheet
         LoadCompressedSpriteSheet(&sSpriteSheet_StatLabels);
         sStorage->graphicsLoadState++;
         break;
     case 5:
-        // Load gender icon sprite sheet (preload to avoid frame hitch)
         LoadCompressedSpriteSheet(&sSpriteSheet_GenderIcons);
         sStorage->graphicsLoadState++;
         break;
     case 6:
-        // Load shiny icon sprite sheet (preload to avoid frame hitch)
         LoadCompressedSpriteSheet(&sSpriteSheet_ShinyIcon);
         sStorage->graphicsLoadState++;
         break;
     case 7:
-        // Load cursor sprite sheets
         LoadCompressedSpriteSheet(sSpriteSheet_Cursor);
         sStorage->graphicsLoadState++;
         break;
     case 8:
-        // Load cursor palettes
         LoadSpritePalettes(sSpritePal_Cursor);
         sStorage->graphicsLoadState++;
         break;
     case 9:
-        // Load box title frame sprite sheet
         LoadCompressedSpriteSheet(&sSpriteSheet_BoxTitleFrame);
         sStorage->graphicsLoadState++;
         break;
     case 10:
-        // Load box scroll arrow sprite sheet
         LoadCompressedSpriteSheet(&sSpriteSheet_BoxTitleArrow);
         sStorage->graphicsLoadState = 0;
         return TRUE;
@@ -3683,7 +3664,6 @@ static void UpdateTypeIconsSprite(void)
     u8 type1, type2;
     u8 spriteX1, spriteX2, spriteY;
 
-    // Hide icons if mon info panel is not shown or no mon is selected
     if (!sStorage->showMonInfo
         || species == SPECIES_NONE
         || (GetSpeciesAtCursorPosition() == SPECIES_NONE && !sIsMonBeingMoved))
@@ -3744,7 +3724,6 @@ static void UpdateTypeIconsSprite(void)
             sStorage->typeIconSprites[1]->y = spriteY;
         }
 
-        // Update palette and queue tile update for VBlank (via callback)
         if (type2 < NUMBER_OF_MON_TYPES)
             sStorage->typeIconSprites[1]->oam.paletteNum = gTypesInfo[type2].palette;
         sStorage->typeIconSprites[1]->data[0] = type2;
@@ -3765,9 +3744,8 @@ static void UpdateStatLabelsSprites(void)
     u16 upStatPalTag, downStatPalTag;
     u8 nature;
     struct BoxPokemon *boxMon;
-    u8 animIndexMap[NUM_STATS] = {0, 0, 1, 4, 2, 3}; // Maps STAT_HP, STAT_ATK, STAT_DEF, STAT_SPEED, STAT_SPATK, STAT_SPDEF to animation indices
+    u8 animIndexMap[NUM_STATS] = {0, 0, 1, 4, 2, 3};
 
-    // Hide sprites if mon info panel is not shown or no mon is selected
     if (!sStorage->showMonInfo
         || species == SPECIES_NONE
         || sStorage->displayMon.isEgg
@@ -3780,7 +3758,6 @@ static void UpdateStatLabelsSprites(void)
         return;
     }
 
-    // Get the Pokemon's nature
     if (sCursorArea == CURSOR_AREA_IN_BOX)
     {
         boxMon = GetBoxedMonPtr(StorageGetCurrentBox(), sCursorPosition);
@@ -3791,7 +3768,6 @@ static void UpdateStatLabelsSprites(void)
     }
     else
     {
-        // Moving mon
         boxMon = &sStorage->movingMon.box;
     }
 
@@ -3799,7 +3775,6 @@ static void UpdateStatLabelsSprites(void)
     natureUpStat = gNaturesInfo[nature].statUp;
     natureDownStat = gNaturesInfo[nature].statDown;
 
-    // If neutral nature, hide sprites
     if (natureUpStat == natureDownStat)
     {
         if (sStorage->statLabelSprites[0] != NULL)
@@ -3809,7 +3784,6 @@ static void UpdateStatLabelsSprites(void)
         return;
     }
 
-    // Determine positions based on stat
     // UP STAT
     switch (natureUpStat)
     {
@@ -3874,11 +3848,9 @@ static void UpdateStatLabelsSprites(void)
         return;
     }
 
-    // Set palette tags
-    upStatPalTag = PALTAG_MISC_1;    // For increased stat
-    downStatPalTag = PALTAG_MISC_2;  // For decreased stat
+    upStatPalTag = PALTAG_MISC_1;
+    downStatPalTag = PALTAG_MISC_2;
 
-    // Create or update UP STAT sprite
     if (sStorage->statLabelSprites[0] == NULL)
     {
         struct SpriteTemplate template = sSpriteTemplate_StatLabels;
@@ -3895,7 +3867,6 @@ static void UpdateStatLabelsSprites(void)
     sStorage->statLabelSprites[0]->oam.paletteNum = IndexOfSpritePaletteTag(upStatPalTag);
     sStorage->statLabelSprites[0]->invisible = FALSE;
 
-    // Create or update DOWN STAT sprite
     if (sStorage->statLabelSprites[1] == NULL)
     {
         struct SpriteTemplate template = sSpriteTemplate_StatLabels;
@@ -4221,7 +4192,7 @@ static void UpdateMonInfoTilemap(void)
         else if (sCursorArea == CURSOR_AREA_IN_PARTY)
         {
             sStorage->monInfoTilemapId = 1;
-            sStorage->bg0_Y = DISPLAY_HEIGHT * 2;     // rows 40-59: right panel
+            sStorage->bg0_Y = DISPLAY_HEIGHT * 2;
         }
 
         sStorage->displayMonInfoLoadState = 0;
@@ -4259,8 +4230,6 @@ static void ClearMonInfoPanel(void)
     }
     
     HideInfoPanelSprites();
-    
-    // Reset bg0 Y position to hide panels (scroll to empty area)
     sStorage->bg0_Y = 0;
     SetGpuReg(REG_OFFSET_BG0VOFS, 0);
 }
@@ -4331,11 +4300,9 @@ static void AddWallpaperMenu(void)
     {
         SetMenuText(i);
     }
-    // ensure list termination
     sStorage->menuItems[sStorage->menuItemsCount].text = NULL;
     sStorage->menuItems[sStorage->menuItemsCount].textId = 0;
 
-    // Calculate snug width in tiles: (Cursor Space + Text + Right Padding + 7) / 8
     sStorage->menuWindow.width = (8 + sStorage->menuWidth + 8 + 7) / 8;
     if (sStorage->menuWindow.width > 28)
         sStorage->menuWindow.width = 28;
@@ -4369,9 +4336,9 @@ static void AddWallpaperMenu(void)
     sStorage->listMenuTaskId = ListMenuInit(&sStorage->listMenuTemplate, sStorage->listMenuScrollRow, sStorage->listMenuSelectedRow);
     sStorage->listMenuScrollArrowTaskId = AddScrollIndicatorArrowPairParameterized(
         SCROLL_ARROW_UP,
-        (sStorage->menuWindow.tilemapLeft + sStorage->menuWindow.width / 2) * 8, // Center X
-        sStorage->menuWindow.tilemapTop * 8 - 4, // Top Y
-        (sStorage->menuWindow.tilemapTop + sStorage->menuWindow.height) * 8 + 4, // Bottom Y
+        (sStorage->menuWindow.tilemapLeft + sStorage->menuWindow.width / 2) * 8,    // Center X
+        sStorage->menuWindow.tilemapTop * 8 - 4,                                    // Top Y
+        (sStorage->menuWindow.tilemapTop + sStorage->menuWindow.height) * 8 + 4,    // Bottom Y
         sStorage->menuItemsCount - sStorage->listMenuTemplate.maxShowed, 
         GFXTAG_LIST_MENU_ARROW, 
         PALTAG_LIST_MENU_SCROLL_ARROW, 
@@ -5286,8 +5253,6 @@ static bool8 ScrollToBox(void)
     switch (sStorage->scrollState)
     {
     case 0:
-        // Disabled scrolling 'box' wallpaper (BG2)
-        // LoadWallpaperGfx(sStorage->scrollToBoxId, sStorage->scrollDirection);
         sStorage->scrollState++;
     case 1:
         if (!WaitForWallpaperGfxLoad())
@@ -5306,8 +5271,6 @@ static bool8 ScrollToBox(void)
         iconsScrolling = UpdateBoxMonIconScroll();
         if (sStorage->scrollTimer != 0)
         {
-            // Disabled sliding visuals except pokemon icons
-            // sStorage->bg2_X += sStorage->scrollSpeed;
             if (--sStorage->scrollTimer != 0)
                 return TRUE;
             StartLoadWallpaperGfx(sStorage->scrollToBoxId, 0);
@@ -5467,15 +5430,15 @@ static void CreateBoxTitleFrame(u8 boxId)
         u8 animNum;
         s16 spriteX = x;
 
-        if (i == 0) // Left end
+        if (i == 0)
             animNum = 0;
-        else if (i == ARRAY_COUNT(sStorage->boxTitleFrameSprites) - 1) // Right end
+        else if (i == ARRAY_COUNT(sStorage->boxTitleFrameSprites) - 1)
         {
             animNum = 2;
             animNum = 2;
             spriteX = x + 16 + (5 * 16);
         }
-        else // Middle
+        else
         {
             animNum = 1;
             spriteX = x + 16 + ((i - 1) * 16);
@@ -7009,11 +6972,9 @@ static u8 InBoxInput_Normal(void)
 
         if ((JOY_NEW(A_BUTTON)) && SetSelectionMenuTexts())
         {
-            // Normal mode: Show menu
             if (sCursorMode == CURSOR_MODE_NORMAL)
                 return INPUT_IN_MENU;
 
-            // Auto-action mode: Perform quick single-mon actions
             if (sCursorMode == CURSOR_MODE_AUTO_ACTION)
             {
                 switch (GetMenuItemTextId(0))
@@ -9063,7 +9024,7 @@ static void SpriteCB_ItemIcon_SwapToMon(struct Sprite *sprite)
             sprite->data[3] = (24 * x) + 104;
             sprite->data[4] = (24 * y) + 52;
         }
-        else // CURSOR_AREA_IN_PARTY
+        else
         {
             sprite->data[3] = 52;
             sprite->data[4] = 24 * sprite->sCursorPos + 28;
@@ -9422,8 +9383,7 @@ u32 GetWaldaWallpaperPatternId(void)
 
 void SetWaldaWallpaperPatternId(u8 id)
 {
-    // if (id < ARRAY_COUNT(sWaldaWallpapers))
-        gSaveBlock1Ptr->waldaPhrase.patternId = id;
+    gSaveBlock1Ptr->waldaPhrase.patternId = id;
 }
 
 u32 GetWaldaWallpaperIconId(void)
@@ -9433,8 +9393,7 @@ u32 GetWaldaWallpaperIconId(void)
 
 void SetWaldaWallpaperIconId(u8 id)
 {
-    // if (id < ARRAY_COUNT(sWaldaWallpaperIcons))
-        gSaveBlock1Ptr->waldaPhrase.iconId = id;
+    gSaveBlock1Ptr->waldaPhrase.iconId = id;
 }
 
 u16 *GetWaldaWallpaperColorsPtr(void)
