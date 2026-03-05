@@ -1149,6 +1149,7 @@ void AnimHitSplatOnMonEdge(struct Sprite *sprite)
     sprite->data[0] = GetAnimBattlerSpriteId(animBattler);
     sprite->x = gSprites[sprite->data[0]].x + gSprites[sprite->data[0]].x2;
     sprite->y = gSprites[sprite->data[0]].y + gSprites[sprite->data[0]].y2;
+    sprite->x2 = cmd->x;
     sprite->y2 = cmd->y;
     StartSpriteAffineAnim(sprite, cmd->animation);
     StoreSpriteCallbackInData6(sprite, DestroySpriteAndMatrix);
