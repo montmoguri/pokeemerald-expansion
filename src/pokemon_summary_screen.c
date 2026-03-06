@@ -1934,12 +1934,12 @@ void ExtractMonSkillEvData(struct Pokemon *mon, struct PokeSummary *sum)
     sum->speed = GetMonData(mon, MON_DATA_SPEED_EV);
 }
 
-static bool32 HasAnyRelearnableMoves(enum MoveRelearnerStates state)
+bool32 HasAnyRelearnableMoves(enum MoveRelearnerStates state)
 {
     return CanBoxMonRelearnMoves(GetCurrentBoxmon(), state);
 }
 
-static bool32 NoMovesAvailableToRelearn(void)
+bool32 NoMovesAvailableToRelearn(void)
 {
     u32 zeroCounter = 0;
     for (enum MoveRelearnerStates state = MOVE_RELEARNER_LEVEL_UP_MOVES; state < MOVE_RELEARNER_COUNT; state++)
@@ -4644,7 +4644,7 @@ static void SpriteCB_Pokemon(struct Sprite *sprite)
     {
         sprite->data[1] = IsMonSpriteNotFlipped(sprite->data[0]);
         PlayMonCry();
-        PokemonSummaryDoMonAnimation(sprite, sprite->data[0], summary->isEgg, FALSE);
+        PokemonSummaryDoMonAnimation(sprite, sprite->data[0], summary->isEgg);
     }
 }
 

@@ -193,7 +193,7 @@ static EWRAM_DATA struct PokemonSummaryScreenData
         u8 metGame; // 0xB
         u32 pid; // 0xC
         u32 exp; // 0x10
-        u16 moves[MAX_MON_MOVES]; // 0x14
+        enum Move moves[MAX_MON_MOVES]; // 0x14
         u8 pp[MAX_MON_MOVES]; // 0x1C
         u16 currentHP; // 0x20
         u16 maxHP; // 0x22
@@ -202,7 +202,7 @@ static EWRAM_DATA struct PokemonSummaryScreenData
         u16 spatk; // 0x28
         u16 spdef; // 0x2A
         u16 speed; // 0x2C
-        u16 item; // 0x2E
+        enum Item item; // 0x2E
         u16 friendship; // 0x30
         u8 OTGender; // 0x32
         u8 nature; // 0x33
@@ -342,7 +342,7 @@ static void Task_PrintBattleMoves(u8);
 static void PrintMemoPageText(void);
 static void Task_PrintMemoPage(u8);
 static void PrintMoveNameAndPP(u8);
-static void PrintMoveDescription(u16);
+static void PrintMoveDescription(enum Move);
 static void PrintNewMoveDetailsOrCancelText(void);
 static void SwapMovesNamesPP(u8, u8);
 static void PrintHMMovesCantBeForgotten(void);
@@ -388,7 +388,7 @@ static bool32 ShouldRemoveHyphen(const u8*, const u8*, const u8*);
 static u8 FormatTextByWidth(u8*, s32, u8, const u8*, s16);
 static void Task_ShowEffectTilemap(u8);
 static void Task_HideEffectTilemap(u8);
-static void ShowCategoryIcon(u16);
+static void ShowCategoryIcon(enum Move);
 static void DestroyCategoryIcon(void);
 static void ChangeSummaryState(s16*, u8);
 static void DrawNextSkillsButtonPrompt(u8);
@@ -437,7 +437,7 @@ static const u8 sText_RentalPkmn[]              = _("Rental Pokémon");
 static const u8 sText_None[]                    = _("None");
 static const u8 sText_Egg[]                     = _("Egg");
 static const u8 sText_Nature[]                  = _("{DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5}");
-static const u8 sText_MintNature[]              = _("{DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5} {EMOJI_LEAF}");
+static const u8 sText_MintNature[]              = _("{DYNAMIC 0}{DYNAMIC 2} {EMOJI_LEAF}{DYNAMIC 1}");
 
 // Trainer Memo page texts
 static const u8 sText_MemoNature[]              = _("{DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5} by nature");
@@ -2119,14 +2119,23 @@ void ShowPokemonSummaryScreen(u8 mode, void *mons, u8 monIndex, u8 maxMonIndex, 
 
     sMonSummaryScreen = AllocZeroed(sizeof(*sMonSummaryScreen));
     sMonSummaryScreen->mode = mode;
-    sMonSummaryScreen->monList.mons = mons;
-    sMonSummaryScreen->curMonIndex = monIndex;
-    sMonSummaryScreen->maxMonIndex = maxMonIndex;
+    if (monIndex == PC_MON_CHOSEN)
+    {
+        sMonSummaryScreen->monList.boxMons = GetBoxedMonPtr(gSpecialVar_MonBoxId, 0);
+        sMonSummaryScreen->curMonIndex = gSpecialVar_MonBoxPos;
+        sMonSummaryScreen->maxMonIndex = IN_BOX_COUNT - 1;
+    }
+    else
+    {
+        sMonSummaryScreen->monList.mons = mons;
+        sMonSummaryScreen->curMonIndex = monIndex;
+        sMonSummaryScreen->maxMonIndex = maxMonIndex;
+    }
     sMonSummaryScreen->callback = callback;
     if (gInitialSummaryScreenCallback == NULL)
         gInitialSummaryScreenCallback = callback;
 
-    if (mode == SUMMARY_MODE_BOX)
+    if (mode == SUMMARY_MODE_BOX || monIndex == PC_MON_CHOSEN)
         sMonSummaryScreen->isBoxMon = TRUE;
     else
         sMonSummaryScreen->isBoxMon = FALSE;
@@ -2831,23 +2840,36 @@ static void Task_HandleInput(u8 taskId)
         else if (JOY_NEW(START_BUTTON))
         {
             if (sMonSummaryScreen->currPageIndex == PSS_PAGE_INFO && ShouldShowRename())
+            {
+                if (sMonSummaryScreen->isBoxMon)
                 {
-                    if (ShouldShowRename())
-                    {
-                        sMonSummaryScreen->callback = CB2_PssChangePokemonNickname;
-                        gSpecialVar_0x8004 = sMonSummaryScreen->curMonIndex;
-                    }
-
-                    StopPokemonAnimations();
-                    PlaySE(SE_SELECT);
-                    BeginCloseSummaryScreen(taskId);
+                    gSpecialVar_0x8004 = PC_MON_CHOSEN;
+                    gSpecialVar_MonBoxPos = sMonSummaryScreen->curMonIndex;
                 }
+                else
+                {
+                    gSpecialVar_0x8004 = sMonSummaryScreen->curMonIndex;
+                }
+                sMonSummaryScreen->callback = CB2_PssChangePokemonNickname;
+                StopPokemonAnimations();
+                PlaySE(SE_SELECT);
+                BeginCloseSummaryScreen(taskId);
+            }
             if (ShouldShowMoveRelearner()
                 && (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES))
             {
                 sMonSummaryScreen->callback = CB2_InitLearnMove;
-                gSpecialVar_0x8004 = sMonSummaryScreen->curMonIndex;
-                gRelearnMode = RELEARN_MODE_PSS_PAGE_BATTLE_MOVES;
+                gRelearnMode = sMonSummaryScreen->currPageIndex;
+                gSpecialVar_MonBoxPos = sMonSummaryScreen->curMonIndex;
+                if (sMonSummaryScreen->isBoxMon)
+                {
+                    gSpecialVar_0x8004 = PC_MON_CHOSEN;
+                    gSpecialVar_MonBoxPos = sMonSummaryScreen->curMonIndex;
+                }
+                else
+                {
+                    gSpecialVar_0x8004 = sMonSummaryScreen->curMonIndex;
+                }
                 StopPokemonAnimations();
                 PlaySE(SE_SELECT);
                 BeginCloseSummaryScreen(taskId);
@@ -2891,13 +2913,13 @@ static void Task_HandleInput(u8 taskId)
 
 #define tSummaryState data[0]
 
-static bool32 HasAnyRelearnableMoves(enum MoveRelearnerStates state)
+bool32 HasAnyRelearnableMoves(enum MoveRelearnerStates state)
 {
     struct Pokemon *mon = &sMonSummaryScreen->currentMon;
     return CanBoxMonRelearnMoves(&mon->box, state);
 }
 
-static bool32 NoMovesAvailableToRelearn(void)
+bool32 NoMovesAvailableToRelearn(void)
 {
     u32 zeroCounter = 0;
     for (enum MoveRelearnerStates state = MOVE_RELEARNER_LEVEL_UP_MOVES; state < MOVE_RELEARNER_COUNT; state++)
@@ -3431,7 +3453,7 @@ static bool8 HasMoreThanOneMove(void)
 static void ChangeSelectedMove(s16 *taskData, s8 direction, u8 *moveIndexPtr)
 {
     s8 i, newMoveIndex;
-    u16 move;
+    enum Move move;
 
     PlaySE(SE_SELECT);
     newMoveIndex = *moveIndexPtr;
@@ -3517,7 +3539,7 @@ static void Task_HandleInput_MovePositionSwitch(u8 taskId)
 
 static void ExitMovePositionSwitchMode(u8 taskId, bool8 swapMoves)
 {
-    u16 move;
+    enum Move move;
 
     PlaySE(SE_SELECT);
     SetMainMoveSelectorColor(0);
@@ -3552,8 +3574,8 @@ static void SwapMonMoves(struct Pokemon *mon, u8 moveIndex1, u8 moveIndex2)
 {
     struct PokeSummary* summary = &sMonSummaryScreen->summary;
 
-    u16 move1 = summary->moves[moveIndex1];
-    u16 move2 = summary->moves[moveIndex2];
+    enum Move move1 = summary->moves[moveIndex1];
+    enum Move move2 = summary->moves[moveIndex2];
     u8 move1pp = summary->pp[moveIndex1];
     u8 move2pp = summary->pp[moveIndex2];
     u8 ppBonuses = summary->ppBonuses;
@@ -3587,8 +3609,8 @@ static void SwapBoxMonMoves(struct BoxPokemon *mon, u8 moveIndex1, u8 moveIndex2
 {
     struct PokeSummary* summary = &sMonSummaryScreen->summary;
 
-    u16 move1 = summary->moves[moveIndex1];
-    u16 move2 = summary->moves[moveIndex2];
+    enum Move move1 = summary->moves[moveIndex1];
+    enum Move move2 = summary->moves[moveIndex2];
     u8 move1pp = summary->pp[moveIndex1];
     u8 move2pp = summary->pp[moveIndex2];
     u8 ppBonuses = summary->ppBonuses;
@@ -3659,6 +3681,7 @@ static void Task_HandleReplaceMoveInput(u8 taskId)
                     PlaySE(SE_SELECT);
                     sMoveSlotToReplace = sMonSummaryScreen->firstMoveIndex;
                     gSpecialVar_0x8005 = sMoveSlotToReplace;
+                    gSpecialVar_Result = TRUE;
                     BeginCloseSummaryScreen(taskId);
                 }
                 else
@@ -3673,6 +3696,7 @@ static void Task_HandleReplaceMoveInput(u8 taskId)
                 PlaySE(SE_SELECT);
                 sMoveSlotToReplace = MAX_MON_MOVES;
                 gSpecialVar_0x8005 = MAX_MON_MOVES;
+                gSpecialVar_Result = FALSE;
                 BeginCloseSummaryScreen(taskId);
             }
         }
@@ -3699,7 +3723,7 @@ static void ShowCantForgetHMsWindow(u8 taskId)
 static void Task_HandleInputCantForgetHMsMoves(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
-    u16 move;
+    enum Move move;
     if (FuncIsActiveTask(Task_ShowEffectTilemap) != 1)
     {
         if (JOY_NEW(DPAD_UP))
@@ -5101,7 +5125,7 @@ static void PrintMoveNameAndPP(u8 moveIndex)
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
     u8 moveNameWindowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
 
-    u16 move = summary->moves[moveIndex];
+    enum Move move = summary->moves[moveIndex];
 
     if (move != 0)
     {
@@ -5126,7 +5150,7 @@ static void PrintMoveNameAndPP(u8 moveIndex)
     PrintTextOnWindowWithFont(moveNameWindowId, text, 121, moveIndex * 18 + 4, 0, ppState, FONT_SMALL);
 }
 
-static void PrintMovePowerAndAccuracy(u16 moveIndex)
+static void PrintMovePowerAndAccuracy(enum Move moveIndex)
 {
     const u8 *text;
     u8 xPos;
@@ -5167,7 +5191,7 @@ static void PrintMovePowerAndAccuracy(u16 moveIndex)
 
 
 
-static void PrintMoveDescription(u16 move)
+static void PrintMoveDescription(enum Move move)
 {
     u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_DESCRIPTION);
     u8 desc[SWSH_MAX_MOVE_DESCRIPTION_LENGTH];
@@ -5226,7 +5250,7 @@ static void PrintNewMoveDetailsOrCancelText(void)
     }
     else
     {
-        u16 move = sMonSummaryScreen->newMove;
+        enum Move move = sMonSummaryScreen->newMove;
 
         if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES)
             PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4, moveIndex * 18 + 4, 0, 4, FONT_SMALL, 74);
@@ -5270,7 +5294,7 @@ static void PrintHMMovesCantBeForgotten(void)
     PrintTextOnWindowWithFont(windowId, message, 0, 4, 0, 2, msgFontId);
 }
 
-static void ShowCategoryIcon(u16 move)
+static void ShowCategoryIcon(enum Move move)
 {
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] == SPRITE_NONE)
         sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] = CreateSprite(&sSpriteTemplate_CategoryIcons, 68, 129, 0);
@@ -5416,7 +5440,7 @@ static void SetMonTypeIcons(void)
 static void SetMoveTypeIcons(void)
 {
     u8 i;
-    u16 move;
+    enum Move move;
     u32 type;
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
 
@@ -5485,32 +5509,35 @@ static u8 LoadMonGfxAndSprite(struct Pokemon *mon, s16 *state, bool32 isShadow)
     case 0:
         if (gMain.inBattle)
         {
-            HandleLoadSpecialPokePic(TRUE,
+            HandleLoadSpecialPokePicIsEgg(TRUE,
                                      gMonSpritesGfxPtr->spritesGfx[B_POSITION_OPPONENT_LEFT],
-                                     summary->species2,
-                                     summary->pid);
+                                     summary->species,
+                                     summary->pid,
+                                     summary->isEgg);
         }
         else
         {
             if (gMonSpritesGfxPtr != NULL)
             {
-                HandleLoadSpecialPokePic(TRUE,
+                HandleLoadSpecialPokePicIsEgg(TRUE,
                                          gMonSpritesGfxPtr->spritesGfx[B_POSITION_OPPONENT_LEFT],
-                                         summary->species2,
-                                         summary->pid);
+                                         summary->species,
+                                         summary->pid,
+                                         summary->isEgg);
             }
             else
             {
-                HandleLoadSpecialPokePic(TRUE,
+                HandleLoadSpecialPokePicIsEgg(TRUE,
                                          MonSpritesGfxManager_GetSpritePtr(MON_SPR_GFX_MANAGER_A, B_POSITION_OPPONENT_LEFT),
-                                         summary->species2,
-                                         summary->pid);
+                                         summary->species,
+                                         summary->pid,
+                                         summary->isEgg);
             }
         }
         (*state)++;
         return 0xFF;
     case 1:
-        LoadSpritePaletteWithTag(GetMonSpritePalFromSpeciesAndPersonality(summary->species2, summary->isShiny, summary->pid), summary->species2);
+        LoadSpritePaletteWithTag(GetMonSpritePalFromSpeciesAndPersonalityIsEgg(summary->species, summary->isShiny, summary->pid, summary->isEgg), summary->species2);
         SetMultiuseSpriteTemplateToPokemon(summary->species2, B_POSITION_OPPONENT_LEFT);
         (*state)++;
         return 0xFF;
@@ -5711,7 +5738,7 @@ static void RemoveAndCreateMonMarkingsSprite(struct Pokemon *mon)
 
 static void CreateCaughtBallSprite(struct Pokemon *mon)
 {
-    u8 ball = ItemIdToBallId(GetMonData(mon, MON_DATA_POKEBALL));
+    enum PokeBall ball = GetMonData(mon, MON_DATA_POKEBALL);
 
     LoadBallGfx(ball);
     sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_BALL] = CreateSprite(&gPokeBalls[ball].spriteTemplate, 95, 16, 6);
@@ -5721,7 +5748,7 @@ static void CreateCaughtBallSprite(struct Pokemon *mon)
 
 static void CreateHeldItemBoxSprites(void)
 {
-    u16 itemId = sMonSummaryScreen->summary.item;
+    enum Item itemId = sMonSummaryScreen->summary.item;
     u8 col, row;
     u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_HELD_ITEM_BOX];
 
@@ -5911,7 +5938,7 @@ static void DestroyDynamaxBoxSprites(void)
 
 static void CreateHeldItemSprite(void)
 {
-    u16 itemId = sMonSummaryScreen->summary.item;
+    enum Item itemId = sMonSummaryScreen->summary.item;
     u8 spriteId;
     
     // Always destroy old sprite first
@@ -6179,7 +6206,6 @@ static inline bool32 ShouldShowMoveRelearner(void)
 {
     return (P_SUMMARY_SCREEN_MOVE_RELEARNER
          && !sMonSummaryScreen->lockMovesFlag
-         && sMonSummaryScreen->mode != SUMMARY_MODE_BOX
          && sMonSummaryScreen->mode != SUMMARY_MODE_BOX_CURSOR
          && sMonSummaryScreen->hasRelearnableMoves > 0
          && !InBattleFactory() 
@@ -6231,7 +6257,6 @@ static inline bool32 ShouldShowRename(void)
     return (P_SUMMARY_SCREEN_RENAME
          && !sMonSummaryScreen->lockMovesFlag
          && !sMonSummaryScreen->summary.isEgg
-         && sMonSummaryScreen->mode != SUMMARY_MODE_BOX
          && sMonSummaryScreen->mode != SUMMARY_MODE_BOX_CURSOR
          && !InBattleFactory() 
          && !InSlateportBattleTent()
@@ -6265,17 +6290,13 @@ static void ShowCancelOrRenamePrompt(void)
 
 static void CB2_ReturnToSummaryScreenFromNamingScreen(void)
 {
-    SetMonData(&gPlayerParty[gSpecialVar_0x8004], MON_DATA_NICKNAME, gStringVar2);
+    SetBoxMonData(GetSelectedBoxMonFromPcOrParty(), MON_DATA_NICKNAME, gStringVar2);
     ShowPokemonSummaryScreen(SUMMARY_MODE_NORMAL, gPlayerParty, gSpecialVar_0x8004, gPlayerPartyCount - 1, gInitialSummaryScreenCallback);
 }
 
 static void CB2_PssChangePokemonNickname(void)
 {
-    GetMonData(&gPlayerParty[gSpecialVar_0x8004], MON_DATA_NICKNAME, gStringVar3);
-    GetMonData(&gPlayerParty[gSpecialVar_0x8004], MON_DATA_NICKNAME, gStringVar2);
-    DoNamingScreen(NAMING_SCREEN_NICKNAME, gStringVar2, GetMonData(&gPlayerParty[gSpecialVar_0x8004], MON_DATA_SPECIES, NULL), 
-                   GetMonGender(&gPlayerParty[gSpecialVar_0x8004]), GetMonData(&gPlayerParty[gSpecialVar_0x8004], MON_DATA_PERSONALITY, NULL), 
-                   CB2_ReturnToSummaryScreenFromNamingScreen);
+    ChangePokemonNicknameWithCallback(CB2_ReturnToSummaryScreenFromNamingScreen);
 }
 
 /*
