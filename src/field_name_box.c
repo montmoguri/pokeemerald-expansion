@@ -82,7 +82,7 @@ void TrySpawnNamebox(u32 tileNum)
     }
 
     union TextColor savedTextColors = SaveTextColors();
-    AddTextPrinterParameterized3(sNameboxWindowId, fontId, strX, 0, colors, 0, strbuf);
+    AddTextPrinterParameterized3(sNameboxWindowId, fontId, strX, 5, colors, 0, strbuf);
     RestoreTextColors(savedTextColors);
     PutWindowTilemap(sNameboxWindowId);
     Free(strbuf);

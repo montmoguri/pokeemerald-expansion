@@ -2300,35 +2300,6 @@ void CreateYesNoMenuParameterized(u8 x, u8 y, u16 baseTileNum, u16 baseBlock, u8
     CreateYesNoMenu(&template, baseTileNum, yesNoPalNum, 0);
 }
 
-extern const u8 sMessageBoxTilemap[];
-
-static void NewGameBirchSpeech_CreateDialogueWindowBorder(u8 bg, u8 tilemapLeft, u8 tilemapTop, u8 width, u8 height, u8 paletteNum)
-{
-    CopyRectToBgTilemapBufferRect(bg, sMessageBoxTilemap, 0, 0, 7, 6,
-                                  tilemapLeft - 2, tilemapTop - 1, 3, 6,
-                                  paletteNum, BIRCH_DLG_BASE_TILE_NUM, 0);
-
-    for (u32 i = tilemapLeft + 1; i < tilemapLeft + width; i++)
-    {
-        CopyRectToBgTilemapBufferRect(bg, sMessageBoxTilemap, 3, 0, 7, 6,
-                                      i, tilemapTop - 1, 1, 6,
-                                      paletteNum, BIRCH_DLG_BASE_TILE_NUM, 0);
-    }
-
-    CopyRectToBgTilemapBufferRect(bg, sMessageBoxTilemap, 4, 0, 7, 6,
-                                  tilemapLeft + width - 1, tilemapTop - 1, 3, 6,
-                                  paletteNum, BIRCH_DLG_BASE_TILE_NUM, 0);
-}
-
-static void NewGameBirchSpeech_ShowDialogueWindow(u8 windowId, u8 copyToVram)
-{
-    CallWindowFunction(windowId, NewGameBirchSpeech_CreateDialogueWindowBorder);
-    FillWindowPixelBuffer(windowId, PIXEL_FILL(1));
-    PutWindowTilemap(windowId);
-    if (copyToVram == TRUE)
-        CopyWindowToVram(windowId, COPYWIN_FULL);
-}
-
 static void Task_NewGameBirchSpeech_ReturnFromNamingScreenShowTextbox(u8 taskId)
 {
     if (gTasks[taskId].tTimer-- <= 0)
