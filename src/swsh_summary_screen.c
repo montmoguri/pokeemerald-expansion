@@ -3005,10 +3005,6 @@ static void ChangeSummaryPokemon(u8 taskId, s8 delta)
         if (monId != -1)
         {
             PlaySE(SE_SELECT);
-            if (sMonSummaryScreen->summary.ailment != AILMENT_NONE)
-            {
-                SetSpriteInvisibility(SPRITE_ARR_ID_STATUS, TRUE);
-            }
             sMonSummaryScreen->curMonIndex = monId;
             sMonSummaryScreen->monAnimTimer = 0;
             sMonSummaryScreen->monAnimPlayed = FALSE;
