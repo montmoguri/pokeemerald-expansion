@@ -5495,7 +5495,7 @@ static void CreateBoxTitleFrame(u8 boxId)
 {
     u8 i;
     s16 x = 100;
-    s16 y = 20;
+    s16 y = 21;
 
     struct SpriteTemplate template = sSpriteTemplate_BoxTitleFrame;
     template.paletteTag = PALTAG_MISC_1;
@@ -5521,7 +5521,6 @@ static void CreateBoxTitleFrame(u8 boxId)
         
         u8 spriteId = CreateSprite(&template, spriteX, y, 25);
         sStorage->boxTitleFrameSprites[i] = &gSprites[spriteId];
-        sStorage->boxTitleFrameSprites[i]->oam.priority = 1;
         StartSpriteAnim(sStorage->boxTitleFrameSprites[i], animNum);
     }
 }
@@ -5567,7 +5566,7 @@ static void InitBoxTitle(u8 boxId)
     // Title is split across two sprites
     for (i = 0; i < 2; i++)
     {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_BoxTitle, x + i * 32, 20, 24);
+        u8 spriteId = CreateSprite(&sSpriteTemplate_BoxTitle, x + i * 32, 20, 23);
         sStorage->curBoxTitleSprites[i] = &gSprites[spriteId];
         StartSpriteAnim(sStorage->curBoxTitleSprites[i], i);
     }
@@ -5619,7 +5618,7 @@ static void CreateBoxScrollArrows(void)
 
     for (i = 0; i < 2; i++)
     {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_BoxTitleArrow, 98 + i * 100, 20, 22);
+        u8 spriteId = CreateSprite(&sSpriteTemplate_BoxTitleArrow, 98 + i * 100, 21, 24);
         if (spriteId != MAX_SPRITES)
         {
             struct Sprite *sprite = &gSprites[spriteId];

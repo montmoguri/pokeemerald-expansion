@@ -609,7 +609,7 @@ static const struct OamData sOamData_BoxTitleFrame =
     .matrixNum = 0,
     .shape = SPRITE_SHAPE(16x16),
     .tileNum = 0,
-    .priority = 0,
+    .priority = 2,
     .paletteNum = 0,
     .affineParam = 0,
 };
@@ -666,7 +666,7 @@ static const struct OamData sOamData_BoxTitleArrow =
     .matrixNum = 0,
     .shape = SPRITE_SHAPE(8x8),
     .tileNum = 0,
-    .priority = 1,
+    .priority = 2,
     .paletteNum = 0,
     .affineParam = 0,
 };
@@ -719,7 +719,7 @@ static const struct OamData sOamData_BoxTitle =
 {
     .shape = SPRITE_SHAPE(32x16),
     .size = SPRITE_SIZE(32x16),
-    .priority = 1
+    .priority = 2
 };
 
 static const union AnimCmd sAnim_BoxTitle_Left[] =
