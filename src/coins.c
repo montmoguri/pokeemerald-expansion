@@ -28,7 +28,7 @@ void ShowCoinsWindow(u32 coinAmount, u8 x, u8 y)
     sCoinsWindowId = AddWindow(&template);
     FillWindowPixelBuffer(sCoinsWindowId, PIXEL_FILL(0));
     PutWindowTilemap(sCoinsWindowId);
-    DrawStdFrameWithCustomTileAndPalette(sCoinsWindowId, FALSE, 0x214, 0xE);
+    DrawStdFrameWithCustomTileAndPalette(sCoinsWindowId, FALSE, 0x21A, 0xE);
     PrintCoinsString(coinAmount);
 }
 

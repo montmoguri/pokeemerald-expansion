@@ -798,7 +798,7 @@ static const struct WindowTemplate sWindowTemplates[] =
         .bg = 0,
         .tilemapLeft = 2,
         .tilemapTop = 15,
-        .width = 27,
+        .width = 26,
         .height = 4,
         .paletteNum = 15,
         .baseBlock = 0x194
@@ -1259,7 +1259,7 @@ static void SlotMachineSetup_LoadGfxAndTilemaps(void)
     LoadMenuAndReelOverlayTilemaps();
     LoadSlotMachineGfx();
     LoadMessageBoxGfx(0, 0x200, BG_PLTT_ID(15));
-    LoadUserWindowBorderGfx(0, 0x214, BG_PLTT_ID(14));
+    LoadUserWindowBorderGfx(0, 0x21A, BG_PLTT_ID(14));
     PutWindowTilemap(WIN_MSG);
 }
 
@@ -1669,7 +1669,7 @@ static bool8 SlotTask_AskQuit(struct Task *task)
     DrawDialogueFrame(WIN_MSG, FALSE);
     AddTextPrinterParameterized(WIN_MSG, FONT_NORMAL, sText_QuitTheGame, 0, 1, 0, 0);
     CopyWindowToVram(WIN_MSG, COPYWIN_FULL);
-    CreateYesNoMenuParameterized(0x15, 7, 0x214, 0x180, 0xE, 0xF);
+    CreateYesNoMenuParameterized(0x15, 7, 0x21A, 0x180, 0xE, 0xF);
     sSlotMachine->state = SLOTTASK_HANDLE_QUIT_INPUT;
     return FALSE;
 }

@@ -3738,7 +3738,7 @@ void ScriptShowItemDescription(struct ScriptContext *ctx)
     PutWindowTilemap(sHeaderBoxWindowId);
     CopyWindowToVram(sHeaderBoxWindowId, 3);
     SetStandardWindowBorderStyle(sHeaderBoxWindowId, FALSE);
-    DrawStdFrameWithCustomTileAndPalette(sHeaderBoxWindowId, FALSE, 0x214, 14);
+    DrawStdFrameWithCustomTileAndPalette(sHeaderBoxWindowId, FALSE, 0x21A, 14);
 
     if (ReformatItemDescription(item, dst) == 1)
         textY = 4;
