@@ -550,6 +550,7 @@ struct PokemonStorageSystemData
     u16 infoTilemapBuffer[0x800];
     u16 bg0_Y;
     bool8 showMonInfo;
+    bool8 inMenuInteraction; // flag to hide mon info panel when interacting with other menus
     u8 monInfoTilemapId;
     u8 displayMonInfoLoadState;
     u8 graphicsLoadState;
@@ -1470,6 +1471,13 @@ static void SetPokeStorageTask(TaskFunc newFunc)
 {
     gTasks[sStorage->taskId].func = newFunc;
     sStorage->state = 0;
+    // clears menu interaction flag when returning to main task
+    // to allow mon info to come back
+    if (newFunc == Task_PokeStorageMain)
+    {
+        sStorage->inMenuInteraction = FALSE;
+        UpdateMonInfoTilemap();
+    }
 }
 
 static void Task_InitPokeStorage(u8 taskId)
@@ -1975,6 +1983,8 @@ static void Task_OnSelectedMon(u8 taskId)
     {
     case 0:
         PlaySE(SE_SELECT);
+        // sets flag to prevent mon info panel from appearing
+        sStorage->inMenuInteraction = TRUE;
         if (sStorage->boxOption != OPTION_MOVE_ITEMS)
             PrintMessage(MSG_IS_SELECTED);
         else if (IsMovingItem() || sStorage->displayMon.heldItem != ITEM_NONE)
@@ -2028,7 +2038,6 @@ static void Task_OnSelectedMon(u8 taskId)
             break;
         case MENU_WITHDRAW:
             PlaySE(SE_SELECT);
-            ClearBottomWindow();
             SetPokeStorageTask(Task_WithdrawMon);
             break;
         case MENU_STORE:
@@ -2043,7 +2052,6 @@ static void Task_OnSelectedMon(u8 taskId)
             else
             {
                 PlaySE(SE_SELECT);
-                ClearBottomWindow();
                 SetPokeStorageTask(Task_DepositMon);
             }
             break;
@@ -2540,6 +2548,8 @@ static void Task_ShowMarkMenu(u8 taskId)
     {
     case 0:
         sStorage->markMenu.markings = sStorage->displayMon.markings;
+        // keeps panel hidden during marking menu (sprites-based menu)
+        HideInfoPanelSprites();
         OpenMonMarkingsMenu(sStorage->displayMon.markings, 0xb0, 0x10);
         sStorage->state++;
         break;
@@ -2548,8 +2558,8 @@ static void Task_ShowMarkMenu(u8 taskId)
         {
             FreeMonMarkingsMenu();
             SetMonMarkings(sStorage->markMenu.markings);
-            RefreshDisplayMonData();
             SetPokeStorageTask(Task_PokeStorageMain);
+            RefreshDisplayMonData();
         }
         break;
     }
@@ -3993,6 +4003,13 @@ static u16 GetTargetBg0Y(void)
 static void UpdateMonInfoTilemap(void)
 {
     if (sCursorMode == CURSOR_MODE_MULTI_MOVE)
+    {
+        sStorage->bg0_Y = 0;
+        HideInfoPanelSprites();
+        return;
+    }
+
+    if (sStorage->inMenuInteraction)
     {
         sStorage->bg0_Y = 0;
         HideInfoPanelSprites();
