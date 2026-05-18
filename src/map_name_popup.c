@@ -593,8 +593,8 @@ void HideMapNamePopUpWindow(void)
         else if (OW_POPUP_GENERATION == GEN_8)
         {
             ReleaseComfyAnim(gTasks[gPopupTaskId].tComfyAnimId);
-            ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
-            SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG_ALL | WINOUT_WIN01_OBJ | WINOUT_WIN01_CLR);
+            SetGpuReg(REG_OFFSET_WIN0H, 0xFF);
+            SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_BG0 | WINOUT_WINOBJ_BG0);
         }
 
         SetGpuReg_ForcedBlank(REG_OFFSET_BG0VOFS, 0);
