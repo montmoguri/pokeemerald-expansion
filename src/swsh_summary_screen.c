@@ -891,12 +891,6 @@ static const u8 sTextColors[][3] =
     {0, 9, 10},
     {0, 11, 12},
     {0, 13, 14},
-    {0, 7, 8},
-    {13, 15, 14},
-    {0, 1, 2},
-    {0, 3, 4},
-    {0, 5, 6},
-    {0, 7, 8},
 };
 
 static void (*const sTextPrinterFunctions[])(void) =
@@ -1622,26 +1616,33 @@ static const struct SpriteTemplate sMoveSlotSpriteTemplate =
 
 static const struct OamData sOamData_MoveCursor =
 {
-    .y = 0,
     .affineMode = ST_OAM_AFFINE_OFF,
     .objMode = ST_OAM_OBJ_NORMAL,
-    .mosaic = FALSE,
     .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(16x16),
-    .x = 0,
-    .matrixNum = 0,
     .size = SPRITE_SIZE(16x16),
-    .tileNum = 0,
     .priority = 1,
-    .paletteNum = 0,
-    .affineParam = 0,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_MoveCursor =
 {
     .data = sMoveCursor_Gfx,
-    .size = (16 * 16) / 2,
+    .size = (16 * 16 * 3) / 2,
     .tag = TAG_MOVE_CURSOR
+};
+
+static const union AnimCmd sAnim_MoveCursor[] =
+{
+    ANIMCMD_FRAME(0, 8),
+    ANIMCMD_FRAME(4, 8),
+    ANIMCMD_FRAME(8, 8),
+    ANIMCMD_FRAME(4, 8),
+    ANIMCMD_JUMP(0)
+};
+
+static const union AnimCmd *const sAnims_MoveCursor[] =
+{
+    sAnim_MoveCursor,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_MoveCursor =
@@ -1649,6 +1650,7 @@ static const struct SpriteTemplate sSpriteTemplate_MoveCursor =
     .tileTag = TAG_MOVE_CURSOR,
     .paletteTag = TAG_HELD_ITEM_BOX,
     .oam = &sOamData_MoveCursor,
+    .anims = sAnims_MoveCursor,
 };
 
 static const struct OamData sOamData_MoveFrame =
@@ -6197,7 +6199,7 @@ static void PrintMovePowerAndAccuracy(enum Move moveIndex)
 {
     const u8 *text;
     u8 xPos;
-    FillWindowPixelRect(PSS_LABEL_WINDOW_MOVES_POWER_ACC, PIXEL_FILL(0), 0, 0, 24, 34);
+    FillWindowPixelRect(PSS_LABEL_WINDOW_MOVES_POWER_ACC, PIXEL_FILL(0), 0, 0, 24, 40);
 
     if (moveIndex != MOVE_NONE)
     {
@@ -6223,12 +6225,12 @@ static void PrintMovePowerAndAccuracy(enum Move moveIndex)
             text = gStringVar1;
         }
         xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 22, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 23, 0, 0);
     } else {
         text = gText_ThreeDashes;
         xPos = 22 - GetStringWidth(FONT_SHORT_NARROW, text, 0);
         PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 2, 0, 0);
-        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 22, 0, 0);
+        PrintTextOnWindow(PSS_LABEL_WINDOW_MOVES_POWER_ACC, text, xPos, 23, 0, 0);
     }
 }
 
@@ -6396,7 +6398,7 @@ static void PrintHMMovesCantBeForgotten(void)
 static void ShowCategoryIcon(enum Move move)
 {
     if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] == SPRITE_NONE)
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] = CreateSprite(&sSpriteTemplate_CategoryIcons, 68, 129, 0);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY] = CreateSprite(&sSpriteTemplate_CategoryIcons, 70, 129, 0);
 
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_CATEGORY]].invisible = FALSE;
 
@@ -7149,8 +7151,10 @@ static void CreateMoveCursorSprite(void)
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES
         || sMonSummaryScreen->currPageIndex == PSS_PAGE_CONTEST_MOVES)
     {
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] = CreateSprite(&sSpriteTemplate_MoveCursor, 10, 35, 0);
-        gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR]].callback = SpriteCB_MoveCursor;
+        u8 spriteId = CreateSprite(&sSpriteTemplate_MoveCursor, 10, 35, 0);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] = spriteId;
+        gSprites[spriteId].y2 = sMonSummaryScreen->firstMoveIndex * 18;
+        gSprites[spriteId].callback = SpriteCB_MoveCursor;
     }
 }
 
@@ -7162,16 +7166,17 @@ static void DestroyMoveCursorSprite(void)
 static void SpriteCB_MoveCursor(struct Sprite *sprite)
 {
     bool8 frameActive = (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_FRAME] != SPRITE_NONE);
-    u8 moveIndex;
-    s16 xOffset = 0;
+    u8 moveIndex = frameActive ? sMonSummaryScreen->secondMoveIndex : sMonSummaryScreen->firstMoveIndex;
+    s16 targetY = moveIndex * 18;
+    s16 diff = targetY - sprite->y2;
 
-    if (frameActive)
-        moveIndex = sMonSummaryScreen->secondMoveIndex;
-    else
-        moveIndex = sMonSummaryScreen->firstMoveIndex;
-    // xOffset = (moveIndex == 4) ? 8 : 0;
-    sprite->y2 = moveIndex * 18;
-    sprite->x2 = xOffset;
+    if (diff != 0)
+    {
+        s16 step = diff / 2;
+        if (step == 0)
+            step = (diff > 0) ? 1 : -1;
+        sprite->y2 += step;
+    }
 }
 
 static void CreateMoveFrameSprite(void)
