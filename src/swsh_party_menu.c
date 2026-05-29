@@ -279,7 +279,6 @@ static EWRAM_DATA u8 sMonSpriteId = 0;
 static EWRAM_DATA u8 sMoveWindowIds[MAX_MON_MOVES];
 static EWRAM_DATA u8 sAbilityWindowId;
 static EWRAM_DATA u8 sMonShadowSpriteId = 0;
-static EWRAM_DATA u8 sShadowAnimDelayTaskId = 0;
 static EWRAM_DATA u16 sMonAnimTimer = 0;
 static EWRAM_DATA u8 sMoveTypeSpriteIds[MAX_MON_MOVES];
 #if SWSH_PARTY_MENU_PC_ACCESS
@@ -1091,7 +1090,7 @@ static void ResetPartyMenu(void)
     sItemIconSpriteId = MAX_SPRITES;
     sMonSpriteId = MAX_SPRITES;
     sMonShadowSpriteId = MAX_SPRITES;
-    sShadowAnimDelayTaskId = TASK_NONE;
+    StopShadowAnimDelayTask();
     sMonAnimTimer = 0;
     for (i = 0; i < ARRAY_COUNT(sSelectFrameSpriteIds); i++)
         sSelectFrameSpriteIds[i] = MAX_SPRITES;
@@ -6012,11 +6011,7 @@ static void DestroyMonSprite(void)
     }
     if (sMonShadowSpriteId != 0 && sMonShadowSpriteId != MAX_SPRITES)
     {
-        if (sShadowAnimDelayTaskId != TASK_NONE)
-        {
-            DestroyTask(sShadowAnimDelayTaskId);
-            sShadowAnimDelayTaskId = TASK_NONE;
-        }
+        StopShadowAnimDelayTask();
         DestroySpriteAndFreeResources(&gSprites[sMonShadowSpriteId]);
         sMonShadowSpriteId = MAX_SPRITES;
     }
@@ -6096,11 +6091,6 @@ static void UpdatePartyMonAilmentGfx(u8 status, struct PartyMenuBox *menuBox)
         gSprites[menuBox->statusSpriteId].invisible = FALSE;
         break;
     }
-}
-
-void PartyMenu_SetShadowAnimDelayTaskId(u8 taskId)
-{
-    sShadowAnimDelayTaskId = taskId;
 }
 
 void LoadPartyMenuAilmentGfx(void)
