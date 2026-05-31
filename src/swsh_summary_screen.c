@@ -209,8 +209,8 @@ static EWRAM_DATA struct PokemonSummaryScreenData
     /*0x10*/ struct Pokemon currentMon;
     /*0x70*/ struct PokeSummary
     {
-        u16 species; // 0x0
-        u16 species2; // 0x2
+        enum Species species; // 0x0
+        enum Species species2; // 0x2
         u8 isEgg:1; // 0x4
         u8 isShiny:1;
         u8 padding:6;
@@ -240,7 +240,7 @@ static EWRAM_DATA struct PokemonSummaryScreenData
         u8 sanity; // 0x35
         u8 OTName[17]; // 0x36
         u32 OTID; // 0x48
-        u8 teraType;
+        enum Type teraType;
         u8 mintNature;
         u8 ivHp;
         u8 ivAtk;
@@ -330,7 +330,7 @@ static void PrintNotEggInfo(void);
 static void PrintEggInfo(void);
 static void PrintEggStepsRemaining(void);
 static void LoadGenderGfx(void);
-static void CreateGenderSprite(struct Pokemon *, u16);
+static void CreateGenderSprite(struct Pokemon *, enum Species);
 static void CreateGigantamaxSprite(void);
 static void PrintButtonIcon(u8, u8, u32, u32);
 static u8 GetButtonTextOffset(u8 buttonType);
@@ -450,7 +450,7 @@ static bool32 ShouldShowRename(void);
 static void ShowCancelOrRenamePrompt(void);
 static void CB2_ReturnToSummaryScreenFromNamingScreen(void);
 static void CB2_PssChangePokemonNickname(void);
-static void TryUpdateRelearnType(enum IncrDecrUpdateValues delta);
+static void UpdateMoveRelearnerState(bool32 goingDown);
 static void PrintRightAlignedPrompt(u8, u8, const u8*, int, u8);
 
 // const rom data
@@ -2136,8 +2136,7 @@ void ShowPokemonSummaryScreen_SwSh(u8 mode, void *mons, u8 monIndex, u8 maxMonIn
     else if (mode == SUMMARY_MODE_RELEARNER_CONTEST)
         sMonSummaryScreen->currPageIndex = PSS_PAGE_CONTEST_MOVES;
     else if (mode == SUMMARY_MODE_SELECT_MOVE
-            && (gRelearnMode == RELEARN_MODE_PSS_PAGE_CONTEST_MOVES
-                || gRelearnMode == RELEARN_MODE_BOX_PSS_PAGE_CONTEST_MOVES))
+            && gRelearnMode == RELEARN_MODE_PSS_PAGE_CONTEST_MOVES)
         sMonSummaryScreen->currPageIndex = PSS_PAGE_CONTEST_MOVES;
     else
         sMonSummaryScreen->currPageIndex = sMonSummaryScreen->minPageIndex;
@@ -2148,15 +2147,15 @@ void ShowPokemonSummaryScreen_SwSh(u8 mode, void *mons, u8 monIndex, u8 maxMonIn
     if (gMonSpritesGfxPtr == NULL)
         CreateMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A, MON_SPR_GFX_MODE_NORMAL);
 
-    if (ShouldShowMoveRelearner())
-        TryUpdateRelearnType(TRY_SET_UPDATE);
+    if (mode != SUMMARY_MODE_SELECT_MOVE && mode != SUMMARY_MODE_RELEARNER_BATTLE && mode != SUMMARY_MODE_RELEARNER_CONTEST)
+        gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
 
     SetMainCallback2(CB2_InitSummaryScreen);
 }
 
 void ShowSelectMovePokemonSummaryScreen_SwSh(struct Pokemon *mons, u8 monIndex, void (*callback)(void), u16 newMove)
 {
-    ShowPokemonSummaryScreen_SwSh(SUMMARY_MODE_SELECT_MOVE, mons, monIndex, gPlayerPartyCount - 1, callback);
+    ShowPokemonSummaryScreen_SwSh(SUMMARY_MODE_SELECT_MOVE, mons, monIndex, gPartiesCount[B_TRAINER_PLAYER] - 1, callback);
     sMonSummaryScreen->newMove = newMove;
 }
 
@@ -2686,8 +2685,7 @@ static bool8 ExtractMonDataToSummaryStruct(struct Pokemon *mon)
 
 static void SetSelectMoveTilemaps(void)
 {
-    if (gRelearnMode == RELEARN_MODE_PSS_PAGE_CONTEST_MOVES
-        || gRelearnMode == RELEARN_MODE_BOX_PSS_PAGE_CONTEST_MOVES)
+    if (gRelearnMode == RELEARN_MODE_PSS_PAGE_CONTEST_MOVES)
     {
         SetBgTilemapBuffer(2, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES]);
         SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_CONTEST]);
@@ -2837,6 +2835,8 @@ static void DrawNextSkillsButtonPrompt(u8 mode)
     ScheduleBgCopyTilemapToVram(0);
 }
 
+#define IS_MOVE_PAGE(page) (page == PSS_PAGE_BATTLE_MOVES || page == PSS_PAGE_CONTEST_MOVES)
+
 static void Task_HandleInput(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
@@ -2940,26 +2940,22 @@ static void Task_HandleInput(u8 taskId)
         }
         else if (JOY_NEW(R_BUTTON)) // R means increase. Level -> Egg -> TM -> Tutor
         {
-            if (P_SUMMARY_SCREEN_MOVE_RELEARNER && (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES || sMonSummaryScreen->currPageIndex == PSS_PAGE_CONTEST_MOVES) && !gMain.inBattle)
+            if (P_SUMMARY_SCREEN_MOVE_RELEARNER && IS_MOVE_PAGE(sMonSummaryScreen->currPageIndex) && !gMain.inBattle)
             {
-                TryUpdateRelearnType(TRY_INCREMENT);
-                if (ShouldShowMoveRelearner())
-                {
-                    PlaySE(SE_SELECT);
-                    RefreshRelearnModePrompt();
-                }
+                gMoveRelearnerState++;
+                UpdateMoveRelearnerState(FALSE);
+                RefreshRelearnModePrompt();
+                PlaySE(SE_SELECT);
             }
         }
         else if (JOY_NEW(L_BUTTON)) // L means decrease. Level <- Egg <- TM <- Tutor
         {
-            if (P_SUMMARY_SCREEN_MOVE_RELEARNER && (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES || sMonSummaryScreen->currPageIndex == PSS_PAGE_CONTEST_MOVES) && !gMain.inBattle)
+            if (P_SUMMARY_SCREEN_MOVE_RELEARNER && IS_MOVE_PAGE(sMonSummaryScreen->currPageIndex) && !gMain.inBattle)
             {
-                TryUpdateRelearnType(TRY_DECREMENT);
-                if (ShouldShowMoveRelearner())
-                {
-                    PlaySE(SE_SELECT);
-                    RefreshRelearnModePrompt();
-                }
+                gMoveRelearnerState--;
+                UpdateMoveRelearnerState(TRUE);
+                RefreshRelearnModePrompt();
+                PlaySE(SE_SELECT);
             }
         }
     }
@@ -2981,74 +2977,21 @@ static bool32 HasAnyRelearnableMoves(enum MoveRelearnerStates state)
     return CanBoxMonRelearnMoves(GetCurrentBoxmon(), state);
 }
 
-static bool32 NoMovesAvailableToRelearn(void)
+static void UpdateMoveRelearnerState(bool32 goingDown)
 {
-    u32 zeroCounter = 0;
-    for (enum MoveRelearnerStates state = MOVE_RELEARNER_LEVEL_UP_MOVES; state < MOVE_RELEARNER_COUNT; state++)
+    s32 state;
+
+    sMonSummaryScreen->hasRelearnableMoves = FALSE;
+    for (u32 i = 0; i < MOVE_RELEARNER_COUNT; i++)
     {
-        if (!HasAnyRelearnableMoves(state))
-            zeroCounter++;
-    }
-
-    return zeroCounter == MOVE_RELEARNER_COUNT;
-}
-
-static void TryUpdateRelearnType(enum IncrDecrUpdateValues delta)
-{
-    u32 hasRelearnableMoves = 0;
-    u32 zeroCounter = 0;
-    enum MoveRelearnerStates state = gMoveRelearnerState;
-
-    // just in case everything is off, default to level up moves
-    if ((!P_ENABLE_MOVE_RELEARNERS
-        && !P_TM_MOVES_RELEARNER
-        && !FlagGet(P_FLAG_EGG_MOVES)
-        && !FlagGet(P_FLAG_TUTOR_MOVES)))
-    {
-        sMonSummaryScreen->hasRelearnableMoves = HasAnyRelearnableMoves(MOVE_RELEARNER_LEVEL_UP_MOVES);
-        return;
-    }
-
-    do
-    {
-        switch (delta)
+        state = (gMoveRelearnerState + i * (goingDown ? -1 : 1)) % MOVE_RELEARNER_COUNT;
+        if (HasAnyRelearnableMoves(state))
         {
-        default:
-        case TRY_SET_UPDATE:
-            hasRelearnableMoves = HasAnyRelearnableMoves(gMoveRelearnerState);
-            if (hasRelearnableMoves == 0)
-            {
-                delta = TRY_INCREMENT;
-                continue;
-            }
-            else
-            {
-                sMonSummaryScreen->hasRelearnableMoves = hasRelearnableMoves;
-                return;
-            }
-            // should never reach this, but just in case
-            break;
-        case TRY_INCREMENT:
-            state = state >= MOVE_RELEARNER_TUTOR_MOVES ? MOVE_RELEARNER_LEVEL_UP_MOVES : state + 1;
-            break;
-        case TRY_DECREMENT:
-            state = state == MOVE_RELEARNER_LEVEL_UP_MOVES ? MOVE_RELEARNER_TUTOR_MOVES : state - 1;
-            break;
-        }
-
-        if (!CheckRelearnerStateFlag(state))
-            continue;
-
-        hasRelearnableMoves = HasAnyRelearnableMoves(state);
-        if (hasRelearnableMoves != 0)
-        {
+            sMonSummaryScreen->hasRelearnableMoves = TRUE;
             gMoveRelearnerState = state;
-            sMonSummaryScreen->hasRelearnableMoves = hasRelearnableMoves;
-            return;
+            break;
         }
-        zeroCounter++;
-
-    } while (zeroCounter <= MOVE_RELEARNER_COUNT && hasRelearnableMoves == 0);
+    }
 }
 
 static void ChangeSummaryPokemon(u8 taskId, s8 delta)
@@ -3075,7 +3018,7 @@ static void ChangeSummaryPokemon(u8 taskId, s8 delta)
             }
             monId = AdvanceStorageMonIndex(sMonSummaryScreen->monList.boxMons, sMonSummaryScreen->curMonIndex, sMonSummaryScreen->maxMonIndex, delta);
         }
-        else if (IsMultiBattle() == TRUE)
+        else if (IsMultiBattle() == TRUE && !AreMultiPartiesFullTeams())
         {
             monId = AdvanceMultiBattleMonIndex(delta);
         }
@@ -3132,7 +3075,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
                 if (P_SUMMARY_SCREEN_MOVE_RELEARNER)
                 {
                     gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
-                    TryUpdateRelearnType(TRY_SET_UPDATE);
+                    UpdateMoveRelearnerState(FALSE);
                 }
                 PrintMovesPagePrompt();
             }
@@ -3354,7 +3297,7 @@ static void ChangePage(u8 taskId, s8 delta)
     if (currPageIndex == PSS_PAGE_SKILLS)
     {
         gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
-        TryUpdateRelearnType(TRY_SET_UPDATE);
+        UpdateMoveRelearnerState(FALSE);
     }
 }
 
@@ -4144,7 +4087,7 @@ static void LoadGenderGfx(void)
     }
 }
 
-static void CreateGenderSprite(struct Pokemon *mon, u16 species)
+static void CreateGenderSprite(struct Pokemon *mon, enum Species species)
 {
     u8 *spriteId = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_GENDER];
     u8 gender;
@@ -4213,11 +4156,10 @@ static void PrintPagePrompts(void)
     if (SWSH_SUMMARY_SHOW_IV_EV)
         DrawNextSkillsButtonPrompt(SKILL_STATE_STATS);
 
-    if ((sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES
-        || sMonSummaryScreen->currPageIndex == PSS_PAGE_CONTEST_MOVES)
+    if (IS_MOVE_PAGE(sMonSummaryScreen->currPageIndex)
         && sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
     {
-        TryUpdateRelearnType(TRY_SET_UPDATE);
+        UpdateMoveRelearnerState(FALSE);
         PrintMovesPagePrompt();
     }
 }
@@ -4242,7 +4184,7 @@ static void PutPageWindowTilemaps(u8 page)
         }
         else
         {
-            TryUpdateRelearnType(TRY_SET_UPDATE);
+            UpdateMoveRelearnerState(FALSE);
             PrintMovesPagePrompt();
         }
         break;
@@ -4253,7 +4195,7 @@ static void PutPageWindowTilemaps(u8 page)
     case PSS_PAGE_CONTEST_MOVES:
         if (sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
         {
-            TryUpdateRelearnType(TRY_SET_UPDATE);
+            UpdateMoveRelearnerState(FALSE);
             PrintMovesPagePrompt();
         }
         break;
@@ -4500,7 +4442,7 @@ static void PrintMonNature(void)
 
 static void PrintMonAbilityName(void)
 {
-    u16 ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
+    enum Ability ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
     u8 y = 21;
     if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
         y -= 18;
@@ -4510,7 +4452,7 @@ static void PrintMonAbilityName(void)
 
 static void PrintMonAbilityDescription(void)
 {
-    u16 ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
+    enum Ability ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
     u8 y = 38;
     if (!SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
         y -= 18;
@@ -4695,7 +4637,7 @@ static bool8 DoesMonOTMatchOwner(void)
     u32 trainerId;
     u8 gender;
 
-    if (sMonSummaryScreen->monList.mons == gEnemyParty)
+    if (sMonSummaryScreen->monList.mons == gParties[B_TRAINER_OPPONENT_A])
     {
         u8 multiID = GetMultiplayerId() ^ 1;
         trainerId = gLinkPlayers[multiID].trainerId & 0xFFFF;
@@ -4725,7 +4667,15 @@ static bool8 DidMonComeFromGBAGames(void)
 
 static bool8 IsInGamePartnerMon(void)
 {
-    if ((gBattleTypeFlags & BATTLE_TYPE_INGAME_PARTNER) && gMain.inBattle)
+    if (gPartyMenu.layout == PARTY_LAYOUT_MULTI_FULL)
+    {
+        return FALSE;
+    }
+    else if (gPartyMenu.layout == PARTY_LAYOUT_MULTI_FULL_PARTNER)
+    {
+        return TRUE;
+    }
+    else if ((gBattleTypeFlags & BATTLE_TYPE_INGAME_PARTNER) && gMain.inBattle)
     {
         if (sMonSummaryScreen->curMonIndex == 1 || sMonSummaryScreen->curMonIndex == 4 || sMonSummaryScreen->curMonIndex == 5)
             return TRUE;
@@ -6178,6 +6128,37 @@ static void SetMonTypeIcons(void)
     }
 }
 
+static enum BattlerId GetCurrentBattlerFromSumIndex(u32 sumIndex)
+{
+    for (u32 battler = B_BATTLER_0; battler < gBattlersCount; battler++)
+    {
+        if (!IsOnPlayerSide(battler))
+            continue;
+
+        if (gBattlerPartyIndexes[battler] == sumIndex)
+            return battler;
+    }
+
+    return B_BATTLER_0;
+}
+
+static enum Type SummaryScreen_GetDynamicMoveType(struct Pokemon *mon, enum Move move, enum Type type)
+{
+    if (!P_SHOW_DYNAMIC_TYPES)
+        return type;
+
+    if (gBattleStruct == NULL)
+        return CheckDynamicMoveType(mon, move, 0, MON_OUTSIDE_BATTLE);
+
+    u32 partyIndex = sMonSummaryScreen->curMonIndex;
+    bool32 isDouble = IsDoubleBattle();
+
+    if ((isDouble && partyIndex > 1) || (!isDouble && partyIndex > 0))
+        return CheckDynamicMoveType(mon, move, 0, MON_OUTSIDE_BATTLE);
+
+    return CheckDynamicMoveType(mon, move, GetCurrentBattlerFromSumIndex(sMonSummaryScreen->curMonIndex), MON_IN_BATTLE);
+}
+
 static void SetMoveTypeIcons(void)
 {
     u8 i;
@@ -6190,8 +6171,8 @@ static void SetMoveTypeIcons(void)
         move = summary->moves[i];
         if (move != MOVE_NONE)
         {
-            enum MonState state = gMain.inBattle ? MON_IN_BATTLE : MON_OUTSIDE_BATTLE;
-            type = P_SHOW_DYNAMIC_TYPES ? CheckDynamicMoveType(&sMonSummaryScreen->currentMon, move, 0, state) : GetMoveType(move);
+            type = GetMoveType(move);
+            type = SummaryScreen_GetDynamicMoveType(&sMonSummaryScreen->currentMon, move, type);
             SetTypeSpritePosAndPal(type, 96, 29 + (i * 18), i + SPRITE_ARR_ID_TYPE);
         }
         else
@@ -6220,8 +6201,8 @@ static void SetNewMoveTypeIcon(void)
     }
     else
     {
-        enum MonState state = gMain.inBattle ? MON_IN_BATTLE : MON_OUTSIDE_BATTLE;
-        u32 type = P_SHOW_DYNAMIC_TYPES ? CheckDynamicMoveType(&sMonSummaryScreen->currentMon, move, 0, state) : GetMoveType(move);
+        enum Type type = GetMoveType(move);
+        type = SummaryScreen_GetDynamicMoveType(&sMonSummaryScreen->currentMon, move, type);
         SetTypeSpritePosAndPal(type, 96 + 8, 29 + (i * 18), SPRITE_ARR_ID_TYPE + 4);
     }
 }
@@ -7026,10 +7007,9 @@ static inline bool32 ShouldShowMoveRelearner(void)
     return (P_SUMMARY_SCREEN_MOVE_RELEARNER
          && !sMonSummaryScreen->lockMovesFlag
          && sMonSummaryScreen->mode != SUMMARY_MODE_BOX_CURSOR
-         && sMonSummaryScreen->hasRelearnableMoves > 0
+         && sMonSummaryScreen->hasRelearnableMoves
          && !InBattleFactory()
-         && !InSlateportBattleTent()
-         && !NoMovesAvailableToRelearn());
+         && !InSlateportBattleTent());
 }
 
 static void RefreshRelearnModePrompt(void)
@@ -7090,7 +7070,7 @@ static void ShowCancelOrRenamePrompt(void)
 static void CB2_ReturnToSummaryScreenFromNamingScreen(void)
 {
     SetBoxMonData(GetSelectedBoxMonFromPcOrParty(), MON_DATA_NICKNAME, gStringVar2);
-    ShowPokemonSummaryScreen(SUMMARY_MODE_NORMAL, gPlayerParty, gSpecialVar_0x8004, gPlayerPartyCount - 1, gInitialSummaryScreenCallback);
+    ShowPokemonSummaryScreen(SUMMARY_MODE_NORMAL, gParties[B_TRAINER_PLAYER], gSpecialVar_0x8004, gPartiesCount[B_TRAINER_PLAYER] - 1, gInitialSummaryScreenCallback);
 }
 
 static void CB2_PssChangePokemonNickname(void)
