@@ -59,7 +59,11 @@ static const u16 sTextWindows_Pal[]           = INCBIN_U16("graphics/pokemon_sto
 
 static const u32 sBoxTitleFrame_Gfx[]         = INCBIN_U32("graphics/pokemon_storage/swsh/box_title_frame.4bpp.smol");
 static const u32 sBoxTitleArrow_Gfx[]         = INCBIN_U32("graphics/pokemon_storage/swsh/box_title_arrow.4bpp.smol");
-static const u32 sChooseBoxMenu_Gfx[]         = INCBIN_U32("graphics/pokemon_storage/swsh/choose_box_menu.4bpp.smol");
+#if SWSH_STORAGE_CHOOSE_BOX_GRID
+static const u32 sChooseBoxGrid_Hover_Gfx[]   = INCBIN_U32("graphics/pokemon_storage/swsh/choose_box_grid_hover.4bpp.smol");
+#else
+static const u8  sChooseBoxMenu_Tilemap[]     = INCBIN_U8("graphics/pokemon_storage/swsh/choose_box_menu.bin");
+#endif
 static const u32 sCursor_Gfx[]                = INCBIN_U32("graphics/pokemon_storage/swsh/cursor.4bpp.smol");
 static const u16 sCursor_Pal[]                = INCBIN_U16("graphics/pokemon_storage/swsh/cursor.gbapal");
 static const u32 sGenderIcons_Gfx[]           = INCBIN_U32("graphics/pokemon_storage/swsh/gender_icons.4bpp.smol");
@@ -188,6 +192,9 @@ static const struct Wallpaper sSwShWallpapers[] =
 static const u8 gText_JustOnePkmn[]   = _("There is just one Pokémon with you.");
 static const u8 gText_PartyFull[]     = _("Your party is full!");
 static const u8 sText_Lv[]            = _("Lv");
+#if !SWSH_STORAGE_CHOOSE_BOX_GRID
+static const u8 sText_OutOf30[]       = _("/30");
+#endif
 static const u8 gPCText_Give[]        = _("Give");
 
 struct {
@@ -496,7 +503,9 @@ static const struct BgTemplate sBgTemplates[] =
 // Choose Box Menu Sprites
 // ============================================================================
 
-static const struct OamData sOamData_ChooseBoxMenu =
+#if SWSH_STORAGE_CHOOSE_BOX_GRID
+
+static const struct OamData sOamData_ChooseBoxGrid_Hover =
 {
     .y = 0,
     .affineMode = ST_OAM_AFFINE_OFF,
@@ -513,25 +522,25 @@ static const struct OamData sOamData_ChooseBoxMenu =
     .affineParam = 0,
 };
 
-static const struct CompressedSpriteSheet sSpriteSheet_ChooseBoxMenu =
+static const struct CompressedSpriteSheet sSpriteSheet_ChooseBoxGrid_Hover =
 {
-    .data = sChooseBoxMenu_Gfx,
+    .data = sChooseBoxGrid_Hover_Gfx,
     .size = (32 * 32) / 2,
-    .tag = GFXTAG_BOX_SELECTION,
+    .tag = GFXTAG_CHOOSE_BOX_GRID_HOVER,
 };
-    
-static const struct SpriteTemplate sSpriteTemplate_ChooseBoxMenu =
+
+static const struct SpriteTemplate sSpriteTemplate_ChooseBoxGrid_Hover =
 {
-    .tileTag = GFXTAG_BOX_SELECTION,
+    .tileTag = GFXTAG_CHOOSE_BOX_GRID_HOVER,
     .paletteTag = PALTAG_MISC_3,
-    .oam = &sOamData_ChooseBoxMenu,
+    .oam = &sOamData_ChooseBoxGrid_Hover,
 };
 
 // ============================================================================
 // Box Selection Mon Count Sprite (loaded dynamically)
 // ============================================================================
 
-static const struct OamData sOamData_ChooseBoxMenu_MonCount =
+static const struct OamData sOamData_ChooseBoxGrid_MonCount =
 {
     .y = 0,
     .affineMode = ST_OAM_AFFINE_OFF,
@@ -548,12 +557,81 @@ static const struct OamData sOamData_ChooseBoxMenu_MonCount =
     .affineParam = 0,
 };
 
+static const struct SpriteTemplate sSpriteTemplate_ChooseBoxGrid_MonCount =
+{
+    .tileTag = GFXTAG_CHOOSE_BOX_MON_COUNT,
+    .paletteTag = PALTAG_MISC_3,
+    .oam = &sOamData_ChooseBoxGrid_MonCount,
+};
+
+#else // !SWSH_STORAGE_CHOOSE_BOX_GRID
+
+// ============================================================================
+// Box Selection Text Sprites (single-menu mode, loaded dynamically)
+// ============================================================================
+
+static const struct OamData sOamData_ChooseBoxMenu_BoxName =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .size = SPRITE_SIZE(32x16),
+    .x = 0,
+    .matrixNum = 0,
+    .shape = SPRITE_SHAPE(32x16),
+    .tileNum = 0,
+    .priority = 0,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const union AnimCmd sAnim_ChooseBoxMenu_BoxName_0[]  = {
+    ANIMCMD_FRAME(0, 5), ANIMCMD_END
+};
+static const union AnimCmd sAnim_ChooseBoxMenu_BoxName_1[] = {
+    ANIMCMD_FRAME(8, 5), ANIMCMD_END
+};
+static const union AnimCmd *const sAnims_ChooseBoxMenu_BoxName[] =
+{
+    sAnim_ChooseBoxMenu_BoxName_0,
+    sAnim_ChooseBoxMenu_BoxName_1,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_ChooseBoxMenu_BoxName =
+{
+    .tileTag = GFXTAG_CHOOSE_BOX_MENU_BOX_NAME,
+    .paletteTag = PALTAG_MISC_3,
+    .oam = &sOamData_ChooseBoxMenu_BoxName,
+    .anims = sAnims_ChooseBoxMenu_BoxName,
+};
+
+static const struct OamData sOamData_ChooseBoxMenu_MonCount =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .size = SPRITE_SIZE(32x16),
+    .x = 0,
+    .matrixNum = 0,
+    .shape = SPRITE_SHAPE(32x16),
+    .tileNum = 0,
+    .priority = 0,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
 static const struct SpriteTemplate sSpriteTemplate_ChooseBoxMenu_MonCount =
 {
-    .tileTag = GFXTAG_BOX_SELECTION_PER_30,
+    .tileTag = GFXTAG_CHOOSE_BOX_MON_COUNT,
     .paletteTag = PALTAG_MISC_3,
     .oam = &sOamData_ChooseBoxMenu_MonCount,
 };
+
+#endif // SWSH_STORAGE_CHOOSE_BOX_GRID
 
 // ============================================================================
 // Box Title Frame Sprites
