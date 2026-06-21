@@ -149,7 +149,7 @@ enum {
 
 #define TAG_STATUS_ICONS            55119
 #define TAG_HELD_ITEM               55120
-#define TAG_HOVER_CURSOR            55121
+#define TAG_CURSOR                  55121
 #define TAG_HOVER_ITEM              55122
 #define TAG_HELD_ITEM_ICON_BASE     55123
 #define TAG_SELECT_FRAME            55130
@@ -271,7 +271,7 @@ static EWRAM_DATA u8 sFusionFirstMonSlot = 0; // Fusion item: selected first mon
 static EWRAM_DATA u16 sFusionFirstMonSpecies = 0; // Fusion item: selected first mon species
 static EWRAM_DATA u8 sInitialLevel = 0;
 static EWRAM_DATA u8 sFinalLevel = 0;
-static EWRAM_DATA u8 sHoverCursorSpriteId = 0;
+static EWRAM_DATA u8 sCursorSpriteId = 0;
 static EWRAM_DATA u8 sItemIconSpriteId = 0;
 static EWRAM_DATA u8 sSelectFrameSpriteIds[7] = {0}; // Left + 5 middle + Right
 static EWRAM_DATA u8 sMessageWindowSpriteIds[16] = {0}; // 8 across * 2 rows
@@ -704,8 +704,8 @@ static void CB2_UpdatePartyMenu(void)
 {
     RunTasks();
     u8 cursorSpriteId = MAX_SPRITES;
-    if (sHoverCursorSpriteId != MAX_SPRITES)
-        cursorSpriteId = sHoverCursorSpriteId;
+    if (sCursorSpriteId != MAX_SPRITES)
+        cursorSpriteId = sCursorSpriteId;
     else if (sItemIconSpriteId != MAX_SPRITES)
         cursorSpriteId = sItemIconSpriteId;
 
@@ -983,7 +983,7 @@ static bool8 ReloadPartyMenu(void)
         ResetSpriteData();
         sMonSpriteId = MAX_SPRITES;
         sMonShadowSpriteId = MAX_SPRITES;
-        sHoverCursorSpriteId = MAX_SPRITES;
+        sCursorSpriteId = MAX_SPRITES;
         for (i = 0; i < MAX_MON_MOVES; i++)
             sMoveSlots[i].typeSpriteId = MAX_SPRITES;
         gMain.state++;
@@ -1183,7 +1183,7 @@ static void ResetPartyMenu(void)
     sPartyBg3TilemapBuffer = NULL;
     sPartyMenuBoxes = NULL;
     sPartyBgGfxTilemap = NULL;
-    sHoverCursorSpriteId = MAX_SPRITES;
+    sCursorSpriteId = MAX_SPRITES;
     sItemIconSpriteId = MAX_SPRITES;
     sMonSpriteId = MAX_SPRITES;
     sMonShadowSpriteId = MAX_SPRITES;
@@ -1243,26 +1243,26 @@ static bool8 DecompressGraphics(void)
     {
     case 0:
         if (sPartyBgGfxTilemap == NULL)
-            sPartyBgGfxTilemap = malloc_and_decompress(sPartyMenuBg_Gfx_SwSh, &sizeout);
+            sPartyBgGfxTilemap = malloc_and_decompress(sPartyMenuBg_Gfx, &sizeout);
         else
-            sizeout = GetDecompressedDataSize(sPartyMenuBg_Gfx_SwSh);
+            sizeout = GetDecompressedDataSize(sPartyMenuBg_Gfx);
         LoadBgTiles(2, sPartyBgGfxTilemap, sizeout, 0);
         sPartyMenuInternal->switchCounter++;
         break;
     case 1:
         if (!IsDma3ManagerBusyWithBgCopy())
         {
-            DecompressDataWithHeaderWram(sPartyMenuBg_Main_Tilemap_SwSh, sPartyBgTilemapBuffer);
+            DecompressDataWithHeaderWram(sPartyMenuBg_Main_Tilemap, sPartyBgTilemapBuffer);
             sPartyMenuInternal->switchCounter++;
         }
         break;
     case 2:
-        DecompressDataWithHeaderWram(sPartyMenuBg_Scroll_Tilemap_SwSh, sPartyBg3TilemapBuffer);
+        DecompressDataWithHeaderWram(sPartyMenuBg_Scroll_Tilemap, sPartyBg3TilemapBuffer);
         ScheduleBgCopyTilemapToVram(3);
         sPartyMenuInternal->switchCounter++;
         break;
     case 3:
-        LoadPalette(sPartyMenuBg_Pal_SwSh, BG_PLTT_ID(0), 7 * PLTT_SIZE_4BPP);
+        LoadPalette(sPartyMenuBg_Pal, BG_PLTT_ID(0), 7 * PLTT_SIZE_4BPP);
         CpuCopy16(gPlttBufferUnfaded, sPartyMenuInternal->palBuffer, 7 * PLTT_SIZE_4BPP);
         sPartyMenuInternal->switchCounter++;
         break;
@@ -1287,7 +1287,7 @@ static bool8 DecompressGraphics(void)
         sPartyMenuInternal->switchCounter++;
         break;
     case 9:
-        LoadSpriteSheet(&gSpriteSheet_HeldItem);
+        LoadSpriteSheet(&sSpriteSheet_HeldItem);
         sPartyMenuInternal->switchCounter++;
         break;
     case 10:
@@ -1303,7 +1303,7 @@ static bool8 DecompressGraphics(void)
         sPartyMenuInternal->switchCounter++;
         break;
     case 13:
-        LoadCompressedSpriteSheet(&sSpriteSheet_HoverCursor);
+        LoadCompressedSpriteSheet(&sSpriteSheet_Cursor);
         sPartyMenuInternal->switchCounter++;
         break;
     case 14:
@@ -5664,7 +5664,7 @@ static void ShowOrHideHeldItemSprite(enum Item item, struct PartyMenuBox *menuBo
 
 void LoadHeldItemIcons(void)
 {
-    LoadSpriteSheet(&gSpriteSheet_HeldItem);
+    LoadSpriteSheet(&sSpriteSheet_HeldItem);
     LoadSpritePalette(&sSpritePalette_HeldItem);
 }
 
@@ -5683,10 +5683,10 @@ static void DestroyMoveTypeSprites(void)
 
 static void DestroyHoverSprite(void)
 {
-    if (sHoverCursorSpriteId != MAX_SPRITES && sHoverCursorSpriteId != 0)
+    if (sCursorSpriteId != MAX_SPRITES && sCursorSpriteId != 0)
     {
-        DestroySprite(&gSprites[sHoverCursorSpriteId]);
-        sHoverCursorSpriteId = MAX_SPRITES;
+        DestroySprite(&gSprites[sCursorSpriteId]);
+        sCursorSpriteId = MAX_SPRITES;
     }
 }
 
@@ -5791,18 +5791,18 @@ static void CreateHoverSprite(struct PartyMenuBox *menuBox, u8 slot)
         u8 x = menuBox->spriteCoords[0] - 18;
         u8 y = menuBox->spriteCoords[1] + 3;
 
-        if (sHoverCursorSpriteId != MAX_SPRITES && gSprites[sHoverCursorSpriteId].inUse)
+        if (sCursorSpriteId != MAX_SPRITES && gSprites[sCursorSpriteId].inUse)
         {
-            InitPartyMenuCursorMove(sHoverCursorSpriteId, x, y);
+            InitPartyMenuCursorMove(sCursorSpriteId, x, y);
         }
         else
         {
-            sHoverCursorSpriteId = CreateSprite(&sSpriteTemplate_HoverCursor, x, y, 1);
+            sCursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, x, y, 1);
 
-            if (sHoverCursorSpriteId != MAX_SPRITES)
+            if (sCursorSpriteId != MAX_SPRITES)
             {
-                gSprites[sHoverCursorSpriteId].oam.priority = 1;
-                gSprites[sHoverCursorSpriteId].subpriority = 2;
+                gSprites[sCursorSpriteId].oam.priority = 1;
+                gSprites[sCursorSpriteId].subpriority = 2;
                 if (sPartyMenuInternal->comfyAnimX != INVALID_COMFY_ANIM)
                 {
                     ReleaseComfyAnim(sPartyMenuInternal->comfyAnimX);
@@ -5906,14 +5906,14 @@ static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
 
     DestroyHoverSprite();
     // Create stationary cursor at fromSlot
-    sHoverCursorSpriteId = CreateSprite(&sSpriteTemplate_HoverCursor,
-                                        sPartyMenuBoxes[fromSlot].spriteCoords[0] - 18,
-                                        sPartyMenuBoxes[fromSlot].spriteCoords[1] + 3,
-                                        1);
-    if (sHoverCursorSpriteId != MAX_SPRITES)
+    sCursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor,
+                                    sPartyMenuBoxes[fromSlot].spriteCoords[0] - 18,
+                                    sPartyMenuBoxes[fromSlot].spriteCoords[1] + 3,
+                                    1);
+    if (sCursorSpriteId != MAX_SPRITES)
     {
-        gSprites[sHoverCursorSpriteId].oam.priority = 1;
-        gSprites[sHoverCursorSpriteId].subpriority = 2;
+        gSprites[sCursorSpriteId].oam.priority = 1;
+        gSprites[sCursorSpriteId].subpriority = 2;
         if (sPartyMenuInternal->comfyAnimX != INVALID_COMFY_ANIM)
         {
             ReleaseComfyAnim(sPartyMenuInternal->comfyAnimX);
@@ -5958,7 +5958,7 @@ static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
             sprite->y = sPartyMenuBoxes[fromSlot].spriteCoords[3];
             sprite->oam.priority = 1;
             sprite->subpriority = 1;
-            InitItemSwapMotion(sprite, toSlot, TAG_HOVER_CURSOR + 20);
+            InitItemSwapMotion(sprite, toSlot, TAG_CURSOR + 20);
         }
     }
 
