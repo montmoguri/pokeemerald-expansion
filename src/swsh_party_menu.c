@@ -8827,9 +8827,16 @@ void TryItemHoldFormChange(struct Pokemon *mon, s8 slotId, enum BattleTrainer tr
     if (TryFormChange(mon, FORM_CHANGE_ITEM_HOLD, trainer))
     {
         u32 species = GetMonData(mon, MON_DATA_SPECIES);
+        struct Sprite *icon;
         PlayCry_NormalNoDucking(species, 0, CRY_VOLUME_RS, CRY_VOLUME_RS);
         FreeAndDestroyMonIconSprite(&gSprites[sPartyMenuBoxes[slotId].monSpriteId]);
         CreatePartyMonIconSpriteParameterized(species, GetMonData(mon, MON_DATA_PERSONALITY), FALSE, &sPartyMenuBoxes[slotId], 1);
+        icon = &gSprites[sPartyMenuBoxes[slotId].monSpriteId];
+        icon->oam.mosaic = TRUE;
+        icon->data[5] = MOSAIC_ANIM_DURATION;
+        icon->data[6] = 1;
+        icon->callback = SpriteCB_MosaicAnim;
+        SetGpuReg(REG_OFFSET_MOSAIC, (icon->data[5] << 12) | (icon->data[5] << 8));
         UpdatePartyMonHeldItemSprite(mon, &sPartyMenuBoxes[slotId]);
 
         // Mosaic anim for animated mon sprite
@@ -10249,6 +10256,7 @@ void CursorCb_MoveItemCallback(u8 taskId)
 {
     enum Item item1, item2;
     u8 buffer[100];
+    u8 sourceSlotId; // additional tracker to help with form change anims
 
     if (gPaletteFade.active || MenuHelpers_ShouldWaitForLinkRecv())
         return;
@@ -10283,24 +10291,29 @@ void CursorCb_MoveItemCallback(u8 taskId)
         SetMonData(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], MON_DATA_HELD_ITEM, &item2);
         SetMonData(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId2], MON_DATA_HELD_ITEM, &item1);
 
-        TryItemHoldFormChange(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], gPartyMenu.slotId, B_TRAINER_PLAYER);
+        // Move cursor to destination before form-change checks so TryItemHoldFormChange
+        // targets the pokemon sprite of the mon the cursor actually lands on.
+        sourceSlotId = gPartyMenu.slotId;
+        gPartyMenu.slotId = gPartyMenu.slotId2;
+
+        TryItemHoldFormChange(&gParties[B_TRAINER_PLAYER][sourceSlotId], sourceSlotId, B_TRAINER_PLAYER);
         TryItemHoldFormChange(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId2], gPartyMenu.slotId2, B_TRAINER_PLAYER);
 
         // Animate item swapping:
-        // slotId2's new item appears immediately; item2 animates to slotId.
+        // slotId2's new item appears immediately; item2 animates to sourceSlotId.
         if (item2 != ITEM_NONE)
         {
-            if (sPartyMenuBoxes[gPartyMenu.slotId].itemSpriteId != MAX_SPRITES)
-                gSprites[sPartyMenuBoxes[gPartyMenu.slotId].itemSpriteId].invisible = TRUE;
+            if (sPartyMenuBoxes[sourceSlotId].itemSpriteId != MAX_SPRITES)
+                gSprites[sPartyMenuBoxes[sourceSlotId].itemSpriteId].invisible = TRUE;
             if (sPartyMenuBoxes[gPartyMenu.slotId2].itemSpriteId != MAX_SPRITES)
                 gSprites[sPartyMenuBoxes[gPartyMenu.slotId2].itemSpriteId].invisible = TRUE;
 
-            CreateItemMoveSprite(gPartyMenu.slotId2, gPartyMenu.slotId, item2);
+            CreateItemMoveSprite(gPartyMenu.slotId2, sourceSlotId, item2);
         }
         else
         {
             UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId2], &sPartyMenuBoxes[gPartyMenu.slotId2]);
-            UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], &sPartyMenuBoxes[gPartyMenu.slotId]);
+            UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][sourceSlotId], &sPartyMenuBoxes[sourceSlotId]);
         }
 
         // create the string describing the move
@@ -10312,7 +10325,7 @@ void CursorCb_MoveItemCallback(u8 taskId)
         }
         else
         {
-            GetMonNickname(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], gStringVar1);
+            GetMonNickname(&gParties[B_TRAINER_PLAYER][sourceSlotId], gStringVar1);
             CopyItemName(item1, gStringVar2);
             StringExpandPlaceholders(buffer, gText_XsYAnd);
 
@@ -10326,9 +10339,12 @@ void CursorCb_MoveItemCallback(u8 taskId)
         DisplayPartyMenuMessage(gStringVar4, TRUE);
 
         // update colors of selected boxes
-        AnimatePartySlot(gPartyMenu.slotId, 0);
-        gPartyMenu.slotId = gPartyMenu.slotId2;
+        AnimatePartySlot(sourceSlotId, 0);
+        if (gSprites[sPartyMenuBoxes[sourceSlotId].monSpriteId].oam.mosaic)
+            gSprites[sPartyMenuBoxes[sourceSlotId].monSpriteId].callback = SpriteCB_MosaicAnim;
         AnimatePartySlot(gPartyMenu.slotId, 1);
+        if (gSprites[sPartyMenuBoxes[gPartyMenu.slotId].monSpriteId].oam.mosaic)
+            gSprites[sPartyMenuBoxes[gPartyMenu.slotId].monSpriteId].callback = SpriteCB_MosaicAnim;
 
         // return to the main party menu
         DestroySelectFrame();
