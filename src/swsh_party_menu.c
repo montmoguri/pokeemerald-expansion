@@ -5822,90 +5822,91 @@ static void CreateHoverSprite(struct PartyMenuBox *menuBox, u8 slot)
 // mon2 held item sprite is updated when the moving sprite finishes animation
 static void SpriteCB_ItemSwap(struct Sprite *sprite)
 {
-    if (++sprite->data[4] > sprite->data[5])
+    struct ComfyAnim *anim = &gComfyAnims[sprite->data[1]];
+
+    if (anim->completed)
     {
-        // Animation done
         u8 destSlot = sprite->data[0];
 
+        ReleaseComfyAnim(sprite->data[1]);
         FreeSpriteTilesByTag(sprite->data[6]);
         FreeSpritePaletteByTag(sprite->data[6]);
         DestroySprite(sprite);
 
-        // Recreate the item icon at the destination.
         UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][destSlot], &sPartyMenuBoxes[destSlot]);
     }
     else
     {
-        s32 currentFrame = sprite->data[4];
-        s32 totalFrames = sprite->data[5];
+        // t is Q_24_8 progress: 0 at start, 256 at end
+        s32 t = ReadComfyAnimValueSmooth(anim);
         s32 startX = sprite->data[2];
         s32 startY = sprite->data[3];
         s32 endX = sPartyMenuBoxes[sprite->data[0]].spriteCoords[2];
         s32 endY = sPartyMenuBoxes[sprite->data[0]].spriteCoords[3];
+        s32 dx = endX - startX;
+        s32 dy = endY - startY;
 
-        // Linear interpolation
-        sprite->x = startX + (endX - startX) * currentFrame / totalFrames;
-        sprite->y = startY + (endY - startY) * currentFrame / totalFrames;
+        sprite->x = startX + dx * t / 256;
+        sprite->y = startY + dy * t / 256;
 
-        // Clockwise parabolic curve
-        // Vector (dx, dy) = End - Start
-        // Clockwise Perpendicular: (dy, -dx)
+        // Parabolic arc; term = t*(1-t) expressed as t*(256-t)/65536
+        // data[4]: 0 = counter-clockwise perp (-dy, dx), 1 = clockwise perp (dy, -dx)
         {
-            s32 dx = endX - startX;
-            s32 dy = endY - startY;
-            s32 perpX = dy;
-            s32 perpY = -dx;
-
-            // Factor t * (1-t) where t = current/total
-            s32 term = currentFrame * (totalFrames - currentFrame);
-            s32 denom = totalFrames * totalFrames;
-
-            sprite->x += (perpX * term) / denom;
-            sprite->y += (perpY * term) / denom;
+            s32 term = t * (256 - t);
+            if (sprite->data[4])
+            {
+                sprite->x += dy * term / 65536;
+                sprite->y += (-dx) * term / 65536;
+            }
+            else
+            {
+                sprite->x += (-dy) * term / 65536;
+                sprite->y += dx * term / 65536;
+            }
         }
     }
 }
 
-static void InitItemSwapMotion(struct Sprite *sprite, u8 destSlot, u16 tag)
+static void InitItemSwapMotion(struct Sprite *sprite, u8 destSlot, u16 tag, bool8 clockwise)
 {
-    int dx, dy;
+    struct ComfyAnimEasingConfig config;
+    int dx, dy, duration;
 
     sprite->data[0] = destSlot;
-    // data[1] unused
     sprite->data[2] = sprite->x;    // Start X
     sprite->data[3] = sprite->y;    // Start Y
-    sprite->data[4] = 0;            // Current Frame
-    sprite->data[6] = tag;          // Store tag for cleanup
+    sprite->data[4] = clockwise;
+    sprite->data[6] = tag;
 
-    // Calc duration based on distance
     dx = sPartyMenuBoxes[destSlot].spriteCoords[2] - sprite->x;
     dy = sPartyMenuBoxes[destSlot].spriteCoords[3] - sprite->y;
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
 
     // Duration: 12 to 30 frames
-    sprite->data[5] = (dx + dy) / 8 + 12;
-    if (sprite->data[5] > 30) sprite->data[5] = 30;
+    duration = (dx + dy) / 8 + 12;
+    if (duration > 30) duration = 30;
+
+    InitComfyAnimConfig_Easing(&config);
+    config.from = Q_24_8(0);
+    config.to = Q_24_8(256);
+    config.durationFrames = duration;
+    config.easingFunc = ComfyAnimEasing_EaseInOutCubic;
+    sprite->data[1] = CreateComfyAnim_Easing(&config);
 
     sprite->callback = SpriteCB_ItemSwap;
 }
 
 static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
 {
-    // Animate tasks
-    // item1: mon1 (fromSlot) -> mon2 (toSlot)
-    // item2: mon2 (toSlot)   -> mon1 (fromSlot)
-
-    // item2 is currently held by fromSlot (mon1) due to the previous data swap
-    enum Item item2 = GetMonData(&gParties[B_TRAINER_PLAYER][fromSlot], MON_DATA_HELD_ITEM);
-    enum Item item1 = item;
+    // item (fromSlot's original item) animates from fromSlot to toSlot.
+    // fromSlot's new item (toSlot's original) is shown immediately in place.
 
     // 1. Reset from item sprite to hover cursor
     DestroyItemIconSprite();
     sItemIconSpriteId = MAX_SPRITES;
 
     DestroyHoverSprite();
-    // Create stationary cursor at fromSlot
     sCursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor,
                                     sPartyMenuBoxes[fromSlot].spriteCoords[0] - 18,
                                     sPartyMenuBoxes[fromSlot].spriteCoords[1] + 3,
@@ -5926,9 +5927,7 @@ static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
         }
     }
 
-    // 2. Prep sprites
-    // clear existing specific icons before creating animation sprites to make sure
-    // UpdatePartyMonHeldItemSprite correctly loads NEW item graphics at anim end
+    // 2. Clear existing icons so UpdatePartyMonHeldItemSprite loads new graphics
     if (sPartyMenuBoxes[fromSlot].itemSpriteId != MAX_SPRITES)
     {
         u16 tag = TAG_HELD_ITEM_ICON_BASE + fromSlot;
@@ -5946,11 +5945,13 @@ static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
         sPartyMenuBoxes[toSlot].itemSpriteId = MAX_SPRITES;
     }
 
-    // 3. Create anim sprites
-    // Sprite 1: item1 (mon1 -> mon2)
-    if (item1 != ITEM_NONE)
+    // 3. Show fromSlot's new item immediately; animate `item` traveling to toSlot.
+    // arc path: CCW when toSlot < fromSlot (mon1 above mon2), CW otherwise.
+    UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][fromSlot], &sPartyMenuBoxes[fromSlot]);
+
+    if (item != ITEM_NONE)
     {
-        u8 spriteId = AddItemIconSprite(TAG_SWITCH_ITEM_1, TAG_SWITCH_ITEM_1, item1);
+        u8 spriteId = AddItemIconSprite(TAG_SWITCH_ITEM_1, TAG_SWITCH_ITEM_1, item);
         if (spriteId != MAX_SPRITES)
         {
             struct Sprite *sprite = &gSprites[spriteId];
@@ -5958,22 +5959,7 @@ static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
             sprite->y = sPartyMenuBoxes[fromSlot].spriteCoords[3];
             sprite->oam.priority = 1;
             sprite->subpriority = 1;
-            InitItemSwapMotion(sprite, toSlot, TAG_CURSOR + 20);
-        }
-    }
-
-    // Sprite 2: item2 (mon2 -> mon1)
-    if (item2 != ITEM_NONE)
-    {
-        u8 spriteId = AddItemIconSprite(TAG_SWITCH_ITEM_2, TAG_SWITCH_ITEM_2, item2);
-        if (spriteId != MAX_SPRITES)
-        {
-            struct Sprite *sprite = &gSprites[spriteId];
-            sprite->x = sPartyMenuBoxes[toSlot].spriteCoords[2];
-            sprite->y = sPartyMenuBoxes[toSlot].spriteCoords[3];
-            sprite->oam.priority = 1;
-            sprite->subpriority = 1;
-            InitItemSwapMotion(sprite, fromSlot, TAG_SWITCH_ITEM_2);
+            InitItemSwapMotion(sprite, toSlot, TAG_SWITCH_ITEM_1, toSlot > fromSlot);
         }
     }
 }
@@ -10301,23 +10287,15 @@ void CursorCb_MoveItemCallback(u8 taskId)
         TryItemHoldFormChange(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId2], gPartyMenu.slotId2, B_TRAINER_PLAYER);
 
         // Animate item swapping:
-        // - Hide both party mon held-item sprites during animation
-        // - Create moving sprite first, then update the destination's held item afterwards
+        // slotId2's new item appears immediately; item2 animates to slotId.
         if (item2 != ITEM_NONE)
         {
-            // Hide item sprites
             if (sPartyMenuBoxes[gPartyMenu.slotId].itemSpriteId != MAX_SPRITES)
                 gSprites[sPartyMenuBoxes[gPartyMenu.slotId].itemSpriteId].invisible = TRUE;
             if (sPartyMenuBoxes[gPartyMenu.slotId2].itemSpriteId != MAX_SPRITES)
                 gSprites[sPartyMenuBoxes[gPartyMenu.slotId2].itemSpriteId].invisible = TRUE;
 
-            // Create moving sprite
             CreateItemMoveSprite(gPartyMenu.slotId2, gPartyMenu.slotId, item2);
-
-            // Update destination slot to show its new item (item1)
-            UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId2], &sPartyMenuBoxes[gPartyMenu.slotId2]);
-            if (sPartyMenuBoxes[gPartyMenu.slotId2].itemSpriteId != MAX_SPRITES)
-                gSprites[sPartyMenuBoxes[gPartyMenu.slotId2].itemSpriteId].invisible = TRUE;
         }
         else
         {
