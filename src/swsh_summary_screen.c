@@ -137,8 +137,7 @@ static const u8 sSummaryConditionToLineLength[MAX_CONDITION + 1] =
 #define PSS_DATA_WINDOW_SKILLS_ABILITY 1
 
 // Dynamic fields for the Battle Moves page
-#define PSS_DATA_WINDOW_MOVE_NAMES_PP 0
-#define PSS_DATA_WINDOW_MOVE_DESCRIPTION 1
+#define PSS_DATA_WINDOW_MOVE_DESCRIPTION 0
 
 // Dynamic fields for the Pokémon Memo page
 #define PSS_DATA_WINDOW_MEMO_NOTE 0
@@ -415,7 +414,6 @@ static void CreateMoveSlotSprites(void);
 static void DestroyMoveSlotSprites(void);
 static void UpdateMoveSlotVisibility(void);
 static void UpdateMoveSlotPalette(void);
-static void UpdateMoveNamePalette(u8);
 static void SummaryScreen_DestroyAnimDelayTask(void);
 static void SetShinySprite(void);
 static void SetPokerusCuredSprite(void);
@@ -597,19 +595,6 @@ static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
     INCGFX_U8("graphics/summary_screen/swsh/button_start.png", ".4bpp"),
     INCGFX_U8("graphics/summary_screen/swsh/button_lr.png", ".4bpp"),
 };
-
-static const u16 sCategoryIcons_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/category_icons.png", ".gbapal");
-static const u16 sGenderIcons_Pal[]                 = INCGFX_U16("graphics/summary_screen/swsh/gender_icons.png", ".gbapal");
-static const u16 sDynamaxLevels_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/dynamax_levels.png", ".gbapal");
-static const u16 sMonShadow_Pal[]                   = INCGFX_U16("graphics/summary_screen/swsh/shadow.pal", ".gbapal");
-#if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
-    static const u32 sMoveTypes_Gfx[] = INCGFX_U32("graphics/summary_screen/swsh/move_types.png", ".4bpp.smol");
-    #if SWSH_SUMMARY_SWSH_TYPE_ICONS_SV_PAL == TRUE
-        static const u16 sMoveTypes_Pal[] = INCGFX_U16("graphics/summary_screen/swsh/tera_types.png", ".gbapal");
-    #else
-        static const u16 sMoveTypes_Pal[] = INCGFX_U16("graphics/summary_screen/swsh/move_types.png", ".gbapal");
-    #endif
-#endif
 static const u32 sTeraTypes_Gfx[]                   = INCGFX_U32("graphics/summary_screen/swsh/tera_types.png", ".4bpp.smol");
 // Share sDynamaxLevels_Pal
 static const u32 sDynamaxLevels_Gfx[]               = INCGFX_U32("graphics/summary_screen/swsh/dynamax_levels.png", ".4bpp.smol");
@@ -624,10 +609,23 @@ static const u32 sGenderIcons_Gfx[]                 = INCGFX_U32("graphics/summa
 static const u32 sFriendshipIcon_Gfx[]              = INCGFX_U32("graphics/summary_screen/swsh/heart.png", ".4bpp.smol");
 static const u32 sGigantamaxIcon_Gfx[]              = INCGFX_U32("graphics/summary_screen/swsh/gigantamax.png", ".4bpp.smol");
 static const u32 sMoveSlot_Gfx[]                    = INCGFX_U32("graphics/summary_screen/swsh/move_slot.png", ".4bpp.smol");
-
 #if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
 static const u32 sStatusGfx_Icons[]                 = INCGFX_U32("graphics/summary_screen/swsh/status_icons.png", ".4bpp.smol");
 static const u16 sStatusPal_Icons[]                 = INCGFX_U16("graphics/summary_screen/swsh/status_icons.png", ".gbapal");
+#endif
+
+static const u16 sCategoryIcons_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/category_icons.png", ".gbapal");
+static const u16 sGenderIcons_Pal[]                 = INCGFX_U16("graphics/summary_screen/swsh/gender_icons.png", ".gbapal");
+static const u16 sDynamaxLevels_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/dynamax_levels.png", ".gbapal");
+static const u16 sMoveSlot_Pals[]                   = INCGFX_U16("graphics/summary_screen/swsh/move_slot.png", ".gbapal");
+static const u16 sMonShadow_Pal[]                   = INCGFX_U16("graphics/summary_screen/swsh/shadow.pal", ".gbapal");
+#if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
+    static const u32 sMoveTypes_Gfx[] = INCGFX_U32("graphics/summary_screen/swsh/move_types.png", ".4bpp.smol");
+    #if SWSH_SUMMARY_SWSH_TYPE_ICONS_SV_PAL == TRUE
+        static const u16 sMoveTypes_Pal[] = INCGFX_U16("graphics/summary_screen/swsh/tera_types.png", ".gbapal");
+    #else
+        static const u16 sMoveTypes_Pal[] = INCGFX_U16("graphics/summary_screen/swsh/move_types.png", ".gbapal");
+    #endif
 #endif
 
 
@@ -771,15 +769,6 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
 };
 static const struct WindowTemplate sPageMovesTemplate[] = // This is used for both battle moves
 {
-    [PSS_DATA_WINDOW_MOVE_NAMES_PP] = {
-        .bg = 0,
-        .tilemapLeft = 2,
-        .tilemapTop = 3,
-        .width = 20,
-        .height = 12,
-        .paletteNum = 3,
-        .baseBlock = 151,
-    },
     [PSS_DATA_WINDOW_MOVE_DESCRIPTION] = {
         .bg = 0,
         .tilemapLeft = 12,
@@ -787,7 +776,7 @@ static const struct WindowTemplate sPageMovesTemplate[] = // This is used for bo
         .width = 18,
         .height = 5,
         .paletteNum = 2,
-        .baseBlock = 391,
+        .baseBlock = 151,
     },
 };
 static const struct WindowTemplate sPageMemoTemplate[] =
@@ -846,26 +835,32 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
     [PSS_PAGE_MEMO] = Task_PrintMemoPage,
 };
 
-#define TAG_MOVE_SELECTOR 30000
-#define TAG_MON_STATUS 30001
-#define TAG_MOVE_TYPES 30002
-#define TAG_MON_MARKINGS 30003
-#define TAG_MON_SHINY_ICON 30004
-#define TAG_MON_POKERUS_CURED_ICON 30005
-#define TAG_CATEGORY_ICONS 30006
-#define TAG_STAT_GRADES 30007
-#define TAG_FRIENDSHIP_ICON 30008
-#define TAG_GIGANTAMAX_ICON 30009
-#define TAG_TERA_TYPE 30010
-#define TAG_MON_SHADOW 30011
-#define TAG_INFO_PROMPT 30014
-#define TAG_GENDER_ICON 30015
-#define TAG_HELD_ITEM_ICON 30017
-#define TAG_LR_BUTTON 30018
-#define TAG_DYNAMAX_LEVELS 30021
-#define TAG_MOVE_SLOT 30022
-#define TAG_MOVE_CURSOR 30023
-#define TAG_MOVE_FRAME 30024
+#define TAG_MOVE_SELECTOR           30000
+#define TAG_MON_STATUS              30001
+#define TAG_MOVE_TYPES              30002
+#define TAG_MON_MARKINGS            30003
+#define TAG_MON_SHINY_ICON          30004
+#define TAG_MON_POKERUS_CURED_ICON  30005
+#define TAG_CATEGORY_ICONS          30006
+#define TAG_STAT_GRADES             30007
+#define TAG_FRIENDSHIP_ICON         30008
+#define TAG_GIGANTAMAX_ICON         30009
+#define TAG_TERA_TYPE               30010
+#define TAG_MON_SHADOW              30011
+#define TAG_INFO_PROMPT             30014
+#define TAG_GENDER_ICON             30015
+#define TAG_HELD_ITEM_ICON          30017
+#define TAG_LR_BUTTON               30018
+#define TAG_DYNAMAX_LEVELS          30021
+#define TAG_MOVE_SLOT_MAIN          30022
+#define TAG_MOVE_SLOT_FOCUS         30023
+#define TAG_MOVE_SLOT_0             30024
+#define TAG_MOVE_SLOT_1             30025
+#define TAG_MOVE_SLOT_2             30026
+#define TAG_MOVE_SLOT_3             30027
+#define TAG_MOVE_SLOT_4             30028
+#define TAG_MOVE_CURSOR             30029
+#define TAG_MOVE_FRAME              30030
 
 enum SwShCategoryIcon
 {
@@ -1339,7 +1334,7 @@ static const struct OamData sOamData_MoveSlot =
     .matrixNum = 0,
     .size = SPRITE_SIZE(32x16),
     .tileNum = 0,
-    .priority = 1,
+    .priority = 2,
     .paletteNum = 0,
     .affineParam = 0,
 };
@@ -1360,30 +1355,59 @@ static const union AnimCmd sSpriteAnim_MoveSlot_3[] = {
     ANIMCMD_FRAME(24, 0, FALSE, FALSE),
     ANIMCMD_END
 };
+static const union AnimCmd sSpriteAnim_MoveSlot_4[] = {
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
 
 static const union AnimCmd *const sSpriteAnimTable_MoveSlot[] = {
     sSpriteAnim_MoveSlot_0,
     sSpriteAnim_MoveSlot_1,
     sSpriteAnim_MoveSlot_2,
     sSpriteAnim_MoveSlot_3,
+    sSpriteAnim_MoveSlot_4,
 };
 
-static const u8 sMoveSlotAnims[MOVE_SLOT_SPRITES_COUNT] = {0, 1, 1, 2, 3};
+static const u8 sMoveSlotAnims[MOVE_SLOT_SPRITES_COUNT] = {0, 1, 2, 3, 4};
 
-static const struct CompressedSpriteSheet sSpriteSheet_MoveSlot =
+#define MOVE_SLOT_GFX_SIZE ((32 * 16 * 5) / 2)
+
+static const struct CompressedSpriteSheet sSpriteSheets_MoveSlot[MOVE_SLOT_COUNT] =
 {
-    .data = sMoveSlot_Gfx,
-    .size = (32 * 16 * 4) / 2,
-    .tag = TAG_MOVE_SLOT
+    { .data = sMoveSlot_Gfx, .size = MOVE_SLOT_GFX_SIZE, .tag = TAG_MOVE_SLOT_0 },
+    { .data = sMoveSlot_Gfx, .size = MOVE_SLOT_GFX_SIZE, .tag = TAG_MOVE_SLOT_1 },
+    { .data = sMoveSlot_Gfx, .size = MOVE_SLOT_GFX_SIZE, .tag = TAG_MOVE_SLOT_2 },
+    { .data = sMoveSlot_Gfx, .size = MOVE_SLOT_GFX_SIZE, .tag = TAG_MOVE_SLOT_3 },
+    { .data = sMoveSlot_Gfx, .size = MOVE_SLOT_GFX_SIZE, .tag = TAG_MOVE_SLOT_4 },
 };
 
-static const struct SpriteTemplate sMoveSlotSpriteTemplate =
+static const struct SpritePalette sSpritePal_MoveSlotMain  = { .data = sMoveSlot_Pals,      .tag = TAG_MOVE_SLOT_MAIN  };
+static const struct SpritePalette sSpritePal_MoveSlotFocus = { .data = &sMoveSlot_Pals[16], .tag = TAG_MOVE_SLOT_FOCUS };
+
+static const u16 sMoveSlotTileTags[MOVE_SLOT_COUNT] =
 {
-    .tileTag = TAG_MOVE_SLOT,
-    .paletteTag = TAG_GENDER_ICON,
-    .oam = &sOamData_MoveSlot,
-    .anims = sSpriteAnimTable_MoveSlot,
+    TAG_MOVE_SLOT_0, TAG_MOVE_SLOT_1, TAG_MOVE_SLOT_2, TAG_MOVE_SLOT_3, TAG_MOVE_SLOT_4
 };
+
+static const struct SpriteTemplate sMoveSlotSpriteTemplates[MOVE_SLOT_COUNT] =
+{
+    { .tileTag = TAG_MOVE_SLOT_0, .paletteTag = TAG_MOVE_SLOT_MAIN, .oam = &sOamData_MoveSlot, .anims = sSpriteAnimTable_MoveSlot },
+    { .tileTag = TAG_MOVE_SLOT_1, .paletteTag = TAG_MOVE_SLOT_MAIN, .oam = &sOamData_MoveSlot, .anims = sSpriteAnimTable_MoveSlot },
+    { .tileTag = TAG_MOVE_SLOT_2, .paletteTag = TAG_MOVE_SLOT_MAIN, .oam = &sOamData_MoveSlot, .anims = sSpriteAnimTable_MoveSlot },
+    { .tileTag = TAG_MOVE_SLOT_3, .paletteTag = TAG_MOVE_SLOT_MAIN, .oam = &sOamData_MoveSlot, .anims = sSpriteAnimTable_MoveSlot },
+    { .tileTag = TAG_MOVE_SLOT_4, .paletteTag = TAG_MOVE_SLOT_MAIN, .oam = &sOamData_MoveSlot, .anims = sSpriteAnimTable_MoveSlot },
+};
+
+static const union TextColor sMoveSlotNameColor = { .background = 0, .foreground = 9, .shadow = 10 };
+static const union TextColor sMoveSlotPPColors[4] =
+{
+    { .background = 0, .foreground = 1, .shadow = 2 }, // ppState 0: half (25–50%)
+    { .background = 0, .foreground = 3, .shadow = 4 }, // ppState 1: low (≤25%)
+    { .background = 0, .foreground = 5, .shadow = 6 }, // ppState 2: critical (0 PP)
+    { .background = 0, .foreground = 7, .shadow = 8 }, // ppState 3: full (>50%)
+};
+#define MOVE_SLOT_NAME_FILL_COLOR 14
+#define MOVE_SLOT_PP_FILL_COLOR   15
 
 static const struct OamData sOamData_MoveCursor =
 {
@@ -2356,27 +2380,51 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 28:
-        LoadCompressedSpriteSheet(&sSpriteSheet_MoveSlot);
+        LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[0]);
         sMonSummaryScreen->switchCounter++;
         break;
     case 29:
-        DecompressDataWithHeaderWram(sSummaryPage_ContestMoves_Tilemap, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES]);
+        LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[1]);
         sMonSummaryScreen->switchCounter++;
         break;
     case 30:
-        DecompressDataWithHeaderWram(sSummaryEffect_Contest_Tilemap, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_CONTEST]);
+        LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[2]);
         sMonSummaryScreen->switchCounter++;
         break;
-#if SWSH_SUMMARY_SHOW_CONTEST_PAGES
     case 31:
-        DecompressDataWithHeaderWram(sSummaryPage_Conditions_Tilemap, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONDITIONS]);
+        LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[3]);
         sMonSummaryScreen->switchCounter++;
         break;
     case 32:
-        PatchPageIndicatorIcons();
+        LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[4]);
         sMonSummaryScreen->switchCounter++;
         break;
     case 33:
+        LoadSpritePalette(&sSpritePal_MoveSlotMain);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 34:
+        LoadSpritePalette(&sSpritePal_MoveSlotFocus);
+        sMonSummaryScreen->switchCounter++;
+        break;
+#if SWSH_SUMMARY_SHOW_CONTEST_PAGES
+    case 35:
+        DecompressDataWithHeaderWram(sSummaryPage_ContestMoves_Tilemap, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES]);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 36:
+        DecompressDataWithHeaderWram(sSummaryEffect_Contest_Tilemap, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_CONTEST]);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 37:
+        DecompressDataWithHeaderWram(sSummaryPage_Conditions_Tilemap, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONDITIONS]);
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 38:
+        PatchPageIndicatorIcons();
+        sMonSummaryScreen->switchCounter++;
+        break;
+    case 39:
         ConditionGraph_Init(&sMonSummaryScreen->conditionGraph);
         CpuFill32(0xEEEEEEEE, (void *)(BG_CHAR_ADDR(2) + SUMMARY_GRAPH_FILL_TILE * TILE_SIZE_4BPP), TILE_SIZE_4BPP);
         {
@@ -2387,7 +2435,7 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter = 0;
         return TRUE;
 #else
-    case 31:
+    case 35:
         sMonSummaryScreen->switchCounter = 0;
         return TRUE;
 #endif
@@ -3178,7 +3226,6 @@ static void PssScrollEnd(u8 taskId)
         {
             SetSpriteInvisibility(SPRITE_ARR_ID_MOVE_CURSOR, FALSE);
             UpdateMoveSlotPalette();
-            UpdateMoveNamePalette(sMonSummaryScreen->firstMoveIndex);
         }
     }
     TryDrawExperienceProgressBar();
@@ -3220,7 +3267,6 @@ static void SwitchToMoveSelection(u8 taskId)
 
     CreateMoveCursorSprite();
     UpdateMoveSlotPalette();
-    UpdateMoveNamePalette(sMonSummaryScreen->firstMoveIndex);
     gTasks[taskId].func = Task_HandleInput_MoveSelect;
 }
 
@@ -3304,19 +3350,14 @@ static void ChangeSelectedMove(s16 *taskData, s8 direction, u8 *moveIndexPtr)
 
     PrintMoveDescription(move);
 
-    u8 oldMoveIndex = *moveIndexPtr;
     *moveIndexPtr = newMoveIndex;
     UpdateMoveSlotPalette();
-    UpdateMoveNamePalette(oldMoveIndex);
-    UpdateMoveNamePalette(newMoveIndex);
 }
 
 static void CloseMoveSelectMode(u8 taskId)
 {
-    u8 currentMove = sMonSummaryScreen->firstMoveIndex;
     DestroyMoveCursorSprite();
     UpdateMoveSlotPalette();
-    UpdateMoveNamePalette(currentMove);
     ClearWindowTilemap(PSS_LABEL_WINDOW_PROMPT_SWITCH);
     PrintMoveDescription(MOVE_NONE);
     sMonSummaryScreen->mode = SUMMARY_MODE_NORMAL;
@@ -3330,7 +3371,6 @@ static void SwitchToMovePositionSwitchMode(u8 taskId)
     sMonSummaryScreen->secondMoveIndex = sMonSummaryScreen->firstMoveIndex;
     CreateMoveFrameSprite();
     UpdateMoveSlotPalette();
-    UpdateMoveNamePalette(sMonSummaryScreen->firstMoveIndex);
     gTasks[taskId].func = Task_HandleInput_MovePositionSwitch;
 }
 
@@ -3367,7 +3407,6 @@ static void Task_HandleInput_MovePositionSwitch(u8 taskId)
 static void ExitMovePositionSwitchMode(u8 taskId, bool8 swapMoves)
 {
     enum Move move;
-    u8 oldFirstMoveIndex = sMonSummaryScreen->firstMoveIndex;
 
     PlaySE(SE_SELECT);
     DestroyMoveFrameSprite();
@@ -3389,15 +3428,7 @@ static void ExitMovePositionSwitchMode(u8 taskId, bool8 swapMoves)
         SwapMovesTypeSprites(sMonSummaryScreen->firstMoveIndex, sMonSummaryScreen->secondMoveIndex);
         sMonSummaryScreen->firstMoveIndex = sMonSummaryScreen->secondMoveIndex;
     }
-    else
-    {
-        // when press B to cancel move switching
-        UpdateMoveNamePalette(sMonSummaryScreen->secondMoveIndex);
-    }
-
     UpdateMoveSlotPalette();
-    UpdateMoveNamePalette(oldFirstMoveIndex);
-    UpdateMoveNamePalette(sMonSummaryScreen->firstMoveIndex);
 
     move = sMonSummaryScreen->summary.moves[sMonSummaryScreen->firstMoveIndex];
     PrintMoveDescription(move);
@@ -3481,7 +3512,6 @@ static void Task_SetHandleReplaceMoveInput(u8 taskId)
     SetNewMoveTypeIcon();
     CreateMoveCursorSprite();
     UpdateMoveSlotPalette();
-    UpdateMoveNamePalette(sMonSummaryScreen->firstMoveIndex);
     gTasks[taskId].func = Task_HandleReplaceMoveInput;
 }
 
@@ -3793,7 +3823,8 @@ static void PrintTextOnWindow(u8 windowId, const u8 *string, u8 x, u8 y, u8 line
 {
     PrintTextOnWindowWithFont(windowId, string, x, y, lineSpacing, colorId, PSS_DEFAULT_FONT);
 }
-static void PrintTextOnWindowToFitPx_WithFont(u8 windowId, const u8 *string, u8 x, u8 y, u8 lineSpacing, u8 colorId, u32 fontId, u32 width)
+
+static UNUSED void PrintTextOnWindowToFitPx_WithFont(u8 windowId, const u8 *string, u8 x, u8 y, u8 lineSpacing, u8 colorId, u32 fontId, u32 width)
 {
     u32 font = GetFontIdToFit(string, fontId, 0, width);
     PrintTextOnWindowWithFont(windowId, string, x, y, lineSpacing, colorId, font);
@@ -5519,40 +5550,33 @@ static void Task_PrintContestMoves(u8 taskId)
     data[0]++;
 }
 
-static void PrintMoveNameAndPP(u8 moveIndex)
+static void PrintMoveNameAndPP(u8 slotIndex)
 {
-    u8 pp;
-    int ppState; // todo: figure out palettes compatible with dark bg
-    const u8 *text;
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
-    u8 moveNameWindowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
-    bool8 isHighlighted = (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] != SPRITE_NONE
-                           && moveIndex == sMonSummaryScreen->firstMoveIndex);
-    u8 moveNameColorId = isHighlighted ? 3 : 4;
+    u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_SLOT + (slotIndex * MOVE_SLOT_SPRITES_COUNT)];
+    if (spriteIds[0] == SPRITE_NONE)
+        return;
 
-    enum Move move = summary->moves[moveIndex];
+    u8 sp0 = spriteIds[0], sp4 = spriteIds[4];
+    enum Move move = summary->moves[slotIndex];
 
-    if (move != 0)
+    FillSpriteRectColor(sp0, 8, 0, 80, 16, MOVE_SLOT_NAME_FILL_COLOR);
+    if (move != MOVE_NONE)
+        AddSpriteTextPrinterParameterized6(sp0, FONT_SMALL, 12, 0, 0, 0, sMoveSlotNameColor, 0, GetMoveName(move));
+
+    FillSpriteRectColor(sp4, 0, 0, 26, 16, MOVE_SLOT_PP_FILL_COLOR);
+    if (move != MOVE_NONE)
     {
-        PrintTextOnWindowToFitPx_WithFont(moveNameWindowId, GetMoveName(move), 4, moveIndex * 18 + 4, 0, moveNameColorId, FONT_SMALL, 74);
-        pp = CalculatePPWithBonus(move, summary->ppBonuses, moveIndex);
-        ConvertIntToDecimalStringN(gStringVar1, summary->pp[moveIndex], STR_CONV_MODE_RIGHT_ALIGN, 2);
+        u8 pp = CalculatePPWithBonus(move, summary->ppBonuses, slotIndex);
+        u8 ppState = GetCurrentPpToMaxPpState(summary->pp[slotIndex], pp);
+        ConvertIntToDecimalStringN(gStringVar1, summary->pp[slotIndex], STR_CONV_MODE_RIGHT_ALIGN, 2);
         ConvertIntToDecimalStringN(gStringVar2, pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
         DynamicPlaceholderTextUtil_Reset();
         DynamicPlaceholderTextUtil_SetPlaceholderPtr(0, gStringVar1);
         DynamicPlaceholderTextUtil_SetPlaceholderPtr(1, gStringVar2);
         DynamicPlaceholderTextUtil_ExpandPlaceholders(gStringVar4, sMovesPPLayout);
-        text = gStringVar4;
-        ppState = GetCurrentPpToMaxPpState(summary->pp[moveIndex], pp);
+        AddSpriteTextPrinterParameterized6(sp4, FONT_SMALL, 1, 0, 0, 0, sMoveSlotPPColors[ppState], 0, gStringVar4);
     }
-    else
-    {
-        PrintTextOnWindow(moveNameWindowId, gText_EmptyString2, 4, moveIndex * 18 + 4, 0, moveNameColorId);
-        text = gText_EmptyString2;
-        ppState = 3;
-    }
-
-    PrintTextOnWindowWithFont(moveNameWindowId, text, 121, moveIndex * 18 + 4, 0, ppState, FONT_SMALL);
 }
 
 static void PrintMovePowerAndAccuracy(enum Move moveIndex)
@@ -5697,50 +5721,47 @@ static void PrintMoveDescription(enum Move move)
 
 static void PrintNewMoveDetailsOrCancelText(void)
 {
-    u8 windowId1 = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
-    u8 moveIndex = 4;
-    u8 xOffset = 8;
-    bool8 isHighlighted = (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] != SPRITE_NONE
-                           && sMonSummaryScreen->firstMoveIndex == 4);
+    u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_SLOT + (4 * MOVE_SLOT_SPRITES_COUNT)];
+    if (spriteIds[0] == SPRITE_NONE)
+        return;
+
+    u8 sp0 = spriteIds[0], sp4 = spriteIds[4];
+
+    FillSpriteRectColor(sp0, 8, 0, 80, 16, MOVE_SLOT_NAME_FILL_COLOR);
 
     if (sMonSummaryScreen->newMove == MOVE_NONE)
     {
-        u8 cancelColorId = isHighlighted ? 1 : 4;
-        PrintTextOnWindowWithFont(windowId1, sText_Cancel, 4 + xOffset, 4 * 18 + 4, 0, cancelColorId, FONT_SMALL);
+        AddSpriteTextPrinterParameterized6(sp0, FONT_SMALL, 12, 0, 0, 0, sMoveSlotNameColor, 0, sText_Cancel);
     }
     else
     {
         enum Move move = sMonSummaryScreen->newMove;
-        u8 moveNameColorId = isHighlighted ? 3 : 4;
+        AddSpriteTextPrinterParameterized6(sp0, FONT_SMALL, 12, 0, 0, 0, sMoveSlotNameColor, 0, GetMoveName(move));
 
-        if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES)
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4 + xOffset, moveIndex * 18 + 4, 0, moveNameColorId, FONT_SMALL, 74);
-        else
-            PrintTextOnWindowToFitPx_WithFont(windowId1, GetMoveName(move), 4 + xOffset, moveIndex * 18 + 4, 0, moveNameColorId, FONT_SMALL, 74);
-
-        ConvertIntToDecimalStringN(gStringVar1, gMovesInfo[move].pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
+        FillSpriteRectColor(sp4, 0, 0, 24, 16, MOVE_SLOT_PP_FILL_COLOR);
+        u8 maxPP = gMovesInfo[move].pp;
+        ConvertIntToDecimalStringN(gStringVar1, maxPP, STR_CONV_MODE_RIGHT_ALIGN, 2);
         DynamicPlaceholderTextUtil_Reset();
         DynamicPlaceholderTextUtil_SetPlaceholderPtr(0, gStringVar1);
         DynamicPlaceholderTextUtil_SetPlaceholderPtr(1, gStringVar1);
         DynamicPlaceholderTextUtil_ExpandPlaceholders(gStringVar4, sMovesPPLayout);
-        PrintTextOnWindowWithFont(windowId1, gStringVar4, 121 + xOffset, moveIndex * 18 + 4, 0, 3, FONT_SMALL);
+        AddSpriteTextPrinterParameterized6(sp4, FONT_SMALL, 1, 0, 0, 0, sMoveSlotPPColors[3], 0, gStringVar4);
     }
 }
 
 static void ClearCancelText(void)
 {
-    u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
-    FillWindowPixelRect(windowId, PIXEL_FILL(0), 0, 77, 80, 16);
-    CopyWindowToVram(windowId, COPYWIN_GFX);
+    u8 *spriteIds = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_SLOT + (4 * MOVE_SLOT_SPRITES_COUNT)];
+    if (spriteIds[0] == SPRITE_NONE)
+        return;
+
+    u8 sp0 = spriteIds[0], sp4 = spriteIds[4];
+    FillSpriteRectColor(sp0, 8, 0, 80, 12, MOVE_SLOT_NAME_FILL_COLOR);
+    FillSpriteRectColor(sp4, 0, 0, 24, 12, MOVE_SLOT_PP_FILL_COLOR);
 }
 
 static void SwapMovesNamesPP(u8 moveIndex1, u8 moveIndex2)
 {
-    u8 windowId1 = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
-
-    FillWindowPixelRect(windowId1, PIXEL_FILL(0), 4, moveIndex1 * 17 + 4, 144, 16);
-    FillWindowPixelRect(windowId1, PIXEL_FILL(0), 4, moveIndex2 * 17 + 4, 144, 16);
-
     PrintMoveNameAndPP(moveIndex1);
     PrintMoveNameAndPP(moveIndex2);
 }
@@ -5816,7 +5837,7 @@ static void SetContestMoveTypeIcons(void)
         if (summary->moves[i] != MOVE_NONE)
         {
             u8 category = gMovesInfo[summary->moves[i]].contestCategory;
-            SetTypeSpritePosAndPal(NUMBER_OF_MON_TYPES + category, 96, 29 + (i * 18), i + SPRITE_ARR_ID_TYPE);
+            SetTypeSpritePosAndPal(NUMBER_OF_MON_TYPES + category, 94, 29 + (i * 18), i + SPRITE_ARR_ID_TYPE);
             gSprites[sMonSummaryScreen->spriteIds[i + SPRITE_ARR_ID_TYPE]].oam.paletteNum = gContestCategoryInfo[category].palette;
         }
         else
@@ -5970,7 +5991,7 @@ static void SetMoveTypeIcons(void)
         {
             type = GetMoveType(move);
             type = SummaryScreen_GetDynamicMoveType(&sMonSummaryScreen->currentMon, move, type);
-            SetTypeSpritePosAndPal(type, 96, 29 + (i * 18), i + SPRITE_ARR_ID_TYPE);
+            SetTypeSpritePosAndPal(type, 94, 29 + (i * 18), i + SPRITE_ARR_ID_TYPE);
         }
         else
         {
@@ -5993,14 +6014,14 @@ static void SetNewMoveTypeIcon(void)
     else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_CONTEST_MOVES)
     {
         u8 category = gMovesInfo[move].contestCategory;
-        SetTypeSpritePosAndPal(NUMBER_OF_MON_TYPES + category, 96 + 8, 29 + (i * 18), SPRITE_ARR_ID_TYPE + 4);
+        SetTypeSpritePosAndPal(NUMBER_OF_MON_TYPES + category, 94 + 8, 29 + (i * 18), SPRITE_ARR_ID_TYPE + 4);
         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_TYPE + 4]].oam.paletteNum = gContestCategoryInfo[category].palette;
     }
     else
     {
         enum Type type = GetMoveType(move);
         type = SummaryScreen_GetDynamicMoveType(&sMonSummaryScreen->currentMon, move, type);
-        SetTypeSpritePosAndPal(type, 96 + 8, 29 + (i * 18), SPRITE_ARR_ID_TYPE + 4);
+        SetTypeSpritePosAndPal(type, 94 + 8, 29 + (i * 18), SPRITE_ARR_ID_TYPE + 4);
     }
 }
 
@@ -6457,14 +6478,24 @@ static void CreateMoveSlotSprites(void)
 
         for (i = 0; i < MOVE_SLOT_SPRITES_COUNT; i++)
         {
-            s16 x = 26 + (i * 32) + xOffset;
-            spriteId = CreateSprite(&sMoveSlotSpriteTemplate, x, y, 3);
+            s16 x = 24 + (i * 32) + xOffset;
+            spriteId = CreateSprite(&sMoveSlotSpriteTemplates[slot], x, y, 3);
             spriteIds[i] = spriteId;
             StartSpriteAnim(&gSprites[spriteId], sMoveSlotAnims[i]);
+            SetSpriteSheetFrameTileNum(&gSprites[spriteId]);
         }
+        u8 nameIds[3] = { spriteIds[0], spriteIds[1], spriteIds[2] };
+        SetupSpritesForTextPrinting(nameIds, NULL, 3, 1);
+        u8 ppIds[1] = { spriteIds[4] };
+        SetupSpritesForTextPrinting(ppIds, NULL, 1, 1);
     }
     UpdateMoveSlotVisibility();
     UpdateMoveSlotPalette();
+
+    for (slot = 0; slot < MAX_MON_MOVES; slot++)
+        PrintMoveNameAndPP(slot);
+    if (sMonSummaryScreen->mode == SUMMARY_MODE_SELECT_MOVE)
+        PrintNewMoveDetailsOrCancelText();
 }
 
 static void DestroyMoveSlotSprites(void)
@@ -6496,8 +6527,8 @@ static void UpdateMoveSlotVisibility(void)
 static void UpdateMoveSlotPalette(void)
 {
     u8 slot, i;
-    u8 normalPalSlot = IndexOfSpritePaletteTag(TAG_GENDER_ICON);
-    u8 hoverPalSlot = IndexOfSpritePaletteTag(TAG_DYNAMAX_LEVELS);
+    u8 mainPalSlot = IndexOfSpritePaletteTag(TAG_MOVE_SLOT_MAIN);
+    u8 focusPalSlot = IndexOfSpritePaletteTag(TAG_MOVE_SLOT_FOCUS);
     bool8 cursorActive = (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] != SPRITE_NONE);
     bool8 frameActive = (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_FRAME] != SPRITE_NONE);
 
@@ -6507,50 +6538,13 @@ static void UpdateMoveSlotPalette(void)
         bool8 isHighlighted = frameActive
             ? (slot == sMonSummaryScreen->secondMoveIndex)
             : (cursorActive && slot == sMonSummaryScreen->firstMoveIndex);
-        u8 paletteNum = isHighlighted ? hoverPalSlot : normalPalSlot;
+        u8 paletteNum = isHighlighted ? focusPalSlot : mainPalSlot;
 
         for (i = 0; i < MOVE_SLOT_SPRITES_COUNT; i++)
         {
             if (spriteIds[i] != MAX_SPRITES)
                 gSprites[spriteIds[i]].oam.paletteNum = paletteNum;
         }
-    }
-}
-
-static void UpdateMoveNamePalette(u8 moveIndex)
-{
-    struct PokeSummary *summary = &sMonSummaryScreen->summary;
-    u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_NAMES_PP);
-    bool8 cursorActive = (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] != SPRITE_NONE);
-    bool8 frameActive = (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_FRAME] != SPRITE_NONE);
-    bool8 isHighlighted = frameActive
-        ? (moveIndex == sMonSummaryScreen->secondMoveIndex)
-        : (cursorActive && moveIndex == sMonSummaryScreen->firstMoveIndex);
-    s16 xPos = (moveIndex == 4) ? 4 + 8 : 4;
-    FillWindowPixelRect(windowId, PIXEL_FILL(0), xPos, moveIndex * 18 + 4, 80, 16);
-
-    if (moveIndex == 4)
-    {
-        if (sMonSummaryScreen->newMove == MOVE_NONE)
-        {
-            u8 cancelColorId = isHighlighted ? 1 : 4;
-            PrintTextOnWindowWithFont(windowId, sText_Cancel, xPos, moveIndex * 18 + 4, 0, cancelColorId, FONT_SMALL);
-        }
-        else
-        {
-            u8 moveNameColorId = isHighlighted ? 3 : 4;
-            PrintTextOnWindowToFitPx_WithFont(windowId, GetMoveName(sMonSummaryScreen->newMove), xPos, moveIndex * 18 + 4, 0, moveNameColorId, FONT_SMALL, 74);
-        }
-    }
-    else
-    {
-        u8 moveNameColorId = isHighlighted ? 3 : 4;
-        enum Move move = summary->moves[moveIndex];
-
-        if (move != 0)
-            PrintTextOnWindowToFitPx_WithFont(windowId, GetMoveName(move), 4, moveIndex * 18 + 4, 0, moveNameColorId, FONT_SMALL, 74);
-        else
-            PrintTextOnWindow(windowId, gText_EmptyString2, 4, moveIndex * 18 + 4, 0, moveNameColorId);
     }
 }
 
