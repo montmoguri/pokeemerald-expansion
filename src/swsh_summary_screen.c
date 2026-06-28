@@ -765,7 +765,7 @@ static const struct WindowTemplate sPageSkillsTemplate[] =
         .tilemapLeft = 1,
         .tilemapTop = SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL ? 13 : 11,
         .width = 18,
-        .height = 7,
+        .height = 5,
         .paletteNum = 2,
         .baseBlock = 277,
     },
@@ -2287,8 +2287,7 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 18:
-        if (SWSH_SUMMARY_SHOW_FRIENDSHIP)
-            LoadSpritePalette(&sSpritePal_GenderIcons);
+        LoadSpritePalette(&sSpritePal_GenderIcons);
         sMonSummaryScreen->switchCounter++;
         break;
     case 19:
