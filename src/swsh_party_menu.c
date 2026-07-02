@@ -164,7 +164,7 @@ enum {
 #define PARTY_PAL_FAINTED      (1 << 1) // unused in swsh party menu
 #define PARTY_PAL_TO_SWITCH    (1 << 2)
 #define PARTY_PAL_MULTI_ALT    (1 << 3)
-#define PARTY_PAL_SWITCHING    (1 << 4)
+#define PARTY_PAL_SWITCHING    (1 << 4) // unused in swsh party menu
 #define PARTY_PAL_TO_SOFTBOIL  (1 << 5)
 #define PARTY_PAL_NO_MON       (1 << 6)
 #define PARTY_PAL_UNUSED       (1 << 7)
@@ -259,8 +259,7 @@ static EWRAM_DATA u8 *sPartyBg3TilemapBuffer = NULL;
 EWRAM_DATA bool8 gPartyMenuUseExitCallback = 0;
 EWRAM_DATA u8 gSelectedMonPartyId = 0;
 EWRAM_DATA MainCallback gPostMenuFieldCallback = NULL;
-static EWRAM_DATA u16 *sSlot1TilemapBuffer = 0; // for switching party slots
-static EWRAM_DATA u16 *sSlot2TilemapBuffer = 0; //
+static EWRAM_DATA u16 *sSlot1TilemapBuffer = 0; // held party slot's art while lifted, for the lift-and-drag switch
 static EWRAM_DATA u16 *sAllSlotsTilemapBuffers[PARTY_SIZE]; // party-view slide animation (multi-battle)
 static EWRAM_DATA u16 *sMoveAbilityWindowBuffer;            // buffer for move/ability slide out (multi-battle)
 static EWRAM_DATA bool8 sSlideInPending;                    // slide-in after ReloadPartyMenu
@@ -396,7 +395,6 @@ static void Task_ClosePartyMenuAfterText(u8);
 static void TryTutorSelectedMon(u8);
 static void TryGiveMailToSelectedMon(u8);
 static void TryGiveItemOrMailToSelectedMon(u8);
-static void SwitchSelectedMons(u8);
 static void TryEnterMonForMinigame(u8, u8);
 static void Task_TryCreateSelectionWindow(u8);
 static inline u8 GetButtonPromptType(void);
@@ -430,10 +428,14 @@ static void Task_UpdateHeldItemSprite(u8);
 static void Task_HandleSelectionMenuInput(u8);
 static void CB2_ShowPokemonSummaryScreen(void);
 static void UpdatePartyToBattleOrder(void);
-static void SlidePartyMenuBoxOneStep(u8);
-static void Task_SlideSelectedSlotsOffscreen(u8);
-static void SwitchPartyMon(void);
-static void Task_SlideSelectedSlotsOnscreen(u8);
+static void SetPartySlotSpriteLifted(struct PartyMenuBox *, bool8);
+static void Task_HandleInput_PartySlotHeld(u8);
+static void UpdatePartySlotHoverHighlight(s8, s8);
+static void SnapPartySlotHover(s8);
+static void BeginPartySlotHoverStep(u8, s8);
+static void Task_SlidePartySlotHover(u8);
+static void FinishPartySlotDrop(u8, bool8);
+static void MovePartyMenuBoxSpritesVertical(struct PartyMenuBox *, s16);
 static void Task_SlideMultiBattlePartyView(u8);
 static void CB2_SelectBagItemToGive(void);
 static void CB2_GiveHoldItem(void);
@@ -1830,10 +1832,7 @@ static u8 GetPartyBoxPaletteFlags(u8 slot, u8 animNum)
         palFlags |= PARTY_PAL_SELECTED;
     if (PartyBoxPal_ParnterOrDisqualifiedInArena(slot) == TRUE)
         palFlags |= PARTY_PAL_MULTI_ALT;
-    if (gPartyMenu.action == PARTY_ACTION_SWITCHING)
-        palFlags |= PARTY_PAL_SWITCHING;
-    if (gPartyMenu.action == PARTY_ACTION_SWITCH
-        || gPartyMenu.action == PARTY_ACTION_MOVE_ITEM
+    if (gPartyMenu.action == PARTY_ACTION_MOVE_ITEM
         || gPartyMenu.action == PARTY_ACTION_FUSION)
     {
         if (slot == gPartyMenu.slotId)
@@ -1965,11 +1964,6 @@ void Task_HandleChooseMonInput(u8 taskId)
             struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][gPartyMenu.slotId];
             u8 actionsType = GetPartyMenuActionsType(mon);
 
-            if (gPartyMenu.action == PARTY_ACTION_SWITCH)
-            {
-                HandleChooseMonSelection(taskId, slotPtr);
-                break;
-            }
             if (actionsType == ACTIONS_SWITCH
                 || (actionsType == ACTIONS_NONE
                     && !InBattlePike()
@@ -2114,10 +2108,6 @@ static void HandleChooseMonSelection(u8 taskId, s8 *slotPtr)
                 TryGiveItemOrMailToSelectedMon(taskId);
             }
             break;
-        case PARTY_ACTION_SWITCH:
-            PlaySE(SE_SELECT);
-            SwitchSelectedMons(taskId);
-            break;
         case PARTY_ACTION_CHOOSE_AND_CLOSE:
             PlaySE(SE_SELECT);
             Task_ClosePartyMenu(taskId);
@@ -2177,7 +2167,6 @@ static void HandleChooseMonSelection(u8 taskId, s8 *slotPtr)
         }
         default:
         case PARTY_ACTION_ABILITY_PREVENTS:
-        case PARTY_ACTION_SWITCHING:
             PlaySE(SE_SELECT);
             Task_TryCreateSelectionWindow(taskId);
             break;
@@ -2216,7 +2205,6 @@ static void HandleChooseMonCancel(u8 taskId, s8 *slotPtr)
     case PARTY_ACTION_CHOOSE_FAINTED_MON:
         PlaySE(SE_FAILURE);
         break;
-    case PARTY_ACTION_SWITCH:
     case PARTY_ACTION_SOFTBOILED:
     case PARTY_ACTION_MOVE_ITEM:
     case PARTY_ACTION_FUSION:
@@ -3197,7 +3185,7 @@ static void LoadPartyBoxPalette(struct PartyMenuBox *menuBox, u8 palFlags)
     {
         LoadPalette(GetPartyMenuPalBufferPtr(sPartyBoxNoMonPalId), sPartyBoxPalOffset1 + palOffset, PLTT_SIZEOF(1));
     }
-    else if (palFlags & (PARTY_PAL_TO_SOFTBOIL | PARTY_PAL_SWITCHING | PARTY_PAL_TO_SWITCH))
+    else if (palFlags & (PARTY_PAL_TO_SOFTBOIL | PARTY_PAL_TO_SWITCH))
     {
         LoadPalette(GetPartyMenuPalBufferPtr(sPartyBoxSelectedForActionPalId1), sPartyBoxPalOffset1 + palOffset, PLTT_SIZEOF(1));
         LOAD_PARTY_TEXT_PAL(sPartyBoxSelectedForActionPalIds3, sPartyBoxPalOffsets3);
@@ -3935,76 +3923,219 @@ void CB2_ReturnToPartyMenuFromSummaryScreen(void)
     InitPartyMenu(gPartyMenu.menuType, KEEP_PARTY_LAYOUT, gPartyMenu.action, TRUE, PARTY_MSG_DO_WHAT_WITH_MON, Task_TryCreateSelectionWindow, gPartyMenu.exitCallback);
 }
 
+#define BG_PARTY_SLOTS 1
+#define BG_PARTY_HELD  0
+
+static void SetPartySlotSpriteLifted(struct PartyMenuBox *menuBox, bool8 lifted)
+{
+    u8 spriteIds[3] = { menuBox->monSpriteId, menuBox->itemSpriteId, menuBox->statusSpriteId };
+    u32 i;
+
+    for (i = 0; i < ARRAY_COUNT(spriteIds); i++)
+    {
+        if (lifted)
+        {
+            gSprites[spriteIds[i]].oam.priority = 0;
+            gSprites[spriteIds[i]].x2 += 8;
+            gSprites[spriteIds[i]].y2 -= 8;
+        }
+        else
+        {
+            gSprites[spriteIds[i]].oam.priority = 1;
+            gSprites[spriteIds[i]].x = menuBox->spriteCoords[i * 2];
+            gSprites[spriteIds[i]].y = menuBox->spriteCoords[i * 2 + 1];
+            gSprites[spriteIds[i]].x2 = 0;
+            gSprites[spriteIds[i]].y2 = 0;
+        }
+    }
+}
+
 static void CursorCb_Switch(u8 taskId)
 {
+    u8 windowId, left, top, width, height;
+
     // Reset follower steps when the party leader is changed
-    if (gPartyMenu.slotId == 0 || gPartyMenu.slotId2 == 0)
+    if (gPartyMenu.slotId == 0)
         gFollowerSteps = 0;
     PlaySE(SE_SELECT);
     gPartyMenu.action = PARTY_ACTION_SWITCH;
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[0]);
-    AnimatePartySlot(gPartyMenu.slotId, 1);
-    gPartyMenu.slotId2 = gPartyMenu.slotId;
-    CreateSelectFrame(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
-    gTasks[taskId].func = Task_HandleChooseMonInput;
-}
-
-#define tSlot1Left     data[0]
-#define tSlot1Top      data[1]
-#define tSlot1Width    data[2]
-#define tSlot1Height   data[3]
-#define tSlot2Left     data[4]
-#define tSlot2Top      data[5]
-#define tSlot2Width    data[6]
-#define tSlot2Height   data[7]
-#define tSlot1Offset   data[8]
-#define tSlot2Offset   data[9]
-#define tSlot1SlideDir data[10]
-#define tSlot2SlideDir data[11]
-
-static void SwitchSelectedMons(u8 taskId)
-{
-    s16 *data = gTasks[taskId].data;
-    u8 windowIds[2];
-
-    DestroySelectFrame();
     DestroyHoverSprite();
     DestroyMonSprite();
+    gPartyMenu.slotId2 = gPartyMenu.slotId; // slotId2 tracks the current hover row
+    AnimatePartySlot(gPartyMenu.slotId, 0);
+    gSprites[sPartyMenuBoxes[gPartyMenu.slotId].monSpriteId].x2 = 0;
+    gSprites[sPartyMenuBoxes[gPartyMenu.slotId].monSpriteId].y2 = 0;
 
-    if (gPartyMenu.slotId2 == gPartyMenu.slotId)
+    windowId = sPartyMenuBoxes[gPartyMenu.slotId].windowId;
+    left = GetWindowAttribute(windowId, WINDOW_TILEMAP_LEFT);
+    top = GetWindowAttribute(windowId, WINDOW_TILEMAP_TOP);
+    width = GetWindowAttribute(windowId, WINDOW_WIDTH);
+    height = GetWindowAttribute(windowId, WINDOW_HEIGHT);
+
+    sSlot1TilemapBuffer = Alloc(width * (height << 1));
+    CopyToBufferFromBgTilemap(BG_PARTY_SLOTS, sSlot1TilemapBuffer, left, top, width, height);
+    ClearWindowTilemap(windowId);
+    CopyRectToBgTilemapBufferRect(BG_PARTY_HELD, sSlot1TilemapBuffer, 0, 0, width, height, left + 1, top - 1, width, height, 17, 0, 0);
+    ScheduleBgCopyTilemapToVram(BG_PARTY_HELD);
+    ScheduleBgCopyTilemapToVram(BG_PARTY_SLOTS);
+    SetPartySlotSpriteLifted(&sPartyMenuBoxes[gPartyMenu.slotId], TRUE);
+
+    gTasks[taskId].func = Task_HandleInput_PartySlotHeld;
+}
+
+#define tHeldTop    data[0]
+#define tHeldOffset data[1]
+#define tDir        data[2]
+
+static void Task_HandleInput_PartySlotHeld(u8 taskId)
+{
+    if (gPaletteFade.active || MenuHelpers_ShouldWaitForLinkRecv() == TRUE)
+        return;
+
+    switch (gMain.newAndRepeatedKeys)
     {
-        FinishTwoMonAction(taskId);
+    case DPAD_UP:
+        if (gPartyMenu.slotId2 > 0)
+            BeginPartySlotHoverStep(taskId, gPartyMenu.slotId2 - 1);
+        else
+            SnapPartySlotHover(gPartiesCount[B_TRAINER_PLAYER] - 1);
+        return;
+    case DPAD_DOWN:
+        if (gPartyMenu.slotId2 < gPartiesCount[B_TRAINER_PLAYER] - 1)
+            BeginPartySlotHoverStep(taskId, gPartyMenu.slotId2 + 1);
+        else
+            SnapPartySlotHover(0);
+        return;
+    }
+
+    if (JOY_NEW(A_BUTTON) || JOY_NEW(L_BUTTON))
+    {
+        PlaySE(SE_SELECT);
+        FinishPartySlotDrop(taskId, TRUE);
+    }
+    else if (JOY_NEW(B_BUTTON))
+    {
+        PlaySE(SE_SELECT);
+        FinishPartySlotDrop(taskId, FALSE);
+    }
+}
+
+static void UpdatePartySlotHoverHighlight(s8 oldHover, s8 newHover)
+{
+    if (oldHover != gPartyMenu.slotId)
+        AnimatePartySlot(oldHover, 0);
+    if (newHover != gPartyMenu.slotId)
+        AnimatePartySlot(newHover, 1);
+}
+
+static void SnapPartySlotHover(s8 newHover)
+{
+    struct PartyMenuBox *originBox = &sPartyMenuBoxes[gPartyMenu.slotId];
+    u8 fromWindowId = sPartyMenuBoxes[gPartyMenu.slotId2].windowId;
+    u8 toWindowId = sPartyMenuBoxes[newHover].windowId;
+    u8 left = GetWindowAttribute(toWindowId, WINDOW_TILEMAP_LEFT);
+    u8 fromTop = GetWindowAttribute(fromWindowId, WINDOW_TILEMAP_TOP);
+    u8 toTop = GetWindowAttribute(toWindowId, WINDOW_TILEMAP_TOP);
+    u8 width = GetWindowAttribute(toWindowId, WINDOW_WIDTH);
+    u8 height = GetWindowAttribute(toWindowId, WINDOW_HEIGHT);
+
+    FillBgTilemapBufferRect_Palette0(BG_PARTY_HELD, 0, left + 1, fromTop - 1, width, height);
+    CopyRectToBgTilemapBufferRect(BG_PARTY_HELD, sSlot1TilemapBuffer, 0, 0, width, height, left + 1, toTop - 1, width, height, 17, 0, 0);
+    ScheduleBgCopyTilemapToVram(BG_PARTY_HELD);
+    MovePartyMenuBoxSpritesVertical(originBox, (s16)(toTop - fromTop) * 8);
+
+    UpdatePartySlotHoverHighlight(gPartyMenu.slotId2, newHover);
+    gPartyMenu.slotId2 = newHover;
+}
+
+static void BeginPartySlotHoverStep(u8 taskId, s8 newHover)
+{
+    s16 *data = gTasks[taskId].data;
+    u8 fromWindowId = sPartyMenuBoxes[gPartyMenu.slotId2].windowId;
+    tHeldTop = GetWindowAttribute(fromWindowId, WINDOW_TILEMAP_TOP);
+    tHeldOffset = 0;
+    tDir = (newHover > gPartyMenu.slotId2) ? 1 : -1;
+
+    UpdatePartySlotHoverHighlight(gPartyMenu.slotId2, newHover);
+    gPartyMenu.slotId2 = newHover;
+    gTasks[taskId].func = Task_SlidePartySlotHover;
+}
+
+static void Task_SlidePartySlotHover(u8 taskId)
+{
+    s16 *data = gTasks[taskId].data;
+    u8 windowId = sPartyMenuBoxes[gPartyMenu.slotId].windowId;
+    u8 left = GetWindowAttribute(windowId, WINDOW_TILEMAP_LEFT);
+    u8 width = GetWindowAttribute(windowId, WINDOW_WIDTH);
+    u8 height = GetWindowAttribute(windowId, WINDOW_HEIGHT);
+
+    FillBgTilemapBufferRect_Palette0(BG_PARTY_HELD, 0, left + 1, tHeldTop - 1 + tHeldOffset, width, height);
+    CopyRectToBgTilemapBufferRect(BG_PARTY_HELD, sSlot1TilemapBuffer, 0, 0, width, height, left + 1, tHeldTop - 1 + tHeldOffset + tDir, width, height, 17, 0, 0);
+    MovePartyMenuBoxSpritesVertical(&sPartyMenuBoxes[gPartyMenu.slotId], tDir * 8);
+    ScheduleBgCopyTilemapToVram(BG_PARTY_HELD);
+
+    tHeldOffset += tDir;
+    if (tHeldOffset == tDir * (s16)height)
+        gTasks[taskId].func = Task_HandleInput_PartySlotHeld;
+}
+
+#undef tHeldTop
+#undef tHeldOffset
+#undef tDir
+
+// Lands the held mon's art back onto BG1 and releases BG0. If confirming on a
+// different slot than the one the drag started on, the mon currently hovered over
+// goes back to the origin slot and the held mon settles into the hovered slot.
+static void FinishPartySlotDrop(u8 taskId, bool8 confirm)
+{
+    struct PartyMenuBox *heldBox = &sPartyMenuBoxes[gPartyMenu.slotId];
+    // The BG0 copy currently sits wherever the hover cursor (slotId2) last landed,
+    // not at the origin slot - clear it from there, not from the origin's row.
+    u8 hoverWindowId = sPartyMenuBoxes[gPartyMenu.slotId2].windowId;
+    u8 left = GetWindowAttribute(hoverWindowId, WINDOW_TILEMAP_LEFT);
+    u8 top = GetWindowAttribute(hoverWindowId, WINDOW_TILEMAP_TOP);
+    u8 width = GetWindowAttribute(hoverWindowId, WINDOW_WIDTH);
+    u8 height = GetWindowAttribute(hoverWindowId, WINDOW_HEIGHT);
+
+    FillBgTilemapBufferRect_Palette0(BG_PARTY_HELD, 0, left + 1, top - 1, width, height);
+    ScheduleBgCopyTilemapToVram(BG_PARTY_HELD);
+    Free(sSlot1TilemapBuffer);
+
+    if (confirm && gPartyMenu.slotId2 != gPartyMenu.slotId)
+    {
+        u8 origin = gPartyMenu.slotId;
+        u8 hover = gPartyMenu.slotId2;
+        struct PartyMenuBox *originBox = &sPartyMenuBoxes[origin];
+        struct PartyMenuBox *hoverBox = &sPartyMenuBoxes[hover];
+        u8 tmp;
+
+        SwapPartyPokemon(&gParties[B_TRAINER_PLAYER][origin], &gParties[B_TRAINER_PLAYER][hover]);
+        SWAP(originBox->monSpriteId, hoverBox->monSpriteId, tmp);
+        SWAP(originBox->itemSpriteId, hoverBox->itemSpriteId, tmp);
+        SWAP(originBox->statusSpriteId, hoverBox->statusSpriteId, tmp);
+
+        SetPartySlotSpriteLifted(originBox, FALSE);
+        SetPartySlotSpriteLifted(hoverBox, FALSE);
+        DisplayPartyPokemonData(origin);
+        DisplayPartyPokemonData(hover);
+        PutWindowTilemap(originBox->windowId);
+        PutWindowTilemap(hoverBox->windowId);
+        AnimatePartySlot(origin, 0);
+        gPartyMenu.slotId = hover;
     }
     else
     {
-        // Initialize switching party mons slide animation
-        windowIds[0] = sPartyMenuBoxes[gPartyMenu.slotId].windowId;
-        tSlot1Left = GetWindowAttribute(windowIds[0], WINDOW_TILEMAP_LEFT);
-        tSlot1Top = GetWindowAttribute(windowIds[0], WINDOW_TILEMAP_TOP);
-        tSlot1Width = GetWindowAttribute(windowIds[0], WINDOW_WIDTH);
-        tSlot1Height = GetWindowAttribute(windowIds[0], WINDOW_HEIGHT);
-        tSlot1Offset = 0;
-        tSlot1SlideDir = -1;
-        windowIds[1] = sPartyMenuBoxes[gPartyMenu.slotId2].windowId;
-        tSlot2Left = GetWindowAttribute(windowIds[1], WINDOW_TILEMAP_LEFT);
-        tSlot2Top = GetWindowAttribute(windowIds[1], WINDOW_TILEMAP_TOP);
-        tSlot2Width = GetWindowAttribute(windowIds[1], WINDOW_WIDTH);
-        tSlot2Height = GetWindowAttribute(windowIds[1], WINDOW_HEIGHT);
-        tSlot2Offset = 0;
-        tSlot2SlideDir = -1;
-        sSlot1TilemapBuffer = Alloc(tSlot1Width * (tSlot1Height << 1));
-        sSlot2TilemapBuffer = Alloc(tSlot2Width * (tSlot2Height << 1));
-        CopyToBufferFromBgTilemap(1, sSlot1TilemapBuffer, tSlot1Left, tSlot1Top, tSlot1Width, tSlot1Height);
-        CopyToBufferFromBgTilemap(1, sSlot2TilemapBuffer, tSlot2Left, tSlot2Top, tSlot2Width, tSlot2Height);
-        ClearWindowTilemap(windowIds[0]);
-        ClearWindowTilemap(windowIds[1]);
-        gPartyMenu.action = PARTY_ACTION_SWITCHING;
-        AnimatePartySlot(gPartyMenu.slotId, 1);
-        AnimatePartySlot(gPartyMenu.slotId2, 1);
-        SlidePartyMenuBoxOneStep(taskId);
-        gTasks[taskId].func = Task_SlideSelectedSlotsOffscreen;
+        UpdatePartySlotHoverHighlight(gPartyMenu.slotId2, gPartyMenu.slotId);
+        gPartyMenu.slotId2 = gPartyMenu.slotId;
+        SetPartySlotSpriteLifted(heldBox, FALSE);
+        DisplayPartyPokemonData(gPartyMenu.slotId);
+        PutWindowTilemap(heldBox->windowId);
     }
+
+    ScheduleBgCopyTilemapToVram(BG_PARTY_SLOTS);
+    FinishTwoMonAction(taskId);
 }
 
 // returns FALSE if the slot has slid fully offscreen / back onscreen
@@ -4046,91 +4177,11 @@ static void MoveAndBufferPartySlot(const void *rectSrc, s16 x, s16 y, s16 width,
     }
 }
 
-static void MovePartyMenuBoxSprites(struct PartyMenuBox *menuBox, s16 offset)
+static void MovePartyMenuBoxSpritesVertical(struct PartyMenuBox *menuBox, s16 offset)
 {
-    gSprites[menuBox->itemSpriteId].x2 += offset * 8;
-    gSprites[menuBox->monSpriteId].x2 += offset * 8;
-    gSprites[menuBox->statusSpriteId].x2 += offset * 8;
-}
-
-static void SlidePartyMenuBoxSpritesOneStep(u8 taskId)
-{
-    s16 *data = gTasks[taskId].data;
-
-    if (tSlot1SlideDir != 0)
-        MovePartyMenuBoxSprites(&sPartyMenuBoxes[gPartyMenu.slotId], tSlot1SlideDir);
-    if (tSlot2SlideDir != 0)
-        MovePartyMenuBoxSprites(&sPartyMenuBoxes[gPartyMenu.slotId2], tSlot2SlideDir);
-}
-
-static void SlidePartyMenuBoxOneStep(u8 taskId)
-{
-    s16 *data = gTasks[taskId].data;
-
-    if (tSlot1SlideDir != 0)
-        MoveAndBufferPartySlot(sSlot1TilemapBuffer, tSlot1Left + tSlot1Offset, tSlot1Top, tSlot1Width, tSlot1Height, tSlot1SlideDir);
-    if (tSlot2SlideDir != 0)
-        MoveAndBufferPartySlot(sSlot2TilemapBuffer, tSlot2Left + tSlot2Offset, tSlot2Top, tSlot2Width, tSlot2Height, tSlot2SlideDir);
-    ScheduleBgCopyTilemapToVram(1);
-}
-
-static void Task_SlideSelectedSlotsOffscreen(u8 taskId)
-{
-    s16 *data = gTasks[taskId].data;
-    s16 slidingSlotPositions[2];
-
-    SlidePartyMenuBoxOneStep(taskId);
-    SlidePartyMenuBoxSpritesOneStep(taskId);
-    tSlot1Offset += tSlot1SlideDir;
-    tSlot2Offset += tSlot2SlideDir;
-    slidingSlotPositions[0] = tSlot1Left + tSlot1Offset;
-    slidingSlotPositions[1] = tSlot2Left + tSlot2Offset;
-
-    // Both slots have slid offscreen
-    if (slidingSlotPositions[0] + tSlot1Width < 0 && slidingSlotPositions[1] + tSlot2Width < 0)
-    {
-        tSlot1SlideDir *= -1;
-        tSlot2SlideDir *= -1;
-        SwitchPartyMon();
-        DisplayPartyPokemonData(gPartyMenu.slotId);
-        DisplayPartyPokemonData(gPartyMenu.slotId2);
-        PutWindowTilemap(sPartyMenuBoxes[gPartyMenu.slotId].windowId);
-        PutWindowTilemap(sPartyMenuBoxes[gPartyMenu.slotId2].windowId);
-        CopyToBufferFromBgTilemap(1, sSlot1TilemapBuffer, tSlot1Left, tSlot1Top, tSlot1Width, tSlot1Height);
-        CopyToBufferFromBgTilemap(1, sSlot2TilemapBuffer, tSlot2Left, tSlot2Top, tSlot2Width, tSlot2Height);
-        ClearWindowTilemap(sPartyMenuBoxes[gPartyMenu.slotId].windowId);
-        ClearWindowTilemap(sPartyMenuBoxes[gPartyMenu.slotId2].windowId);
-        gTasks[taskId].func = Task_SlideSelectedSlotsOnscreen;
-    }
-}
-
-static void Task_SlideSelectedSlotsOnscreen(u8 taskId)
-{
-    s16 *data = gTasks[taskId].data;
-
-    SlidePartyMenuBoxOneStep(taskId);
-    SlidePartyMenuBoxSpritesOneStep(taskId);
-
-    // Both slots have slid back onscreen
-    if (tSlot1SlideDir == 0 && tSlot2SlideDir == 0)
-    {
-        PutWindowTilemap(sPartyMenuBoxes[gPartyMenu.slotId].windowId);
-        PutWindowTilemap(sPartyMenuBoxes[gPartyMenu.slotId2].windowId);
-        ScheduleBgCopyTilemapToVram(1);
-        Free(sSlot1TilemapBuffer);
-        Free(sSlot2TilemapBuffer);
-        FinishTwoMonAction(taskId);
-    }
-    // Continue sliding
-    else
-    {
-        tSlot1Offset += tSlot1SlideDir;
-        tSlot2Offset += tSlot2SlideDir;
-        if (tSlot1Offset == 0)
-            tSlot1SlideDir = 0;
-        if (tSlot2Offset == 0)
-            tSlot2SlideDir = 0;
-    }
+    gSprites[menuBox->itemSpriteId].y2 += offset;
+    gSprites[menuBox->monSpriteId].y2 += offset;
+    gSprites[menuBox->statusSpriteId].y2 += offset;
 }
 
 #define PARTY_SLIDE_SPEED 1  // tiles per frame
@@ -4318,47 +4369,6 @@ static void Task_SlideMultiBattlePartyView(u8 taskId)
     }
 }
 
-static void SwitchMenuBoxSprites(u8 *spriteIdPtr1, u8 *spriteIdPtr2)
-{
-    u8 spriteIdBuffer = *spriteIdPtr1;
-    u16 xBuffer1, yBuffer1, xBuffer2, yBuffer2;
-
-    *spriteIdPtr1 = *spriteIdPtr2;
-    *spriteIdPtr2 = spriteIdBuffer;
-    xBuffer1 = gSprites[*spriteIdPtr1].x;
-    yBuffer1 = gSprites[*spriteIdPtr1].y;
-    xBuffer2 = gSprites[*spriteIdPtr1].x2;
-    yBuffer2 = gSprites[*spriteIdPtr1].y2;
-    gSprites[*spriteIdPtr1].x = gSprites[*spriteIdPtr2].x;
-    gSprites[*spriteIdPtr1].y = gSprites[*spriteIdPtr2].y;
-    gSprites[*spriteIdPtr1].x2 = gSprites[*spriteIdPtr2].x2;
-    gSprites[*spriteIdPtr1].y2 = gSprites[*spriteIdPtr2].y2;
-    gSprites[*spriteIdPtr2].x = xBuffer1;
-    gSprites[*spriteIdPtr2].y = yBuffer1;
-    gSprites[*spriteIdPtr2].x2 = xBuffer2;
-    gSprites[*spriteIdPtr2].y2 = yBuffer2;
-}
-
-static void SwitchPartyMon(void)
-{
-    struct PartyMenuBox *menuBoxes[2];
-    struct Pokemon *mon1, *mon2;
-    struct Pokemon *monBuffer;
-
-    menuBoxes[0] = &sPartyMenuBoxes[gPartyMenu.slotId];
-    menuBoxes[1] = &sPartyMenuBoxes[gPartyMenu.slotId2];
-    mon1 = &gParties[B_TRAINER_PLAYER][gPartyMenu.slotId];
-    mon2 = &gParties[B_TRAINER_PLAYER][gPartyMenu.slotId2];
-    monBuffer = Alloc(sizeof(struct Pokemon));
-    *monBuffer = *mon1;
-    *mon1 = *mon2;
-    *mon2 = *monBuffer;
-    Free(monBuffer);
-    SwitchMenuBoxSprites(&menuBoxes[0]->itemSpriteId, &menuBoxes[1]->itemSpriteId);
-    SwitchMenuBoxSprites(&menuBoxes[0]->monSpriteId, &menuBoxes[1]->monSpriteId);
-    SwitchMenuBoxSprites(&menuBoxes[0]->statusSpriteId, &menuBoxes[1]->statusSpriteId);
-}
-
 // Finish switching mons or using Softboiled
 static void FinishTwoMonAction(u8 taskId)
 {
@@ -4401,19 +4411,6 @@ static void FinishTwoMonAction(u8 taskId)
 
     gTasks[taskId].func = Task_HandleChooseMonInput;
 }
-
-#undef tSlot1Left
-#undef tSlot1Top
-#undef tSlot1Width
-#undef tSlot1Height
-#undef tSlot2Left
-#undef tSlot2Top
-#undef tSlot2Width
-#undef tSlot2Height
-#undef tSlot1Offset
-#undef tSlot2Offset
-#undef tSlot1SlideDir
-#undef tSlot2SlideDir
 
 static void CursorCb_Cancel1(u8 taskId)
 {
