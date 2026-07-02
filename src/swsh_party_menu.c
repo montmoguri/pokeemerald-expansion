@@ -986,6 +986,7 @@ static bool8 ReloadPartyMenu(void)
         sMonSpriteId = MAX_SPRITES;
         sMonShadowSpriteId = MAX_SPRITES;
         sCursorSpriteId = MAX_SPRITES;
+        sItemIconSpriteId = MAX_SPRITES;
         for (i = 0; i < MAX_MON_MOVES; i++)
             sMoveSlots[i].typeSpriteId = MAX_SPRITES;
         gMain.state++;
