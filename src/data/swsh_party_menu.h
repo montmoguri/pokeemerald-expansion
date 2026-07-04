@@ -101,84 +101,71 @@ static const struct PartyMenuBoxInfoRects sPartyBoxInfoRects[] =
 };
 
 
-// Each layout array has an array for each of the 6 party slots
-// The array for each slot has the sprite coords of its various sprites in the following order
-// Pokémon icon (x, y), held item (x, y), status condition (x, y), menu Poké Ball (x, y)
-static const u8 sPartyMenuSpriteCoords[PARTY_LAYOUT_COUNT][PARTY_SIZE][4 * 2] =
+// Geometry of a party slot. Every layout is a single column with a fixed vertical
+// stride, so slot s sits at y = PARTY_SLOT_TOP + PARTY_SLOT_STRIDE * s. Within a slot the
+// held-item and status sprites sit at constant offsets from the mon icon, so a slot is
+// fully described by its icon's x and the slot index. Only the icon's x varies between
+// layouts: a couple of slots shift one tile left in double/multi battles to clear the
+// enemy/partner mons. (Vanilla's 4th "menu Poké Ball" column is unused in SwSh; dropped.)
+#define PARTY_SLOT_TOP          18
+#define PARTY_SLOT_STRIDE       24
+#define PARTY_ITEM_OFFSET_X      6
+#define PARTY_ITEM_OFFSET_Y     10
+#define PARTY_STATUS_OFFSET_X   74
+#define PARTY_STATUS_OFFSET_Y    9
+#define PARTY_ICON_X            34
+#define PARTY_ICON_X_SHIFTED    26  // one tile left, to clear the enemy/partner mons
+
+#define PARTY_SLOT_Y(s)  (PARTY_SLOT_TOP + PARTY_SLOT_STRIDE * (s))
+
+// One slot: mon icon (x,y), held item (x,y), status (x,y) — all derived from the icon origin.
+#define PARTY_SLOT_COORDS(iconX, s)                                          \
+{                                                                            \
+    (iconX),                         PARTY_SLOT_Y(s),                        \
+    (iconX) + PARTY_ITEM_OFFSET_X,   PARTY_SLOT_Y(s) + PARTY_ITEM_OFFSET_Y,  \
+    (iconX) + PARTY_STATUS_OFFSET_X, PARTY_SLOT_Y(s) + PARTY_STATUS_OFFSET_Y \
+}
+
+#define PARTY_COORDS_SINGLE                        \
+{                                                  \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 0),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 1),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 2),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 3),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 4),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 5),            \
+}
+
+#define PARTY_COORDS_DOUBLE                        \
+{                                                  \
+    PARTY_SLOT_COORDS(PARTY_ICON_X_SHIFTED, 0),    \
+    PARTY_SLOT_COORDS(PARTY_ICON_X_SHIFTED, 1),    \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 2),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 3),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 4),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 5),            \
+}
+
+#define PARTY_COORDS_MULTI                         \
+{                                                  \
+    PARTY_SLOT_COORDS(PARTY_ICON_X_SHIFTED, 0),    \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 1),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 2),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X_SHIFTED, 3),    \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 4),            \
+    PARTY_SLOT_COORDS(PARTY_ICON_X, 5),            \
+}
+
+static const u8 sPartyMenuSpriteCoords[PARTY_LAYOUT_COUNT][PARTY_SIZE][3 * 2] =
 {
-    [PARTY_LAYOUT_SINGLE] =
-    {
-        { 34,  18,  40,  28, 108,  27,  16,  34},
-        { 34,  42,  40,  52, 108,  51, 102,  25},
-        { 34,  66,  40,  76, 108,  75, 102,  49},
-        { 34,  90,  40, 100, 108,  99, 102,  73},
-        { 34, 114,  40, 124, 108, 123, 102,  97},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
-    [PARTY_LAYOUT_DOUBLE] =
-    {
-        { 26,  18,  32,  28, 100,  27,  16,  18},
-        { 26,  42,  32,  52, 100,  51,  16,  74},
-        { 34,  66,  40,  76, 108,  75, 102,  25},
-        { 34,  90,  40, 100, 108,  99, 102,  57},
-        { 34, 114,  40, 124, 108, 123, 102,  89},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
-    [PARTY_LAYOUT_MULTI] =
-    {
-        { 26,  18,  32,  28, 100,  27,  16,  18},
-        { 34,  42,  40,  52, 108,  51, 102,  25},
-        { 34,  66,  40,  76, 108,  75, 102,  49},
-        { 26,  90,  32, 100, 100,  99,  16,  90},
-        { 34, 114,  40, 124, 108, 123, 102,  97},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
-    [PARTY_LAYOUT_MULTI_SHOWCASE] =
-    {
-        { 26,  18,  32,  28, 100,  27,  16,  18},
-        { 34,  42,  40,  52, 108,  51, 102,  25},
-        { 34,  66,  40,  76, 108,  75, 102,  49},
-        { 26,  90,  32, 100, 100,  99,  16,  90},
-        { 34, 114,  40, 124, 108, 123, 102,  97},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
-    // MULTI_FULL* layouts use the same positions as SINGLE
-    [PARTY_LAYOUT_MULTI_FULL] =
-    {
-        { 34,  18,  40,  28, 108,  27,  16,  34},
-        { 34,  42,  40,  52, 108,  51, 102,  25},
-        { 34,  66,  40,  76, 108,  75, 102,  49},
-        { 34,  90,  40, 100, 108,  99, 102,  73},
-        { 34, 114,  40, 124, 108, 123, 102,  97},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
-    [PARTY_LAYOUT_MULTI_FULL_PARTNER] =
-    {
-        { 34,  18,  40,  28, 108,  27,  16,  34},
-        { 34,  42,  40,  52, 108,  51, 102,  25},
-        { 34,  66,  40,  76, 108,  75, 102,  49},
-        { 34,  90,  40, 100, 108,  99, 102,  73},
-        { 34, 114,  40, 124, 108, 123, 102,  97},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
-    [PARTY_LAYOUT_MULTI_FULL_SHOWCASE] =
-    {
-        { 34,  18,  40,  28, 108,  27,  16,  34},
-        { 34,  42,  40,  52, 108,  51, 102,  25},
-        { 34,  66,  40,  76, 108,  75, 102,  49},
-        { 34,  90,  40, 100, 108,  99, 102,  73},
-        { 34, 114,  40, 124, 108, 123, 102,  97},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
-    [PARTY_LAYOUT_MULTI_FULL_SHOWCASE_PARTNER] =
-    {
-        { 34,  18,  40,  28, 108,  27,  16,  34},
-        { 34,  42,  40,  52, 108,  51, 102,  25},
-        { 34,  66,  40,  76, 108,  75, 102,  49},
-        { 34,  90,  40, 100, 108,  99, 102,  73},
-        { 34, 114,  40, 124, 108, 123, 102,  97},
-        { 34, 138,  40, 148, 108, 147, 102, 121},
-    },
+    [PARTY_LAYOUT_SINGLE]                       = PARTY_COORDS_SINGLE,
+    [PARTY_LAYOUT_DOUBLE]                       = PARTY_COORDS_DOUBLE,
+    [PARTY_LAYOUT_MULTI]                        = PARTY_COORDS_MULTI,
+    [PARTY_LAYOUT_MULTI_SHOWCASE]               = PARTY_COORDS_MULTI,
+    [PARTY_LAYOUT_MULTI_FULL]                   = PARTY_COORDS_SINGLE,
+    [PARTY_LAYOUT_MULTI_FULL_PARTNER]           = PARTY_COORDS_SINGLE,
+    [PARTY_LAYOUT_MULTI_FULL_SHOWCASE]          = PARTY_COORDS_SINGLE,
+    [PARTY_LAYOUT_MULTI_FULL_SHOWCASE_PARTNER]  = PARTY_COORDS_SINGLE,
 };
 
 static const struct PartyMenuMoveBoxInfoRects sPartyMoveBoxInfoRects[] =
@@ -207,269 +194,6 @@ static const u8 sFontColorTable[][3] =
     {0,  3,  4},  // PP state 3 (white)
     {0,  1,  2},  // Ability name, move names
     {0,  3,  6},  // Item multiuse
-};
-
-static const struct WindowTemplate sSinglePartyMenuWindowTemplate[] =
-{
-    { // Party mon 1
-        .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 3,
-        .width = 10,
-        .height = 7,
-        .paletteNum = 3,
-        .baseBlock = 0x6F,
-    },
-    { // Party mon 2
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 1,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 4,
-        .baseBlock = 0xB5,
-    },
-    { // Party mon 3
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 4,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 5,
-        .baseBlock = 0xEB,
-    },
-    { // Party mon 4
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 7,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 6,
-        .baseBlock = 0x121,
-    },
-    { // Party mon 5
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 10,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 7,
-        .baseBlock = 0x157,
-    },
-    { // Party mon 6
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 13,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 8,
-        .baseBlock = 0x18D,
-    },
-    [WIN_MSG] = {
-        .bg = 2,
-        .tilemapLeft = 1,
-        .tilemapTop = 15,
-        .width = 28,
-        .height = 4,
-        .paletteNum = 14,
-        .baseBlock = 0x1EB,
-    },
-    DUMMY_WIN_TEMPLATE
-};
-
-static const struct WindowTemplate sDoublePartyMenuWindowTemplate[] =
-{
-    { // Party mon 1
-        .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 1,
-        .width = 10,
-        .height = 7,
-        .paletteNum = 3,
-        .baseBlock = 0x6F,
-    },
-    { // Party mon 2
-        .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 8,
-        .width = 10,
-        .height = 7,
-        .paletteNum = 4,
-        .baseBlock = 0xB5,
-    },
-    { // Party mon 3
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 1,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 5,
-        .baseBlock = 0xFB,
-    },
-    { // Party mon 4
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 5,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 6,
-        .baseBlock = 0x125,
-    },
-    { // Party mon 5
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 9,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 7,
-        .baseBlock = 0x167,
-    },
-    { // Party mon 6
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 13,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 8,
-        .baseBlock = 0x19D,
-    },
-    [WIN_MSG] = {
-        .bg = 2,
-        .tilemapLeft = 1,
-        .tilemapTop = 15,
-        .width = 28,
-        .height = 4,
-        .paletteNum = 14,
-        .baseBlock = 0x1EB,
-    },
-    DUMMY_WIN_TEMPLATE
-};
-
-static const struct WindowTemplate sMultiPartyMenuWindowTemplate[] =
-{
-    { // Party mon 1
-        .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 1,
-        .width = 10,
-        .height = 7,
-        .paletteNum = 3,
-        .baseBlock = 0x6F,
-    },
-    { // Party mon 2
-        .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 8,
-        .width = 10,
-        .height = 7,
-        .paletteNum = 4,
-        .baseBlock = 0xB5,
-    },
-    { // Party mon 3
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 2,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 5,
-        .baseBlock = 0xFB,
-    },
-    { // Party mon 4
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 5,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 6,
-        .baseBlock = 0x131,
-    },
-    { // Party mon 5
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 9,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 7,
-        .baseBlock = 0x167,
-    },
-    { // Party mon 6
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 12,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 8,
-        .baseBlock = 0x19D,
-    },
-    [WIN_MSG] = {
-        .bg = 2,
-        .tilemapLeft = 1,
-        .tilemapTop = 15,
-        .width = 28,
-        .height = 4,
-        .paletteNum = 14,
-        .baseBlock = 0x1EB,
-    },
-    DUMMY_WIN_TEMPLATE
-};
-
-static const struct WindowTemplate sShowcaseMultiPartyMenuWindowTemplate[] =
-{
-    { // Party mon 1
-        .bg = 0,
-        .tilemapLeft = 1,
-        .tilemapTop = 2,
-        .width = 10,
-        .height = 7,
-        .paletteNum = 3,
-        .baseBlock = 0x6F,
-    },
-    { // Party mon 2
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 3,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 5,
-        .baseBlock = 0xB5,
-    },
-    { // Party mon 3
-        .bg = 0,
-        .tilemapLeft = 12,
-        .tilemapTop = 6,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 6,
-        .baseBlock = 0xEB,
-    },
-    { // Party mon 4
-        .bg = 2,
-        .tilemapLeft = 1,
-        .tilemapTop = 11,
-        .width = 10,
-        .height = 7,
-        .paletteNum = 4,
-        .baseBlock = 0x121,
-    },
-    { // Party mon 5
-        .bg = 2,
-        .tilemapLeft = 12,
-        .tilemapTop = 12,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 7,
-        .baseBlock = 0x177,
-    },
-    { // Party mon 6
-        .bg = 2,
-        .tilemapLeft = 12,
-        .tilemapTop = 15,
-        .width = 18,
-        .height = 3,
-        .paletteNum = 8,
-        .baseBlock = 0x1AD,
-    },
-    DUMMY_WIN_TEMPLATE
 };
 
 #define PARTY_LABEL_WINDOW_PROMPT 7
