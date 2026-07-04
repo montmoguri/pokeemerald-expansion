@@ -15,7 +15,7 @@ static const u32 sCursor_Gfx[]                  = INCGFX_U32("graphics/party_men
 static const u32 sHeldItem_Gfx[]                = INCGFX_U32("graphics/party_menu/swsh/hold_icons.png", ".4bpp");
 static const u32 sMoveTypes_Gfx[]               = INCGFX_U32("graphics/party_menu/swsh/move_types.png", ".4bpp.smol");
 static const u32 sMessageWindow_Gfx[]           = INCGFX_U32("graphics/party_menu/swsh/message_window.png", ".4bpp.smol");
-static const u32 sQuantityWindow_Gfx[]          = INCGFX_U32("graphics/party_menu/swsh/multiuse_window.png", ".4bpp.smol");
+static const u32 sQuantityWindow_Gfx[]          = INCGFX_U32("graphics/party_menu/swsh/quantity_window.png", ".4bpp.smol");
 static const u32 sSelectFrame_Gfx[]             = INCGFX_U32("graphics/party_menu/swsh/select_frame.png", ".4bpp.smol");
 static const u32 sStatusIcons_Gfx[]             = INCGFX_U32("graphics/party_menu/swsh/status_icons.png", ".4bpp.smol");
 
@@ -638,7 +638,7 @@ static const struct WindowTemplate sLevelUpStatsWindowTemplate =
 static const struct WindowTemplate sGiveHowManyItemsWindowTemplate =
 {
     .bg = 0,
-    .tilemapLeft = 20,
+    .tilemapLeft = 24,
     .tilemapTop = 11,
     .width = 4,
     .height = 2,
@@ -1087,61 +1087,42 @@ static const struct OamData sOamData_MessageWindow =
     .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = FALSE,
     .bpp = ST_OAM_4BPP,
-    .size = SPRITE_SIZE(32x32),
+    .size = SPRITE_SIZE(32x64),
     .x = 0,
     .matrixNum = 0,
-    .shape = SPRITE_SHAPE(32x32),
+    .shape = SPRITE_SHAPE(32x64),
     .tileNum = 0,
     .priority = 0,
     .paletteNum = 0,
     .affineParam = 0,
 };
 
-static const union AnimCmd sSpriteAnim_MessageWindow_TopLeft[] = {
+static const union AnimCmd sSpriteAnim_MessageWindow_0[] = {
     ANIMCMD_FRAME(0, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_MessageWindow_TopMiddle[] = {
-    ANIMCMD_FRAME(24, 0, FALSE, FALSE),
+static const union AnimCmd sSpriteAnim_MessageWindow_1[] = {
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_MessageWindow_TopRight[] = {
-    ANIMCMD_FRAME(8, 0, TRUE, TRUE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_MessageWindow_BottomLeft[] = {
-    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_MessageWindow_BottomMiddle[] = {
-    ANIMCMD_FRAME(24, 0, FALSE, TRUE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_MessageWindow_BottomRight[] = {
+static const union AnimCmd sSpriteAnim_MessageWindow_2[] = {
     ANIMCMD_FRAME(0, 0, TRUE, TRUE),
     ANIMCMD_END
 };
 
 static const union AnimCmd *const sSpriteAnimTable_MessageWindow[] = {
-    sSpriteAnim_MessageWindow_TopLeft,
-    sSpriteAnim_MessageWindow_TopMiddle,
-    sSpriteAnim_MessageWindow_TopRight,
-    sSpriteAnim_MessageWindow_BottomLeft,
-    sSpriteAnim_MessageWindow_BottomMiddle,
-    sSpriteAnim_MessageWindow_BottomRight,
+    sSpriteAnim_MessageWindow_0,
+    sSpriteAnim_MessageWindow_1,
+    sSpriteAnim_MessageWindow_2,
 };
+
+static const u8 sMessageWindowAnims[MESSAGE_WINDOW_SPRITES_COUNT] = {0, 1, 1, 1, 1, 1, 1, 2};
 
 static const struct CompressedSpriteSheet sSpriteSheet_MessageWindow =
 {
     .data = sMessageWindow_Gfx,
-    .size = (32 * 16 * 5) / 2,
+    .size = (32 * 64 * 2) / 2,
     .tag = TAG_MESSAGE_WINDOW,
-};
-
-static const struct SpritePalette sSpritePal_MessageWindow =
-{
-    .data = sHeldItem_Pal,
-    .tag = TAG_HELD_ITEM,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_MessageWindow =
@@ -1152,66 +1133,52 @@ static const struct SpriteTemplate sSpriteTemplate_MessageWindow =
     .anims = sSpriteAnimTable_MessageWindow,
 };
 
-static const struct OamData sOamData_MultiuseWindow =
+static const struct OamData sOamData_QuantityWindow =
 {
     .y = 0,
     .affineMode = ST_OAM_AFFINE_OFF,
     .objMode = ST_OAM_OBJ_NORMAL,
     .mosaic = FALSE,
     .bpp = ST_OAM_4BPP,
-    .size = SPRITE_SIZE(32x16),
+    .size = SPRITE_SIZE(32x32),
     .x = 0,
     .matrixNum = 0,
-    .shape = SPRITE_SHAPE(32x16),
+    .shape = SPRITE_SHAPE(32x32),
     .tileNum = 0,
     .priority = 0,
     .paletteNum = 0,
     .affineParam = 0,
 };
 
-static const union AnimCmd sSpriteAnim_MultiuseWindow_TopLeft[] = {
+static const union AnimCmd sSpriteAnim_QuantityWindow_0[] = {
     ANIMCMD_FRAME(0, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_MultiuseWindow_TopRight[] = {
-    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_MultiuseWindow_BottomLeft[] = {
+static const union AnimCmd sSpriteAnim_QuantityWindow_1[] = {
     ANIMCMD_FRAME(16, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-static const union AnimCmd sSpriteAnim_MultiuseWindow_BottomRight[] = {
-    ANIMCMD_FRAME(8, 0, TRUE, TRUE),
-    ANIMCMD_END
+
+static const union AnimCmd *const sSpriteAnimTable_QuantityWindow[] = {
+    sSpriteAnim_QuantityWindow_0,
+    sSpriteAnim_QuantityWindow_1,
 };
 
-static const union AnimCmd *const sSpriteAnimTable_MultiuseWindow[] = {
-    sSpriteAnim_MultiuseWindow_TopLeft,
-    sSpriteAnim_MultiuseWindow_TopRight,
-    sSpriteAnim_MultiuseWindow_BottomLeft,
-    sSpriteAnim_MultiuseWindow_BottomRight,
-};
+static const u8 sQuantityWindowAnims[QUANTITY_WINDOW_SPRITES_COUNT] = {0, 1};
 
-static const struct CompressedSpriteSheet sSpriteSheet_MultiuseWindow =
+static const struct CompressedSpriteSheet sSpriteSheet_QuantityWindow =
 {
     .data = sQuantityWindow_Gfx,
-    .size = (32 * 16 * 3) / 2,
-    .tag = TAG_MULTIUSE_WINDOW,
+    .size = (32 * 32 * 2) / 2,
+    .tag = TAG_QUANTITY_WINDOW,
 };
 
-static const struct SpritePalette sSpritePal_MultiuseWindow =
+static const struct SpriteTemplate sSpriteTemplate_QuantityWindow =
 {
-    .data = sHeldItem_Pal,
-    .tag = TAG_HELD_ITEM,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_MultiuseWindow =
-{
-    .tileTag = TAG_MULTIUSE_WINDOW,
+    .tileTag = TAG_QUANTITY_WINDOW,
     .paletteTag = TAG_HELD_ITEM,
-    .oam = &sOamData_MultiuseWindow,
-    .anims = sSpriteAnimTable_MultiuseWindow,
+    .oam = &sOamData_QuantityWindow,
+    .anims = sSpriteAnimTable_QuantityWindow,
 };
 
 static const struct SpritePalette sSpritePal_PartyMonShadow =
