@@ -332,7 +332,8 @@ static enum CanMoveBeLearned CanTeachMove(struct Pokemon *, enum Move);
 static void DisplayPartyPokemonBarDetail(u8, const u8 *, u8, const struct PartyBoxRect *);
 static void DisplayPartyPokemonBarDetailToFit(u8 windowId, const u8 *str, u8 color, const struct PartyBoxRect *rect, u32 width);
 static void DisplayPartyPokemonLevel(u8, struct PartyMenuBox *);
-static void DisplayPartyPokemonGender(u8, u16, u8 *, struct PartyMenuBox *);
+static void DisplayPartyPokemonGender(u8, u16, u8 *, struct PartyMenuBox *, bool8);
+static void RefreshPartySlotGenderPalette(struct PartyMenuBox *, bool8);
 static void DisplayPartyPokemonHP(u16 hp, u16 maxHp, struct PartyMenuBox *menuBox);
 static void DisplayPartyPokemonMaxHP(u16, struct PartyMenuBox *);
 static void DisplayPartyPokemonHPBar(u16, u16, struct PartyMenuBox *);
@@ -1719,7 +1720,7 @@ static void DisplayPartyPokemonDataForMultiBattle(u8 slot)
         ConvertInternationalPlayerName(gStringVar1);
         DisplayPartyPokemonBarDetailToFit(menuBox->windowId, gStringVar1, 0, &sPartySlotLayout.nickname, 50);
         DisplayPartyPokemonLevel(gMultiPartnerParty[actualSlot].level, menuBox);
-        DisplayPartyPokemonGender(gMultiPartnerParty[actualSlot].gender, gMultiPartnerParty[actualSlot].species, gMultiPartnerParty[actualSlot].nickname, menuBox);
+        DisplayPartyPokemonGender(gMultiPartnerParty[actualSlot].gender, gMultiPartnerParty[actualSlot].species, gMultiPartnerParty[actualSlot].nickname, menuBox, FALSE);
         DisplayPartyPokemonHP(gMultiPartnerParty[actualSlot].hp, gMultiPartnerParty[actualSlot].maxhp, menuBox);
         DisplayPartyPokemonMaxHP(gMultiPartnerParty[actualSlot].maxhp, menuBox);
         DisplayPartyPokemonHPBar(gMultiPartnerParty[actualSlot].hp, gMultiPartnerParty[actualSlot].maxhp, menuBox);
@@ -3159,6 +3160,7 @@ static void LoadPartyBoxPalette(struct PartyMenuBox *menuBox, u8 palFlags)
     {
         LoadPalette(GetPartyMenuPalBufferPtr(sPartyBoxPalIds[state].text[0]), sPartyBoxPalOffsets3[0] + palOffset, PLTT_SIZEOF(1));
         LoadPalette(GetPartyMenuPalBufferPtr(sPartyBoxPalIds[state].text[1]), sPartyBoxPalOffsets3[1] + palOffset, PLTT_SIZEOF(1));
+        RefreshPartySlotGenderPalette(menuBox, palFlags & PARTY_PAL_SELECTED);
     }
 }
 
@@ -3245,13 +3247,22 @@ static void DisplayPartyPokemonGenderNidoranCheck(struct Pokemon *mon, struct Pa
     if (c == 1)
         BlitBitmapToPartyWindow_SwSh(menuBox->windowId, sPartySlotLayout.gender.x >> 3, (sPartySlotLayout.gender.y >> 3) + 1, sPartySlotLayout.gender.width >> 3, sPartySlotLayout.gender.height >> 3, FALSE);
     GetMonNickname(mon, nickname);
-    DisplayPartyPokemonGender(GetMonGender(mon), GetMonData(mon, MON_DATA_SPECIES), nickname, menuBox);
+    DisplayPartyPokemonGender(GetMonGender(mon), GetMonData(mon, MON_DATA_SPECIES), nickname, menuBox, menuBox->windowId == gPartyMenu.slotId);
 }
 
-static void DisplayPartyPokemonGender(u8 gender, u16 species, u8 *nickname, struct PartyMenuBox *menuBox)
+static void LoadGenderTextPalette(u8 gender, struct PartyMenuBox *menuBox, bool8 focused)
 {
     u8 palOffset = BG_PLTT_ID(GetWindowAttribute(menuBox->windowId, WINDOW_PALETTE_NUM));
+    u8 fgIdx = focused ? 1 : 0;
+    u8 shadowIdx = focused ? 0 : 1;
+    const u8 *palIds = (gender == MON_MALE) ? sGenderMalePalIds : sGenderFemalePalIds;
 
+    LoadPalette(GetPartyMenuPalBufferPtr(palIds[fgIdx]), sGenderPalOffsets[0] + palOffset, PLTT_SIZEOF(1));
+    LoadPalette(GetPartyMenuPalBufferPtr(palIds[shadowIdx]), sGenderPalOffsets[1] + palOffset, PLTT_SIZEOF(1));
+}
+
+static void DisplayPartyPokemonGender(u8 gender, u16 species, u8 *nickname, struct PartyMenuBox *menuBox, bool8 focused)
+{
     if (species == SPECIES_NONE)
         return;
     if ((species == SPECIES_NIDORAN_M || species == SPECIES_NIDORAN_F) && StringCompare(nickname, GetSpeciesName(species)) == 0)
@@ -3259,16 +3270,29 @@ static void DisplayPartyPokemonGender(u8 gender, u16 species, u8 *nickname, stru
     switch (gender)
     {
     case MON_MALE:
-        LoadPalette(GetPartyMenuPalBufferPtr(sGenderMalePalIds[0]), sGenderPalOffsets[0] + palOffset, PLTT_SIZEOF(1));
-        LoadPalette(GetPartyMenuPalBufferPtr(sGenderMalePalIds[1]), sGenderPalOffsets[1] + palOffset, PLTT_SIZEOF(1));
+        LoadGenderTextPalette(MON_MALE, menuBox, focused);
         DisplayPartyPokemonBarDetail(menuBox->windowId, gText_MaleSymbol, 2, &sPartySlotLayout.gender);
         break;
     case MON_FEMALE:
-        LoadPalette(GetPartyMenuPalBufferPtr(sGenderFemalePalIds[0]), sGenderPalOffsets[0] + palOffset, PLTT_SIZEOF(1));
-        LoadPalette(GetPartyMenuPalBufferPtr(sGenderFemalePalIds[1]), sGenderPalOffsets[1] + palOffset, PLTT_SIZEOF(1));
+        LoadGenderTextPalette(MON_FEMALE, menuBox, focused);
         DisplayPartyPokemonBarDetail(menuBox->windowId, gText_FemaleSymbol, 2, &sPartySlotLayout.gender);
         break;
     }
+}
+
+static void RefreshPartySlotGenderPalette(struct PartyMenuBox *menuBox, bool8 focused)
+{
+    struct Pokemon *mon = GetPartyMonFromPartyMenuId(menuBox->windowId);
+    u16 species = GetMonData(mon, MON_DATA_SPECIES);
+    u8 gender = GetMonGender(mon);
+    u8 nickname[POKEMON_NAME_LENGTH + 1];
+
+    if (species == SPECIES_NONE || gender == MON_GENDERLESS)
+        return;
+    GetMonNickname(mon, nickname);
+    if ((species == SPECIES_NIDORAN_M || species == SPECIES_NIDORAN_F) && StringCompare(nickname, GetSpeciesName(species)) == 0)
+        return;
+    LoadGenderTextPalette(gender, menuBox, focused);
 }
 
 static void ExpandBoundingRect(int *left, int *top, int *right, int *bottom, const struct PartyBoxRect *rect)
