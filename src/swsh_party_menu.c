@@ -3937,7 +3937,6 @@ static void CursorCb_Switch(u8 taskId)
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[1]);
     PartyMenuRemoveWindow(&sPartyMenuInternal->windowId[0]);
     DestroyHoverSprite();
-    DestroyMonSprite();
     gPartyMenu.slotId2 = gPartyMenu.slotId; // slotId2 tracks the current hover row
     AnimatePartySlot(gPartyMenu.slotId, 0);
     gSprites[sPartyMenuBoxes[gPartyMenu.slotId].monSpriteId].x2 = 0;
@@ -4358,11 +4357,12 @@ static void FinishTwoMonAction(u8 taskId)
         sFusionFirstMonSpecies = 0;
     }
 
-    gPartyMenu.action = PARTY_ACTION_CHOOSE_MON;
     AnimatePartySlot(gPartyMenu.slotId, 0);
     gPartyMenu.slotId = gPartyMenu.slotId2;
     AnimatePartySlot(gPartyMenu.slotId2, 1);
-    UpdatePartyMonSprite(gPartyMenu.slotId);
+    if (gPartyMenu.action != PARTY_ACTION_SWITCH)
+        UpdatePartyMonSprite(gPartyMenu.slotId);
+    gPartyMenu.action = PARTY_ACTION_CHOOSE_MON;
     CreateHoverSprite(&sPartyMenuBoxes[gPartyMenu.slotId], gPartyMenu.slotId);
 
     // Reset item icons to generic if we were in item mode
