@@ -82,22 +82,24 @@ static const struct BgTemplate sPartyMenuBgTemplates[] =
     },
 };
 
-static const struct PartyMenuBoxInfoRects sPartyBoxInfoRects[] =
+static const struct
 {
-    [PARTY_BOX_SWSH_COLUMN] =
-    {
-        BlitBitmapToPartyWindow_SwSh,
-        {
-            //The below are the x, y, width, and height for each of the following info
-            32,  0, 48, 13, // Nickname
-            80, 11, 32,  8, // Level
-            91,  0,  8,  8, // Gender
-            32, 11, 24,  8, // HP
-            47, 11, 24,  8, // Max HP
-            32, 12, 64,  2  // HP bar
-        },
-        32, 11, 64, 12        // Description text
-    }
+    struct PartyBoxRect nickname;
+    struct PartyBoxRect level;
+    struct PartyBoxRect gender;
+    struct PartyBoxRect hp;
+    struct PartyBoxRect maxHp;
+    struct PartyBoxRect hpBar;
+    struct PartyBoxRect descText;
+} sPartySlotLayout =
+{
+    .nickname = { 32,  0, 48, 13 },
+    .level    = { 80, 11, 32,  8 },
+    .gender   = { 91,  0,  8,  8 },
+    .hp       = { 32, 11, 24,  8 },
+    .maxHp    = { 47, 11, 24,  8 },
+    .hpBar    = { 32, 12, 64,  2 },
+    .descText = { 32, 11, 64, 12 },
 };
 
 
@@ -168,14 +170,14 @@ static const u8 sPartyMenuSpriteCoords[PARTY_LAYOUT_COUNT][PARTY_SIZE][3 * 2] =
     [PARTY_LAYOUT_MULTI_FULL_SHOWCASE_PARTNER]  = PARTY_COORDS_SINGLE,
 };
 
-static const struct PartyMenuMoveBoxInfoRects sPartyMoveBoxInfoRects[] =
+static const struct
 {
-    { BlitBitmapToPartyMoveWindow_SwSh,
-        {
-            10,  1, 62, 12, // Move name
-            86,  1, 10, 12, // PP
-        }
-    },
+    struct PartyBoxRect moveName;
+    struct PartyBoxRect pp;
+} sPartyMoveBoxLayout =
+{
+    .moveName = { 10, 1, 62, 12 },
+    .pp       = { 86, 1, 10, 12 },
 };
 
 // Text colors for BG, FG, and Shadow in that order
@@ -739,19 +741,38 @@ static const u8 sGenderMalePalIds[]               = {11, 12};
 static const u8 sGenderFemalePalIds[]             = {13, 14};
 static const u8 sHPBarPalIds[]                    = {7, 8, 9};
 static const u8 sHPBarEmptyPalId                  = 10;
-static const u8 sPartyBoxNoMonPalId               = 17;
-static const u8 sPartyBoxEmptySlotPalId1          = 33;
-static const u8 sPartyBoxMultiPalId1              = 49;
-static const u8 sPartyBoxSelectedForActionPalId1  = 65;
-static const u8 sPartyBoxCurrSelectionPalId1      = 81;
-static const u8 sPartyBoxCurrSelectionMultiPalId  = 97;
 
-// Text palettes
-static const u8 sPartyBoxEmptySlotPalIds3[]          = {34, 35};
-static const u8 sPartyBoxMultiPalIds3[]              = {50, 51};
-static const u8 sPartyBoxSelectedForActionPalIds3[]  = {66, 67};
-static const u8 sPartyBoxCurrSelectionPalIds3[]      = {82, 83};
-static const u8 sPartyBoxCurrSelectionMultiPalIds3[] = {98, 99};
+// party slot state coloring lives in sPartyMenuBg_Pal as one 16-color pal per state
+// the frame color is the pal index 1, the two text colors follow
+#define PARTY_BOX_PAL_BANK_SIZE 16
+#define PARTY_BOX_PAL_BASE(n)   (PARTY_BOX_PAL_BANK_SIZE * ((n) + 1) + 1)
+
+enum PartyBoxPalState
+{
+    PARTY_BOX_PAL_NO_MON,
+    PARTY_BOX_PAL_NORMAL,
+    PARTY_BOX_PAL_MULTI,
+    PARTY_BOX_PAL_SELECTED_FOR_ACTION,
+    PARTY_BOX_PAL_CURR_SELECTION,
+    PARTY_BOX_PAL_CURR_SELECTION_MULTI,
+    PARTY_BOX_PAL_STATE_COUNT,
+};
+
+struct PartyBoxPalIds
+{
+    u8 frame;
+    u8 text[2];
+};
+
+static const struct PartyBoxPalIds sPartyBoxPalIds[PARTY_BOX_PAL_STATE_COUNT] =
+{
+    [PARTY_BOX_PAL_NO_MON]               = { PARTY_BOX_PAL_BASE(0) },
+    [PARTY_BOX_PAL_NORMAL]               = { PARTY_BOX_PAL_BASE(1), { PARTY_BOX_PAL_BASE(1) + 1, PARTY_BOX_PAL_BASE(1) + 2 } },
+    [PARTY_BOX_PAL_MULTI]                = { PARTY_BOX_PAL_BASE(2), { PARTY_BOX_PAL_BASE(2) + 1, PARTY_BOX_PAL_BASE(2) + 2 } },
+    [PARTY_BOX_PAL_SELECTED_FOR_ACTION]  = { PARTY_BOX_PAL_BASE(3), { PARTY_BOX_PAL_BASE(3) + 1, PARTY_BOX_PAL_BASE(3) + 2 } },
+    [PARTY_BOX_PAL_CURR_SELECTION]       = { PARTY_BOX_PAL_BASE(4), { PARTY_BOX_PAL_BASE(4) + 1, PARTY_BOX_PAL_BASE(4) + 2 } },
+    [PARTY_BOX_PAL_CURR_SELECTION_MULTI] = { PARTY_BOX_PAL_BASE(5), { PARTY_BOX_PAL_BASE(5) + 1, PARTY_BOX_PAL_BASE(5) + 2 } },
+};
 
 static const u8 *const sActionStringTable[] =
 {
