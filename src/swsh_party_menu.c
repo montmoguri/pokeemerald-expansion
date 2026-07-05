@@ -334,6 +334,7 @@ static void DisplayPartyPokemonBarDetailToFit(u8 windowId, const u8 *str, u8 col
 static void DisplayPartyPokemonLevel(u8, struct PartyMenuBox *);
 static void DisplayPartyPokemonGender(u8, u16, u8 *, struct PartyMenuBox *, bool8);
 static void RefreshPartySlotGenderPalette(struct PartyMenuBox *, bool8);
+static void RefreshPartySlotHPBarPalette(struct PartyMenuBox *);
 static void DisplayPartyPokemonHP(u16 hp, u16 maxHp, struct PartyMenuBox *menuBox);
 static void DisplayPartyPokemonMaxHP(u16, struct PartyMenuBox *);
 static void DisplayPartyPokemonHPBar(u16, u16, struct PartyMenuBox *);
@@ -3161,6 +3162,7 @@ static void LoadPartyBoxPalette(struct PartyMenuBox *menuBox, u8 palFlags)
         LoadPalette(GetPartyMenuPalBufferPtr(sPartyBoxPalIds[state].text[0]), sPartyBoxPalOffsets3[0] + palOffset, PLTT_SIZEOF(1));
         LoadPalette(GetPartyMenuPalBufferPtr(sPartyBoxPalIds[state].text[1]), sPartyBoxPalOffsets3[1] + palOffset, PLTT_SIZEOF(1));
         RefreshPartySlotGenderPalette(menuBox, palFlags & PARTY_PAL_SELECTED);
+        RefreshPartySlotHPBarPalette(menuBox);
     }
 }
 
@@ -3403,10 +3405,9 @@ static void DisplayPartyPokemonHPBarCheck(struct Pokemon *mon, struct PartyMenuB
         DisplayPartyPokemonHPBar(GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP), menuBox);
 }
 
-static void DisplayPartyPokemonHPBar(u16 hp, u16 maxhp, struct PartyMenuBox *menuBox)
+static void LoadHPBarPalette(struct PartyMenuBox *menuBox, u16 hp, u16 maxhp)
 {
     u8 palOffset = BG_PLTT_ID(GetWindowAttribute(menuBox->windowId, WINDOW_PALETTE_NUM));
-    u8 hpFraction;
 
     switch (GetHPBarLevel(hp, maxhp))
     {
@@ -3421,15 +3422,30 @@ static void DisplayPartyPokemonHPBar(u16 hp, u16 maxhp, struct PartyMenuBox *men
         LoadPalette(GetPartyMenuPalBufferPtr(sHPBarPalIds[2]), sHPBarPalOffset + palOffset, PLTT_SIZEOF(1));
         break;
     }
-
-    hpFraction = GetScaledHPFraction(hp, maxhp, sPartySlotLayout.hpBar.width);
     LoadPalette(GetPartyMenuPalBufferPtr(sHPBarEmptyPalId), sHPBarEmptyPalId + palOffset, PLTT_SIZEOF(1));
+}
+
+static void DisplayPartyPokemonHPBar(u16 hp, u16 maxhp, struct PartyMenuBox *menuBox)
+{
+    u8 hpFraction;
+
+    LoadHPBarPalette(menuBox, hp, maxhp);
+    hpFraction = GetScaledHPFraction(hp, maxhp, sPartySlotLayout.hpBar.width);
     FillWindowPixelRect(menuBox->windowId, sHPBarPalOffset, sPartySlotLayout.hpBar.x, sPartySlotLayout.hpBar.y, hpFraction, sPartySlotLayout.hpBar.height);
     if (hpFraction != sPartySlotLayout.hpBar.width)
     {
         FillWindowPixelRect(menuBox->windowId, sHPBarEmptyPalId, sPartySlotLayout.hpBar.x + hpFraction, sPartySlotLayout.hpBar.y, sPartySlotLayout.hpBar.width - hpFraction, sPartySlotLayout.hpBar.height);
     }
     CopyWindowToVram(menuBox->windowId, COPYWIN_GFX);
+}
+
+static void RefreshPartySlotHPBarPalette(struct PartyMenuBox *menuBox)
+{
+    struct Pokemon *mon = GetPartyMonFromPartyMenuId(menuBox->windowId);
+
+    if (GetMonData(mon, MON_DATA_SPECIES) == SPECIES_NONE)
+        return;
+    LoadHPBarPalette(menuBox, GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP));
 }
 
 static void DisplayPartyPokemonDescriptionText(u8 stringID, struct PartyMenuBox *menuBox, u8 c)
@@ -4059,7 +4075,7 @@ static void FinishPartySlotDrop(u8 taskId, bool8 confirm)
     u8 height = GetWindowAttribute(hoverWindowId, WINDOW_HEIGHT);
 
     FillBgTilemapBufferRect_Palette0(BG_PARTY_HELD, 0, left + 1, top - 1, width, height);
-    ScheduleBgCopyTilemapToVram(BG_PARTY_HELD);
+    CopyBgTilemapBufferToVram(BG_PARTY_HELD);
     Free(sSlot1TilemapBuffer);
 
     if (confirm && gPartyMenu.slotId2 != gPartyMenu.slotId)
@@ -4069,6 +4085,7 @@ static void FinishPartySlotDrop(u8 taskId, bool8 confirm)
         struct PartyMenuBox *originBox = &sPartyMenuBoxes[origin];
         struct PartyMenuBox *hoverBox = &sPartyMenuBoxes[hover];
         u8 tmp;
+        u32 tileDataTmp;
 
         SwapPartyPokemon(&gParties[B_TRAINER_PLAYER][origin], &gParties[B_TRAINER_PLAYER][hover]);
         SWAP(originBox->monSpriteId, hoverBox->monSpriteId, tmp);
@@ -4077,23 +4094,24 @@ static void FinishPartySlotDrop(u8 taskId, bool8 confirm)
 
         SetPartySlotSpriteLifted(originBox, FALSE);
         SetPartySlotSpriteLifted(hoverBox, FALSE);
-        DisplayPartyPokemonData(origin);
-        DisplayPartyPokemonData(hover);
+        tileDataTmp = GetWindowAttribute(originBox->windowId, WINDOW_TILE_DATA);
+        SetWindowAttribute(originBox->windowId, WINDOW_TILE_DATA, GetWindowAttribute(hoverBox->windowId, WINDOW_TILE_DATA));
+        SetWindowAttribute(hoverBox->windowId, WINDOW_TILE_DATA, tileDataTmp);
+
+        CopyWindowToVram(originBox->windowId, COPYWIN_GFX);
+        CopyWindowToVram(hoverBox->windowId, COPYWIN_GFX);
         PutWindowTilemap(originBox->windowId);
         PutWindowTilemap(hoverBox->windowId);
-        AnimatePartySlot(origin, 0);
-        gPartyMenu.slotId = hover;
     }
     else
     {
         UpdatePartySlotHoverHighlight(gPartyMenu.slotId2, gPartyMenu.slotId);
         gPartyMenu.slotId2 = gPartyMenu.slotId;
         SetPartySlotSpriteLifted(heldBox, FALSE);
-        DisplayPartyPokemonData(gPartyMenu.slotId);
         PutWindowTilemap(heldBox->windowId);
     }
 
-    ScheduleBgCopyTilemapToVram(BG_PARTY_SLOTS);
+    CopyBgTilemapBufferToVram(BG_PARTY_SLOTS);
     FinishTwoMonAction(taskId);
 }
 
