@@ -318,12 +318,10 @@ static const u8 sRegionMapSectionId_To_PopUpThemeIdMapping_BW[] =
 
 #if OW_POPUP_GENERATION == GEN_8
 // Gen8 assets
-static const u8 sMapPopUp_SwSh[] = INCBIN_U8("graphics/map_popup/swsh.4bpp");
-static const u8 sMapPopUp_Outline_SwSh[] = INCBIN_U8("graphics/map_popup/swsh_outline.4bpp");
-static const u16 sMapPopUp_Palette_SwSh[] = INCBIN_U16("graphics/map_popup/swsh.gbapal");
+static const u8 sMapPopUp_SwSh[]            = INCGFX_U8("graphics/map_popup/swsh.png", ".4bpp");
+static const u16 sMapPopUp_Palette_SwSh[]   = INCGFX_U16("graphics/map_popup/swsh.png", ".gbapal");
 #else
 static const u8 sMapPopUp_SwSh[] = {0};
-static const u8 sMapPopUp_Outline_SwSh[] = {0};
 static const u16 sMapPopUp_Palette_SwSh[] = {0};
 #endif
 
@@ -729,8 +727,8 @@ static void ShowMapNamePopUpWindow(void)
     }
     else if (OW_POPUP_GENERATION == GEN_8)
     {
-        x = GetStringCenterAlignXOffset(FONT_NARROW, withoutPrefixPtr, 96);
-        AddTextPrinterParameterized(GetMapNamePopUpWindowId(), FONT_NARROW, mapDisplayHeader, x, 0, TEXT_SKIP_DRAW, NULL);
+        x = GetStringCenterAlignXOffset(FONT_NARROW, withoutPrefixPtr, 120);
+        AddTextPrinterParameterized(GetMapNamePopUpWindowId(), FONT_NARROW, mapDisplayHeader, x, 6, TEXT_SKIP_DRAW, NULL);
         CopyWindowToVram(GetMapNamePopUpWindowId(), COPYWIN_FULL);
     }
     else
@@ -774,34 +772,6 @@ static void DrawMapNamePopUpFrame(u8 bg, u8 x, u8 y, u8 deltaX, u8 deltaY, u8 un
         FillBgTilemapBufferRect(bg, TILE_BOT_EDGE_START + i, i - 1 + x, y + deltaY, 1, 1, 14);
 }
 
-#define TILE_SWSH_TOP_EDGE_START 0x21D
-#define TILE_SWSH_TOP_EDGE_END   0x22A
-#define TILE_SWSH_LEFT_EDGE_TOP  0x22B
-#define TILE_SWSH_RIGHT_EDGE_TOP 0x22C
-#define TILE_SWSH_LEFT_EDGE_BOT  0x22D
-#define TILE_SWSH_RIGHT_EDGE_BOT 0x22E
-#define TILE_SWSH_BOT_EDGE_START 0x22F
-#define TILE_SWSH_BOT_EDGE_END   0x23C
-
-static void DrawMapNamePopUpFrame_SwSh(u8 bg, u8 x, u8 y, u8 deltaX, u8 deltaY, u8 unused)
-{
-    s32 i;
-
-    // Draw top edge (Tiles 0-13)
-    for (i = 0; i < 1 + TILE_SWSH_TOP_EDGE_END - TILE_SWSH_TOP_EDGE_START; i++)
-        FillBgTilemapBufferRect(bg, TILE_SWSH_TOP_EDGE_START + i, x - 1 + i, y - 1, 1, 1, 14);
-
-    // Draw sides (Tiles 14-17)
-    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_TOP,       x - 1,     y, 1, 1, 14);
-    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_TOP, deltaX + x,     y, 1, 1, 14);
-    FillBgTilemapBufferRect(bg, TILE_SWSH_LEFT_EDGE_BOT,       x - 1, y + 1, 1, 1, 14);
-    FillBgTilemapBufferRect(bg, TILE_SWSH_RIGHT_EDGE_BOT, deltaX + x, y + 1, 1, 1, 14);
-
-    // Draw bottom edge (Tiles 18-31)
-    for (i = 0; i < 1 + TILE_SWSH_BOT_EDGE_END - TILE_SWSH_BOT_EDGE_START; i++)
-        FillBgTilemapBufferRect(bg, TILE_SWSH_BOT_EDGE_START + i, x - 1 + i, y + deltaY, 1, 1, 14);
-}
-
 static void LoadMapNamePopUpWindowBg(void)
 {
     u8 popUpThemeId;
@@ -842,11 +812,9 @@ static void LoadMapNamePopUpWindowBg(void)
     }
     else if (OW_POPUP_GENERATION == GEN_8)
     {
-        LoadBgTiles(GetWindowAttribute(popupWindowId, WINDOW_BG), sMapPopUp_Outline_SwSh, 0x400, 0x21D);
-        CallWindowFunction(popupWindowId, DrawMapNamePopUpFrame_SwSh);
         PutWindowTilemap(popupWindowId);
         LoadPalette(sMapPopUp_Palette_SwSh, BG_PLTT_ID(14), sizeof(sMapPopUp_Palette_SwSh));
-        BlitBitmapToWindow(popupWindowId, sMapPopUp_SwSh, 0, 0, 96, 16);
+        BlitBitmapToWindow(popupWindowId, sMapPopUp_SwSh, 0, 0, 112, 32);
     }
     else
     {
