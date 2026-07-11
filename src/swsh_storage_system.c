@@ -244,7 +244,6 @@ enum {
     GFXTAG_TYPE_ICON,
     GFXTAG_SHINY_ICON,
     GFXTAG_STAT_LABELS,
-    GFXTAG_BOX_TITLE,
     GFXTAG_BOX_TITLE_FRAME,
     GFXTAG_BOX_TITLE_ARROW,
     GFXTAG_ITEM_ICON_0,
@@ -370,13 +369,14 @@ struct ChooseBoxMenu
     struct Sprite *hoverSprite;
     s8 savedCursorArea;
     s8 savedCursorPosition;
+    u8 chooseBoxGridTimer;
 #else
     struct Sprite *boxNameSprites[2];
     struct Sprite *arrowSprites[2];
     u8 ALIGNED(4) boxNameTiles[512];
-#endif
     struct Sprite *monCountSprite;
     u8 ALIGNED(4) monCountTiles[256];
+#endif
     bool32 loadedPalette;
     u16 tileTag;
     u16 paletteTag;
@@ -440,15 +440,12 @@ struct PokemonStorageSystemData
     s16 newCurrBoxId;
     s16 scrollSpeed;
     u16 scrollTimer;
-    u8 ALIGNED(2) boxTitleTiles[1024];
-    u8 boxTitleCycleId;
     u8 wallpaperLoadBoxId;
     s8 wallpaperLoadDir;
     u16 boxTitlePal[16];
     u16 boxTitlePalOffset;
     u16 boxTitleAltPalOffset;
-    struct Sprite *curBoxTitleSprites[2];
-    struct Sprite *nextBoxTitleSprites[2];
+    u8 boxTitleTextBuffer;
     struct Sprite *boxTitleFrameSprites[4];
     struct Sprite *arrowSprites[2];
     u32 wallpaperPalBits;
@@ -1169,7 +1166,7 @@ static void SpriteCB_HeldMonInChooseBoxGrid(struct Sprite *sprite)
 
 static void LoadChooseBoxGfx(struct ChooseBoxMenu *menu, u16 tileTag, u16 palTag, bool32 loadPal)
 {
-    LoadCompressedSpriteSheet(&sSpriteSheet_ChooseBoxGrid_Hover);
+    LoadSpriteSheet(&sSpriteSheet_ChooseBoxGrid_Hover);
     sChooseBoxMenu = menu;
     menu->tileTag = tileTag;
     menu->paletteTag = palTag;
@@ -1179,51 +1176,39 @@ static void LoadChooseBoxGfx(struct ChooseBoxMenu *menu, u16 tileTag, u16 palTag
 static void ChooseBox_PrintInfo(void)
 {
     u8 numBoxMonsText[16];
-    struct WindowTemplate template;
-    struct SpriteSheet spriteSheet;
-    u8 windowId;
     u8 numInBox = CountMonsInBox(sChooseBoxMenu->curBox);
-    u32 winTileData;
-    s16 x;
-    u8 spriteId;
-    u8 col = sChooseBoxMenu->curBox % 5;
-    u8 row = sChooseBoxMenu->curBox / 5;
+    u32 spriteId;
+    s16 xOffset;
+    union TextColor color = {
+        .background = sTextColors[2][0],
+        .foreground = sTextColors[2][1],
+        .shadow = sTextColors[2][2],
+    };
 
-    if (sChooseBoxMenu->monCountSprite)
-    {
-        DestroySprite(sChooseBoxMenu->monCountSprite);
-        sChooseBoxMenu->monCountSprite = NULL;
-    }
+    if (sChooseBoxMenu->hoverSprite == NULL)
+        return;
 
-    UpdateBoxTitle(sChooseBoxMenu->curBox);
-    UpdateBoxTitlePalette();
+    ConvertIntToDecimalStringN(numBoxMonsText, numInBox, STR_CONV_MODE_LEFT_ALIGN, 2);
+    xOffset = 16 - GetStringWidth(FONT_NORMAL, numBoxMonsText, 0) / 2;
+    if (xOffset < 0)
+        xOffset = 0;
 
-    memset(&template, 0, sizeof(template));
-    template.width = 2;
-    template.height = 2;
+    spriteId = sChooseBoxMenu->hoverSprite - gSprites;
+    FillSpriteRectSpriteWithSprite(spriteId, 0, 0, 32, 32, (u32 *)sChooseBoxGrid_Hover_Gfx);
+    AddSpriteTextPrinterParameterized6(spriteId, FONT_NORMAL, xOffset, 11, 0, 0, color, 0, numBoxMonsText);
+}
 
-    windowId = AddWindow(&template);
-    FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
-    ConvertIntToDecimalStringN(numBoxMonsText, numInBox, STR_CONV_MODE_RIGHT_ALIGN, 2);
-    AddTextPrinterParameterized3(windowId, FONT_NORMAL, 0, 1, sTextColors[2], TEXT_SKIP_DRAW, numBoxMonsText);
+static void SpriteCB_ChooseBoxGridHover(struct Sprite *sprite)
+{
+    if (sChooseBoxMenu == NULL || sChooseBoxMenu->chooseBoxGridTimer == 0)
+        return;
 
-    winTileData = GetWindowAttribute(windowId, WINDOW_TILE_DATA);
-    CpuCopy32((void *)winTileData, sChooseBoxMenu->monCountTiles, 0x100);
-    RemoveWindow(windowId);
-
-    FreeSpriteTilesByTag(GFXTAG_CHOOSE_BOX_MON_COUNT);
-    spriteSheet = (struct SpriteSheet){sChooseBoxMenu->monCountTiles, 0x100, GFXTAG_CHOOSE_BOX_MON_COUNT};
-    LoadSpriteSheet(&spriteSheet);
-    x = 90 + col * 32;
-    if (numInBox < 10)
-        x -= 3;
-    spriteId = CreateSprite(&sSpriteTemplate_ChooseBoxGrid_MonCount, x, 66 + row * 32, 2);
-    if (spriteId != MAX_SPRITES)
-    {
-        sChooseBoxMenu->monCountSprite = &gSprites[spriteId];
-        sChooseBoxMenu->monCountSprite->oam.priority = 1;
-        sChooseBoxMenu->monCountSprite->subpriority = 2;
-    }
+    // Reprint only once the hidden state has reached OAM, so the old
+    // on-screen sprite never shows the new count
+    if (--sChooseBoxMenu->chooseBoxGridTimer == 2)
+        ChooseBox_PrintInfo();
+    else if (sChooseBoxMenu->chooseBoxGridTimer == 0)
+        sprite->invisible = FALSE;
 }
 
 static u8 ChooseBoxGrid_GetRowLength(u8 row)
@@ -1240,8 +1225,23 @@ static void ChooseBoxGrid_UpdateHover(void)
 
     if (sChooseBoxMenu->hoverSprite)
     {
-        sChooseBoxMenu->hoverSprite->x = 88 + col * 32;
-        sChooseBoxMenu->hoverSprite->y = 64 + row * 32;
+        struct Sprite *sprite = sChooseBoxMenu->hoverSprite;
+        s16 x = 88 + col * 32;
+        s16 y = 64 + row * 32;
+
+        if (sprite->x == x && sprite->y == y)
+        {
+            sChooseBoxMenu->chooseBoxGridTimer = 0;
+            sprite->invisible = FALSE;
+            ChooseBox_PrintInfo();
+        }
+        else
+        {
+            sprite->x = x;
+            sprite->y = y;
+            sprite->invisible = TRUE;
+            sChooseBoxMenu->chooseBoxGridTimer = 4;
+        }
     }
 
     if (sStorage->cursorSprite)
@@ -1251,7 +1251,8 @@ static void ChooseBoxGrid_UpdateHover(void)
         sStorage->cursorFlipTimer = 0;
         SetCursorPosition(CURSOR_AREA_IN_CHOOSE_BOX, sChooseBoxMenu->curBox);
     }
-    ChooseBox_PrintInfo();
+    UpdateBoxTitle(sChooseBoxMenu->curBox);
+    UpdateBoxTitlePalette();
 }
 
 static void ChooseBoxGrid_MoveCursor(s8 dcol, s8 drow)
@@ -1315,9 +1316,14 @@ static void ChooseBox_CreateSprites(u8 curBox)
     spriteId = CreateSprite(&sSpriteTemplate_ChooseBoxGrid_Hover, 88 + col * 32, 64 + row * 32, 3);
     if (spriteId != MAX_SPRITES)
     {
+        const u32 *hoverSrc = sChooseBoxGrid_Hover_Gfx;
+
         sChooseBoxMenu->hoverSprite = &gSprites[spriteId];
         sChooseBoxMenu->hoverSprite->oam.priority = 1;
         sChooseBoxMenu->hoverSprite->subpriority = 3;
+        sChooseBoxMenu->hoverSprite->callback = SpriteCB_ChooseBoxGridHover;
+        sChooseBoxMenu->chooseBoxGridTimer = 0;
+        SetupSpritesForTextPrinting(&spriteId, &hoverSrc, 1, 1);
     }
     else
     {
@@ -1372,11 +1378,6 @@ static void ChooseBox_DestroySprites(void)
     {
         DestroySprite(sChooseBoxMenu->hoverSprite);
         sChooseBoxMenu->hoverSprite = NULL;
-    }
-    if (sChooseBoxMenu->monCountSprite)
-    {
-        DestroySprite(sChooseBoxMenu->monCountSprite);
-        sChooseBoxMenu->monCountSprite = NULL;
     }
     for (tx = 0; tx < IN_BOX_COUNT; tx++)
     {
@@ -1451,7 +1452,6 @@ static void FreeChooseBox(void)
     if (sChooseBoxMenu->loadedPalette)
         FreeSpritePaletteByTag(sChooseBoxMenu->paletteTag);
     FreeSpriteTilesByTag(sChooseBoxMenu->tileTag);
-    FreeSpriteTilesByTag(GFXTAG_CHOOSE_BOX_MON_COUNT);
     sChooseBoxMenu = NULL;
 }
 
@@ -3787,7 +3787,7 @@ static bool8 InitPalettesAndSprites(void)
         sStorage->graphicsLoadState++;
         break;
     case 9:
-        LoadCompressedSpriteSheet(&sSpriteSheet_BoxTitleFrame);
+        LoadSpriteSheet(&sSpriteSheet_BoxTitleFrame);
         sStorage->graphicsLoadState++;
         break;
     case 10:
@@ -5526,24 +5526,9 @@ static void SetUpScrollToBox(u8 boxId)
     sStorage->scrollState = 0;
 }
 
-#define BOX_TITLE_SPRITE_X  (DISPLAY_WIDTH - 76 - 32)
-
 static void UpdateBoxTitle(u8 boxId)
 {
-    u16 i;
     u16 colors[2];
-    struct SpriteSheet spriteSheet = {sStorage->boxTitleTiles, 0x200, GFXTAG_BOX_TITLE};
-    struct SpriteTemplate template = sSpriteTemplate_BoxTitle;
-
-    for (i = 0; i < 2; i++)
-    {
-        if (sStorage->curBoxTitleSprites[i])
-            DestroySprite(sStorage->curBoxTitleSprites[i]);
-    }
-
-    FreeSpriteTilesByTag(GFXTAG_BOX_TITLE);
-    RenderBoxTitleCentered(GetBoxNamePtr(boxId));
-    LoadSpriteSheet(&spriteSheet);
 
     if (sCursorArea == CURSOR_AREA_BOX_TITLE)
     {
@@ -5556,13 +5541,7 @@ static void UpdateBoxTitle(u8 boxId)
         colors[1] = BOX_TITLE_TEXT_MAIN;
     }
     LoadPalette(colors, sStorage->boxTitlePalOffset, PLTT_SIZEOF(2));
-
-    for (i = 0; i < 2; i++)
-    {
-        u8 spriteId = CreateSprite(&template, BOX_TITLE_SPRITE_X + i * 32, 20, 24);
-        sStorage->curBoxTitleSprites[i] = &gSprites[spriteId];
-        StartSpriteAnim(sStorage->curBoxTitleSprites[i], i);
-    }
+    RenderBoxTitleCentered(GetBoxNamePtr(boxId));
 }
 
 static bool8 ScrollToBox(void)
@@ -5735,9 +5714,13 @@ static bool32 WaitForWallpaperGfxLoad(void)
 //  SECTION: Box Title
 //------------------------------------------------------------------------------
 
+#define BOX_TITLE_FRAME_SIZE ((8 * TILE_SIZE_4BPP) / sizeof(u32))
+
 static void CreateBoxTitleFrame(u8 boxId)
 {
     u8 i;
+    u8 middleIds[2];
+    const u32 *middleSrcs[2];
     struct SpriteTemplate template = sSpriteTemplate_BoxTitleFrame;
     template.paletteTag = PALTAG_MISC_1;
 
@@ -5746,14 +5729,19 @@ static void CreateBoxTitleFrame(u8 boxId)
         u8 spriteId = CreateSprite(&template, 100 + i * 32, 21, 25);
         sStorage->boxTitleFrameSprites[i] = &gSprites[spriteId];
         StartSpriteAnim(sStorage->boxTitleFrameSprites[i], sBoxTitleFrameAnims[i]);
+        SetSpriteSheetFrameTileNum(sStorage->boxTitleFrameSprites[i]);
     }
+
+    middleIds[0] = sStorage->boxTitleFrameSprites[1] - gSprites;
+    middleIds[1] = sStorage->boxTitleFrameSprites[2] - gSprites;
+    middleSrcs[0] = &sBoxTitleFrame_Gfx[BOX_TITLE_FRAME_SIZE];
+    middleSrcs[1] = &sBoxTitleFrame_Gfx[BOX_TITLE_FRAME_SIZE * 2];
+    SetupSpritesForTextPrinting(middleIds, middleSrcs, 2, 1);
 }
 
 static void InitBoxTitle(u8 boxId)
 {
     u8 tagIndex;
-    u16 i;
-    struct SpriteSheet spriteSheet = {sStorage->boxTitleTiles, 0x200, GFXTAG_BOX_TITLE};
 
     CpuCopy16(sCursor_Pal, sStorage->boxTitlePal, sizeof(sStorage->boxTitlePal));
 
@@ -5780,17 +5768,8 @@ static void InitBoxTitle(u8 boxId)
     sStorage->boxTitleAltPalOffset = OBJ_PLTT_ID(tagIndex) + 14;
     sStorage->wallpaperPalBits |= (1 << 16) << tagIndex;
 
-    RenderBoxTitleCentered(GetBoxNamePtr(boxId));
-    LoadSpriteSheet(&spriteSheet);
-
-    for (i = 0; i < 2; i++)
-    {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_BoxTitle, BOX_TITLE_SPRITE_X + i * 32, 20, 23);
-        sStorage->curBoxTitleSprites[i] = &gSprites[spriteId];
-        StartSpriteAnim(sStorage->curBoxTitleSprites[i], i);
-    }
-    sStorage->boxTitleCycleId = 0;
     CreateBoxTitleFrame(boxId);
+    RenderBoxTitleCentered(GetBoxNamePtr(boxId));
 }
 
 static void UpdateBoxTitlePalette(void)
@@ -5817,32 +5796,31 @@ static void UpdateBoxTitlePalette(void)
 
 static void RenderBoxTitleCentered(const u8 *boxName)
 {
-    u16 i;
-    u8 *tileData1, *tileData2;
-    u8 txtColor[3];
-    struct WindowTemplate winTemplate = {0};
-    u16 windowId;
+    u32 i;
+    u32 spriteId;
+    union TextColor color = {
+        .background = TEXT_COLOR_TRANSPARENT,
+        .foreground = TEXT_DYNAMIC_COLOR_6,
+        .shadow = TEXT_DYNAMIC_COLOR_5,
+    };
     s16 xOffset = 32 - GetStringWidth(FONT_NORMAL, boxName, 0) / 2;
 
+    if (sStorage->boxTitleFrameSprites[1] == NULL)
+        return;
     if (xOffset < 0)
         xOffset = 0;
 
-    winTemplate.width = 24;
-    winTemplate.height = 2;
-    windowId = AddWindow(&winTemplate);
-    FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
-    tileData1 = (u8 *)GetWindowAttribute(windowId, WINDOW_TILE_DATA);
-    tileData2 = tileData1 + winTemplate.width * TILE_SIZE_4BPP;
-    txtColor[0] = TEXT_COLOR_TRANSPARENT;
-    txtColor[1] = TEXT_DYNAMIC_COLOR_6;
-    txtColor[2] = TEXT_DYNAMIC_COLOR_5;
-    AddTextPrinterParameterized4(windowId, FONT_NORMAL, xOffset, 1, 0, 0, txtColor, TEXT_SKIP_DRAW, boxName);
-    for (i = 0; i < 2; i++, tileData1 += 0x80, tileData2 += 0x80)
+    sStorage->boxTitleTextBuffer ^= 1;
+    for (i = 0; i < 2; i++)
     {
-        CpuCopy16(tileData1, sStorage->boxTitleTiles + i * 0x100, 0x80);
-        CpuCopy16(tileData2, sStorage->boxTitleTiles + i * 0x100 + 0x80, 0x80);
+        struct Sprite *sprite = sStorage->boxTitleFrameSprites[1 + i];
+        StartSpriteAnim(sprite, sBoxTitleMidAnims[sStorage->boxTitleTextBuffer][i]);
+        SetSpriteSheetFrameTileNum(sprite);
     }
-    RemoveWindow(windowId);
+
+    spriteId = sStorage->boxTitleFrameSprites[1] - gSprites;
+    FillSpriteRectSpriteWithSprite(spriteId, 0, 0, 64, 16, (u32 *)&sBoxTitleFrame_Gfx[BOX_TITLE_FRAME_SIZE]);
+    AddSpriteTextPrinterParameterized6(spriteId, FONT_NORMAL, xOffset, 0, 0, 0, color, 0, boxName);
 }
 
 
