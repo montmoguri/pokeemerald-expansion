@@ -434,19 +434,18 @@ static enum StatChangeResult IncreaseStat(struct BattleCalcValues *cv, struct St
                 if (IsBattlerAlly(battler, cv->battlerDef))
                     continue; // Only triggers on opposing side
 
-                if (GetBattlerAbility(battler) == ABILITY_OPPORTUNIST
-                 && gProtectStructs[cv->battlerDef].activateOpportunist == 0) // don't activate opportunist on other mon's opportunist raises
-                {
-                    gProtectStructs[battler].activateOpportunist = 2;      // set stats to copy
-                }
-                if (GetBattlerHoldEffect(battler) == HOLD_EFFECT_MIRROR_HERB) // Bug: will activate on an other mirror herb
-                {
-                    gProtectStructs[battler].eatMirrorHerb = 1;
-                }
+                if (CompareStat(battler, st->stat, MAX_STAT_STAGE, CMP_EQUAL, cv->abilities[battler]))
+                    continue;
 
-                if (gProtectStructs[battler].activateOpportunist == 2 || gProtectStructs[battler].eatMirrorHerb == 1)
+                if (cv->abilities[battler] == ABILITY_OPPORTUNIST && !st->opportunistActivation)
+                    gProtectStructs[battler].activateOpportunist = TRUE;
+
+                if (cv->holdEffects[battler] == HOLD_EFFECT_MIRROR_HERB && !st->mirrorHerbActivation)
+                    gProtectStructs[battler].eatMirrorHerb = TRUE;
+
+                if (gProtectStructs[battler].activateOpportunist || gProtectStructs[battler].eatMirrorHerb)
                 {
-                    gQueuedStatBoosts[battler].stats |= (1 << (st->stat - 1));    // -1 to start at atk
+                    gQueuedStatBoosts[battler].stats |= (1 << (st->stat - 1)); // -1 to start at atk
                     gQueuedStatBoosts[battler].statChanges[st->stat - 1] += stageIncrease;
                 }
             }
@@ -924,6 +923,20 @@ void ClearOtherStatChangeValues(enum BattlerId battler)
     gSpecialStatuses[battler].statStageAmount2 = 0;
     gBattleStruct->negativeAnimPlayed = 0;
     gBattleStruct->positiveAnimPlayed = 0;
+}
+
+void ClearBothStatChangeQueues(void)
+{
+    for (enum BattlerId battler = 0; battler < gBattlersCount; battler++)
+    {
+        memset(gSpecialStatuses[battler].statStageQueue2, 0, sizeof(gSpecialStatuses[battler].statStageQueue2));
+        gSpecialStatuses[battler].statStageAmount2 = 0;
+        memset(gSpecialStatuses[battler].statStageQueue, 0, sizeof(gSpecialStatuses[battler].statStageQueue));
+        gSpecialStatuses[battler].statStageAmount = 0;
+    }
+    gBattleStruct->negativeAnimPlayed = 0;
+    gBattleStruct->positiveAnimPlayed = 0;
+    gBattleStruct->statChangeBattler  = 0;
 }
 
 bool32 CompareStat(enum BattlerId battler, enum Stat statId, u32 cmpTo, u32 cmpKind, enum Ability ability)
