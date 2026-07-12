@@ -27,7 +27,9 @@ struct StatChange
     u32 targetMissed:1;
     u32 stickyWeb:1;
     u32 ignoreCertainFailure:1; // for mirror armor and substitute
-    u32 padding:19;
+    u32 mirrorHerbActivation:1;
+    u32 opportunistActivation:1;
+    u32 padding:17;
 };
 
 extern u32 const sAccurateStatOrder[NUM_BATTLE_STATS];
@@ -39,6 +41,7 @@ void SetStatChange(enum BattlerId battler, enum Stat stat, s32 stage);
 void SetStatChange2(enum BattlerId battler, enum Stat stat, s32 stage);
 void ClearStatChangeValues(void);
 void ClearOtherStatChangeValues(enum BattlerId battler);
+void ClearBothStatChangeQueues(void);
 enum StatChangeResult TrySingleStatChange(struct BattleCalcValues *cv, struct StatChange *st);
 
 u32 GetStatStage(u32 stat, const struct AdditionalEffect *additionalEffect);
