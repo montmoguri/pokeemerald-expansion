@@ -74,7 +74,6 @@
 #if SWSH_ITEM_MENU
 
 #define TAG_POCKET_SCROLL_ARROW  110
-#define TAG_BAG_SCROLL_ARROW     111
 #define TAG_ITEM_CURSOR          112
 #define TAG_HOVER_SLOT           113
 #define TAG_BAG_SCROLL_THUMB     114
@@ -713,20 +712,6 @@ static const TaskFunc sContextMenuFuncs[] = {
 static const struct YesNoFuncTable sYesNoTossFunctions = {ConfirmToss, CancelToss};
 
 static const struct YesNoFuncTable sYesNoSellItemFunctions = {ConfirmSell, CancelSell};
-
-static const struct ScrollArrowsTemplate sBagScrollArrowsTemplate = {
-    .firstArrowType = SCROLL_ARROW_LEFT,
-    .firstX = 28,
-    .firstY = 16,
-    .secondArrowType = SCROLL_ARROW_RIGHT,
-    .secondX = 100,
-    .secondY = 16,
-    .fullyUpThreshold = -1,
-    .fullyDownThreshold = -1,
-    .tileTag = TAG_BAG_SCROLL_ARROW,
-    .palTag = TAG_BAG_SCROLL_ARROW,
-    .palNum = 0,
-};
 
 static const u8 sRegisteredSelect_Gfx[]         = INCGFX_U8("graphics/bag/swsh/select_button.png", ".4bpp");
 static const u32 sBagScreen_Gfx[]               = INCGFX_U32("graphics/bag/swsh/tiles.png", ".4bpp.smol");
@@ -1693,8 +1678,14 @@ static void CB2_Bag(void)
 }
 
 #if SWSH_ITEM_MENU_IN_BAG_USE
-#define PARTY_ITEM_ICON_X       16
-#define PARTY_ITEM_ICON_Y(i)    (24 * (i) + 16)
+#define PARTY_MON_ICON_X            30
+#define PARTY_MON_ICON_Y(slot)      (24 * (slot) + 16)
+#define PARTY_STATUS_ICON_X         (PARTY_MON_ICON_X + 14)
+#define PARTY_STATUS_ICON_Y(slot)   (PARTY_MON_ICON_Y(slot) + 7)
+#define PARTY_HELD_ITEM_X           (PARTY_MON_ICON_X + 16)
+#define PARTY_HELD_ITEM_Y(slot)     (PARTY_MON_ICON_Y(slot) + 12)
+#define PARTY_ITEM_ICON_X           (PARTY_MON_ICON_X - 14)
+#define PARTY_ITEM_ICON_Y(slot)     PARTY_MON_ICON_Y(slot)
 
 #define PARTY_SLOT_NORMAL_PAL         0
 #define PARTY_SLOT_HOVER_PAL          2
@@ -5648,7 +5639,7 @@ static void BagMenu_CreatePanelMonIcon(u8 slot, s16 x2)
         return;
 
     isEgg = GetMonData(mon, MON_DATA_IS_EGG);
-    spriteId = CreateMonIconIsEgg(species, SpriteCB_MonIcon, 30, 24 * slot + 16 + 8 * BagMenu_PanelRowOffset(), 6, GetMonData(mon, MON_DATA_PERSONALITY), isEgg);
+    spriteId = CreateMonIconIsEgg(species, SpriteCB_MonIcon, PARTY_MON_ICON_X, PARTY_MON_ICON_Y(slot) + 8 * BagMenu_PanelRowOffset(), 6, GetMonData(mon, MON_DATA_PERSONALITY), isEgg);
 
     if (spriteId == MAX_SPRITES)
         return;
@@ -5700,7 +5691,7 @@ static void BagMenu_CreatePartyIcons(void)
 
     for (i = 0; i < count; i++)
     {
-        u8 sid = CreateSprite(&sSpriteTemplate_StatusIcon, 44, 23 + i * 24 + 8 * BagMenu_PanelRowOffset(), 2);
+        u8 sid = CreateSprite(&sSpriteTemplate_StatusIcon, PARTY_STATUS_ICON_X, PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset(), 2);
         gBagMenu->statusIconSpriteIds[i] = (sid == MAX_SPRITES) ? SPRITE_NONE : sid;
     }
     BagMenu_UpdateStatusIcons();
@@ -5779,7 +5770,7 @@ static void BagMenu_UpdateStatusIconPos(u8 hoveredSlot)
     {
         if (gBagMenu->statusIconSpriteIds[i] == SPRITE_NONE)
             continue;
-        gSprites[gBagMenu->statusIconSpriteIds[i]].y = 23 + i * 24 + 8 * BagMenu_PanelRowOffset()
+        gSprites[gBagMenu->statusIconSpriteIds[i]].y = PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset()
             + (BagMenu_ShouldShowHPBar() && i == hoveredSlot ? 0 : 4);
     }
 }
@@ -5932,8 +5923,8 @@ static void BagMenu_UpdateHeldItemIcon(u8 slot)
          && slot == gBagMenu->heldItemShownSlot && heldItem == gBagMenu->heldItemShownItem)
             return;
         BagMenu_LoadHeldItemIconGfx(heldItem);
-        spr->x = 46;
-        spr->y = 24 * slot + 28 + 8 * BagMenu_PanelRowOffset();
+        spr->x = PARTY_HELD_ITEM_X;
+        spr->y = PARTY_HELD_ITEM_Y(slot) + 8 * BagMenu_PanelRowOffset();
         spr->invisible = FALSE;
         spr->callback = SpriteCallbackDummy;
         StartSpriteAffineAnim(spr, 0);
@@ -5972,6 +5963,12 @@ static void BagMenu_SetPartyIconBlend(bool8 enable)
 static void BagMenu_UpdateTMHMPartyBlend(s32 itemIndex)
 {
     u8 i;
+
+    if (gBagMenu->numItemStacks[gBagPosition.pocket] == (u8)(!gBagMenu->hideCloseBagText))
+    {
+        BagMenu_DisableTMHMPartyBlend();
+        return;
+    }
 
     BagMenu_SetPartyIconBlend(TRUE);
     for (i = 0; i < PARTY_SIZE; i++)
@@ -7613,7 +7610,7 @@ static void Task_BagMenu_FormChangeAnim(u8 taskId)
             struct Sprite *icon;
 
             FreeAndDestroyMonIconSprite(&gSprites[gBagMenu->partyMonIconSpriteIds[slot]]);
-            spriteId = CreateMonIconIsEgg(newSpecies, SpriteCB_MonIcon, 32, 24 * slot + 16, 6, personality, FALSE);
+            spriteId = CreateMonIconIsEgg(newSpecies, SpriteCB_MonIcon, PARTY_MON_ICON_X, PARTY_MON_ICON_Y(slot) + 8 * BagMenu_PanelRowOffset(), 6, personality, FALSE);
             gBagMenu->partyMonIconSpriteIds[slot] = spriteId;
             icon = &gSprites[spriteId];
             icon->oam.priority = 2;
