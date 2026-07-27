@@ -2384,14 +2384,13 @@ static void CreateCursorSprite(void)
     u8 rowHeight = GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT) + sItemListMenu.itemVerticalPadding;
     u8 windowTop = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8;
     u8 initialY = windowTop + sItemListMenu.upText_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * rowHeight + 8;
-    struct ComfyAnimEasingConfig animConfig;
 
-    InitComfyAnimConfig_Easing(&animConfig);
-    animConfig.from = Q_24_8(initialY);
-    animConfig.to = Q_24_8(initialY);
-    animConfig.durationFrames = 1;
-    animConfig.easingFunc = ComfyAnimEasing_EaseOutCubic;
-    gBagMenu->cursorAnimId = CreateComfyAnim_Easing(&animConfig);
+    gBagMenu->cursorAnimId = CreateComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+        .from = Q_24_8(initialY),
+        .to = Q_24_8(initialY),
+        .durationFrames = 1,
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    });
 
     gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, 80, initialY, 0);
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
@@ -2403,14 +2402,13 @@ static void CreateScrollThumbSprite(void)
     u8 total = gBagMenu->numItemStacks[pocket];
     u16 absIdx = gBagPosition.scrollPosition[pocket] + gBagPosition.cursorPosition[pocket];
     s16 initialY2 = (total > MAX_ITEMS_SHOWN) ? absIdx * 88 / (total - 1) : 0;
-    struct ComfyAnimEasingConfig animConfig;
 
-    InitComfyAnimConfig_Easing(&animConfig);
-    animConfig.from = Q_24_8(initialY2);
-    animConfig.to = Q_24_8(initialY2);
-    animConfig.durationFrames = 1;
-    animConfig.easingFunc = ComfyAnimEasing_EaseOutCubic;
-    gBagMenu->scrollThumbAnimId = CreateComfyAnim_Easing(&animConfig);
+    gBagMenu->scrollThumbAnimId = CreateComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+        .from = Q_24_8(initialY2),
+        .to = Q_24_8(initialY2),
+        .durationFrames = 1,
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    });
 
     sScrollThumbSpriteId = CreateSprite(&sSpriteTemplate_ScrollThumb, 236, 28, 1);
 }
@@ -2433,6 +2431,10 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 {
     s16 y;
     u8 i;
+
+    if (gBagMenu->cursorAnimId == INVALID_COMFY_ANIM)
+        return;
+
     y = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->cursorAnimId]);
     sprite->y = y;
     for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
@@ -2461,7 +2463,8 @@ static void SpriteCB_BagScrollThumb(struct Sprite *sprite)
         return;
     }
     sprite->invisible = FALSE;
-    sprite->y2 = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->scrollThumbAnimId]);
+    if (gBagMenu->scrollThumbAnimId != INVALID_COMFY_ANIM)
+        sprite->y2 = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->scrollThumbAnimId]);
 }
 
 static void RefreshItemListRow(struct ListMenu *list, u8 row)
@@ -2504,38 +2507,34 @@ static s16 BagMenu_GetListRowSpriteY(struct ListMenu *list)
 static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit, struct ListMenu *list)
 {
     s16 spriteY = BagMenu_GetListRowSpriteY(list);
+    u8 total = gBagMenu->numItemStacks[gBagPosition.pocket];
     u32 durationFrames = 8;
 
-    if (!onInit && !gComfyAnims[gBagMenu->cursorAnimId].completed)
+    if (gBagMenu->cursorAnimId != INVALID_COMFY_ANIM)
     {
-        if (gMain.heldKeys & (DPAD_UP | DPAD_DOWN))
-            durationFrames = 1;
-        else
-            durationFrames = 2;
+        struct ComfyAnim *cursorAnim = &gComfyAnims[gBagMenu->cursorAnimId];
+
+        if (!onInit && !cursorAnim->completed)
+            durationFrames = (gMain.heldKeys & (DPAD_UP | DPAD_DOWN)) ? 1 : 2;
+
+        InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+            .from = cursorAnim->position,
+            .to = Q_24_8(spriteY),
+            .durationFrames = durationFrames,
+            .easingFunc = ComfyAnimEasing_EaseOutCubic,
+        }, cursorAnim);
     }
 
+    if (total > MAX_ITEMS_SHOWN && gBagMenu->scrollThumbAnimId != INVALID_COMFY_ANIM)
     {
-        struct ComfyAnimEasingConfig animConfig;
-        InitComfyAnimConfig_Easing(&animConfig);
-        animConfig.from = gComfyAnims[gBagMenu->cursorAnimId].position;
-        animConfig.to = Q_24_8(spriteY);
-        animConfig.durationFrames = durationFrames;
-        animConfig.easingFunc = ComfyAnimEasing_EaseOutCubic;
-        InitComfyAnim_Easing(&animConfig, &gComfyAnims[gBagMenu->cursorAnimId]);
-    }
+        struct ComfyAnim *thumbAnim = &gComfyAnims[gBagMenu->scrollThumbAnimId];
 
-    {
-        u8 total = gBagMenu->numItemStacks[gBagPosition.pocket];
-        if (total > MAX_ITEMS_SHOWN)
-        {
-            struct ComfyAnimEasingConfig animConfig;
-            InitComfyAnimConfig_Easing(&animConfig);
-            animConfig.from = gComfyAnims[gBagMenu->scrollThumbAnimId].position;
-            animConfig.to = Q_24_8(itemIndex * 88 / (total - 1));
-            animConfig.durationFrames = durationFrames;
-            animConfig.easingFunc = ComfyAnimEasing_EaseOutCubic;
-            InitComfyAnim_Easing(&animConfig, &gComfyAnims[gBagMenu->scrollThumbAnimId]);
-        }
+        InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+            .from = thumbAnim->position,
+            .to = Q_24_8(itemIndex * 88 / (total - 1)),
+            .durationFrames = durationFrames,
+            .easingFunc = ComfyAnimEasing_EaseOutCubic,
+        }, thumbAnim);
     }
 
 #if SWSH_ITEM_MENU_PYRAMID
@@ -2753,7 +2752,6 @@ static void BagMenu_PrintCursorAtPos(u8 y, u8 colorIndex)
 static void CreatePocketScrollArrowPair(void)
 {
     static const u8 sArrowX[2] = {104, 223};
-    struct ComfyAnimEasingConfig animConfig;
     u8 i;
 
 #if SWSH_ITEM_MENU_PYRAMID
@@ -2767,20 +2765,20 @@ static void CreatePocketScrollArrowPair(void)
     for (i = 0; i < 2; i++)
     {
         u8 spriteId;
-        u32 animId;
 
-        InitComfyAnimConfig_Easing(&animConfig);
-        animConfig.from = Q_24_8(0);
-        animConfig.to = Q_24_8(0);
-        animConfig.durationFrames = 1;
-        animId = CreateComfyAnim_Easing(&animConfig);
-        gBagMenu->pocketScrollArrowAnimIds[i] = animId;
+        if (gBagMenu->pocketScrollArrowAnimIds[i] == INVALID_COMFY_ANIM)
+            gBagMenu->pocketScrollArrowAnimIds[i] = CreateComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+                .from = Q_24_8(0),
+                .to = Q_24_8(0),
+                .durationFrames = 1,
+                .easingFunc = ComfyAnimEasing_EaseOutCubic,
+            });
 
         spriteId = CreateSprite(&sSpriteTemplate_PocketScrollArrows, sArrowX[i], 16, 0);
         if (spriteId != MAX_SPRITES)
         {
             StartSpriteAnim(&gSprites[spriteId], i);
-            gSprites[spriteId].data[0] = animId;
+            gSprites[spriteId].data[0] = i;
             gBagMenu->pocketScrollArrowSpriteIds[i] = spriteId;
         }
     }
@@ -2797,17 +2795,13 @@ void BagDestroyPocketScrollArrowPair(void)
             DestroySprite(&gSprites[gBagMenu->pocketScrollArrowSpriteIds[i]]);
             gBagMenu->pocketScrollArrowSpriteIds[i] = SPRITE_NONE;
         }
-        if (gBagMenu->pocketScrollArrowAnimIds[i] != INVALID_COMFY_ANIM)
-        {
-            ReleaseComfyAnim(gBagMenu->pocketScrollArrowAnimIds[i]);
-            gBagMenu->pocketScrollArrowAnimIds[i] = INVALID_COMFY_ANIM;
-        }
     }
 }
 
 static void SpriteCB_PocketScrollArrow(struct Sprite *sprite)
 {
-    u8 animId = (u8)sprite->data[0];
+    u8 animId = gBagMenu->pocketScrollArrowAnimIds[sprite->data[0]];
+
     if (animId != INVALID_COMFY_ANIM)
         sprite->x2 = ReadComfyAnimValueSmooth(&gComfyAnims[animId]);
 }
@@ -2815,17 +2809,16 @@ static void SpriteCB_PocketScrollArrow(struct Sprite *sprite)
 static void AnimatePocketScrollArrow(s8 direction)
 {
     u8 arrowIdx = (direction < 0) ? 0 : 1;
-    struct ComfyAnimEasingConfig config;
 
     if (gBagMenu->pocketScrollArrowAnimIds[arrowIdx] == INVALID_COMFY_ANIM)
         return;
 
-    InitComfyAnimConfig_Easing(&config);
-    config.from = Q_24_8(direction < 0 ? -4 : 4);
-    config.to = Q_24_8(0);
-    config.durationFrames = 12;
-    config.easingFunc = ComfyAnimEasing_EaseOutCubic;
-    InitComfyAnim_Easing(&config, &gComfyAnims[gBagMenu->pocketScrollArrowAnimIds[arrowIdx]]);
+    InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+        .from = Q_24_8(direction < 0 ? -4 : 4),
+        .to = Q_24_8(0),
+        .durationFrames = 12,
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    }, &gComfyAnims[gBagMenu->pocketScrollArrowAnimIds[arrowIdx]]);
 }
 
 static void FreeBagMenu(void)
@@ -2881,11 +2874,9 @@ static void Task_CloseBagMenu(u8 taskId)
         BagDestroyPocketScrollArrowPair();
         ReleaseComfyAnim(gBagMenu->cursorAnimId);
         ReleaseComfyAnim(gBagMenu->scrollThumbAnimId);
-        if (gBagMenu->partyItemIconAnimId != INVALID_COMFY_ANIM)
-        {
-            ReleaseComfyAnim(gBagMenu->partyItemIconAnimId);
-            gBagMenu->partyItemIconAnimId = INVALID_COMFY_ANIM;
-        }
+        ReleaseComfyAnim(gBagMenu->pocketScrollArrowAnimIds[0]);
+        ReleaseComfyAnim(gBagMenu->pocketScrollArrowAnimIds[1]);
+        ReleaseComfyAnim(gBagMenu->partyItemIconAnimId);
         ResetSpriteData();
         FreeAllSpritePalettes();
         FreeBagMenu();
@@ -6169,12 +6160,13 @@ static void BagMenu_ApplyItemUseBlend(void)
 
 static void BagMenu_PartyStartItemIconYAnim(struct Sprite *spr, s16 toY)
 {
-    struct ComfyAnimEasingConfig config;
-    InitComfyAnimConfig_Easing(&config);
-    config.from = Q_24_8(spr->y2);
-    config.to = Q_24_8(toY);
-    config.durationFrames = 8;
-    config.easingFunc = ComfyAnimEasing_EaseOutCubic;
+    struct ComfyAnimEasingConfig config = {
+        .from = Q_24_8(spr->y2),
+        .to = Q_24_8(toY),
+        .durationFrames = 8,
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    };
+
     if (gBagMenu->partyItemIconAnimId == INVALID_COMFY_ANIM)
         gBagMenu->partyItemIconAnimId = CreateComfyAnim_Easing(&config);
     else
@@ -6330,12 +6322,6 @@ static void BagMenu_ClosePartySelect(u8 taskId)
     }
     if (gBagPosition.pocket == POCKET_TM_HM)
         BagMenu_UpdateTMHMPartyBlend(gBagMenu->hoveredItemIndex);
-
-    if (gBagMenu->partyItemIconAnimId != INVALID_COMFY_ANIM)
-    {
-        ReleaseComfyAnim(gBagMenu->partyItemIconAnimId);
-        gBagMenu->partyItemIconAnimId = INVALID_COMFY_ANIM;
-    }
 
     gSprites[gBagMenu->cursorSpriteId].invisible = FALSE;
 
