@@ -254,8 +254,7 @@ static void BuildBattlePocketLists(void);
 static void GetItemNameFromPocket(u8 *dest, enum Item itemId);
 static void PrintItemDescription(int);
 static void UpdateEmptyPocket(void);
-static u8 FormatDescriptionByWidth(u8 *, s32, u8, const u8 *, s16);
-static void BagMenu_PrintCursorAtPos(u8, u8);
+static u8 FormatDescriptionByWidth(u8 *, s32, s32, u8, const u8 *, s16);
 static void BagMenu_Print(u8, u8, const u8 *, u8, u8, u8, u8, u8, u8);
 static void Task_CloseBagMenu(u8);
 static u8 AddItemMessageWindow(u8);
@@ -471,11 +470,6 @@ static const u8 sText_MoveInfoPower[]          = _("Power");
 static const u8 sText_MoveInfoAccuracy[]       = _("Accuracy");
 static const u8 sText_MoveInfoPP[]             = _("PP");
 #if SWSH_ITEM_MENU_BERRY_STAT
-static const u8 sText_BerryFlavorSpicy[]       = _("Spicy");
-static const u8 sText_BerryFlavorDry[]         = _("Dry");
-static const u8 sText_BerryFlavorSweet[]       = _("Sweet");
-static const u8 sText_BerryFlavorBitter[]      = _("Bitter");
-static const u8 sText_BerryFlavorSour[]        = _("Sour");
 static const u8 *const sBerryFirmnessStrings[] =
 {
     [BERRY_FIRMNESS_UNKNOWN]    = COMPOUND_STRING("???"),
@@ -514,7 +508,6 @@ static const u8 sText_UseHowMany[]              = _("How many do you want to use
 static const u8 sText_DepositedVar2Var1s[]      = _("Deposited {STR_VAR_2}\n{STR_VAR_1}.");
 static const u8 sText_NoRoomForItems[]          = _("There's no room to\nstore items.");
 static const u8 sText_CantStoreImportantItems[] = _("Important items can't be\nstored in the PC!");
-static const u8 sText_Price[]                   = _("Price");
 static const u8 sText_ConfirmTossItems[]        = _("Throw away {STR_VAR_2} {STR_VAR_1}?");
 
 static void Task_LoadBagSortOptions(u8 taskId);
@@ -1254,7 +1247,6 @@ enum {
     COLORID_GRAY_CURSOR,
     COLORID_TMHM_INFO,
     COLORID_NO_FLAVOR,
-    COLORID_NONE = 0xFF
 };
 static const u8 sFontColorTable[][3] = {
                             // bgColor, textColor, shadowColor
@@ -1410,6 +1402,33 @@ static const struct WindowTemplate sContextMenuWindowTemplates[] =
         .bg = 0,
         .tilemapLeft = 15,
         .tilemapTop = 13,
+        .width = 14,
+        .height = 6,
+        .paletteNum = 15,
+        .baseBlock = 475,
+    },
+    [ITEMWIN_1x2_HIGH] = {
+        .bg = 0,
+        .tilemapLeft = 22,
+        .tilemapTop = 9,
+        .width = 7,
+        .height = 4,
+        .paletteNum = 15,
+        .baseBlock = 475,
+    },
+    [ITEMWIN_2x2_HIGH] = {
+        .bg = 0,
+        .tilemapLeft = 15,
+        .tilemapTop = 9,
+        .width = 14,
+        .height = 4,
+        .paletteNum = 15,
+        .baseBlock = 475,
+    },
+    [ITEMWIN_2x3_HIGH] = {
+        .bg = 0,
+        .tilemapLeft = 15,
+        .tilemapTop = 7,
         .width = 14,
         .height = 6,
         .paletteNum = 15,
@@ -2679,7 +2698,7 @@ static void BagMenu_ItemPrintCallback(u8 windowId, u32 itemIndex, u8 y)
 static void PrintItemDescription(int itemIndex)
 {
     const u8 *str;
-    u8 desc[200];
+    u8 *desc = gBagMenu->descriptionBuffer;
     u8 fontId;
     s32 maxWidth = sDefaultBagWindows[WIN_DESCRIPTION].width * 8 - 3;
 
@@ -2694,9 +2713,9 @@ static void PrintItemDescription(int itemIndex)
         StringExpandPlaceholders(gStringVar4, gText_ReturnToVar1);
         str = gStringVar4;
     }
-    fontId = FormatDescriptionByWidth(desc, maxWidth, FONT_SHORT_NARROW, str, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+    fontId = FormatDescriptionByWidth(desc, ITEM_DESCRIPTION_BUFFER_SIZE, maxWidth, FONT_SHORT_NARROW, str, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
     FillWindowPixelBuffer(WIN_DESCRIPTION, PIXEL_FILL(0));
-    AddTextPrinterParameterized4(WIN_DESCRIPTION, fontId, 3, 1, 0, 1, sFontColorTable[COLORID_NORMAL], 0, desc);
+    BagMenu_Print(WIN_DESCRIPTION, fontId, desc, 3, 1, 0, 1, 0, COLORID_NORMAL);
 }
 
 static void UpdateEmptyPocket(void)
@@ -2733,20 +2752,6 @@ static void UpdateEmptyPocket(void)
             ScheduleBgCopyTilemapToVram(2);
         }
     }
-}
-
-static void BagMenu_PrintCursor(u8 listTaskId, u8 colorIndex)
-{
-    BagMenu_PrintCursorAtPos(ListMenuGetYCoordForPrintingArrowCursor(listTaskId), colorIndex);
-}
-
-static void BagMenu_PrintCursorAtPos(u8 y, u8 colorIndex)
-{
-    if (colorIndex == COLORID_NONE)
-        FillWindowPixelRect(WIN_ITEM_LIST, PIXEL_FILL(0), 0, y, GetMenuCursorDimensionByFont(FONT_NORMAL, 0), GetMenuCursorDimensionByFont(FONT_NORMAL, 1));
-    else
-        BagMenu_Print(WIN_ITEM_LIST, FONT_NORMAL, gText_SelectorArrow2, 0, y, 0, 0, 0, colorIndex);
-
 }
 
 static void CreatePocketScrollArrowPair(void)
@@ -3141,7 +3146,6 @@ static void Task_BagMenu_HandleInput(u8 taskId)
 
                     PlaySE(SE_SELECT);
                     BagDestroyPocketScrollArrowPair();
-                    BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
                     ListMenuGetScrollAndRow(data[0], scrollPos, cursorPos);
                     gTasks[taskId].func = Task_LoadBagSortOptions;
                     return;
@@ -3177,7 +3181,6 @@ static void Task_BagMenu_HandleInput(u8 taskId)
                 }
                 struct ItemSlot itemSlot = BagList_GetSlot(gBagPosition.pocket, listPosition);
                 PlaySE(SE_SELECT);
-                BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
                 tListPosition = listPosition;
                 gSpecialVar_ItemId = itemSlot.itemId;
                 tQuantity = itemSlot.quantity;
@@ -3739,13 +3742,24 @@ static bool8 IsValidContextMenuPos(s8 cursorPos)
 static void RemoveContextWindow(void)
 {
     if (gBagMenu->contextMenuNumItems == 1)
+    {
         BagMenu_RemoveWindow(ITEMWIN_1x1);
+    }
     else if (gBagMenu->contextMenuNumItems == 2)
+    {
         BagMenu_RemoveWindow(ITEMWIN_1x2);
+        BagMenu_RemoveWindow(ITEMWIN_1x2_HIGH);
+    }
     else if (gBagMenu->contextMenuNumItems == 4)
+    {
         BagMenu_RemoveWindow(ITEMWIN_2x2);
+        BagMenu_RemoveWindow(ITEMWIN_2x2_HIGH);
+    }
     else
+    {
         BagMenu_RemoveWindow(ITEMWIN_2x3);
+        BagMenu_RemoveWindow(ITEMWIN_2x3_HIGH);
+    }
 }
 
 // skips ItemUseOutOfBattle_TMHM boot-up/teach prompts sequences and goes straight to choosing a mon
@@ -3825,10 +3839,7 @@ static void AskTossItemsYesNo(u8 taskId)
 
 static void CancelToss(u8 taskId)
 {
-    s16 *data = gTasks[taskId].data;
-
     RemoveItemMessageWindow(ITEMWIN_MESSAGE);
-    BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
     ReturnToItemList(taskId);
 }
 
@@ -3878,7 +3889,6 @@ static void RefreshListMenu(u8 taskId)
     LoadBagItemListBuffers(gBagPosition.pocket);
     tListTaskId = ListMenuInit(&gMultiuseListMenuTemplate, *scrollPos, *cursorPos);
     UpdateEmptyPocket();
-    BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
     ScheduleBgCopyTilemapToVram(1);
 }
 
@@ -3987,10 +3997,10 @@ static void ItemMenu_Cancel(u8 taskId)
     s16 *data = gTasks[taskId].data;
 
     RemoveContextWindow();
+    RemoveItemMessageWindow(ITEMWIN_MESSAGE);
     PrintItemDescription(tListPosition);
     ScheduleBgCopyTilemapToVram(1);
     ScheduleBgCopyTilemapToVram(0);
-    BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
     ReturnToItemList(taskId);
 }
 
@@ -4134,10 +4144,7 @@ static void AskSellItems(u8 taskId)
 
 static void CancelSell(u8 taskId)
 {
-    s16 *data = gTasks[taskId].data;
-
     RemoveItemMessageWindow(ITEMWIN_MESSAGE);
-    BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
     ReturnToItemList(taskId);
 }
 
@@ -4170,7 +4177,6 @@ static void Task_ChooseHowManyToSell(u8 taskId)
     else if (JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
-        BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
         DestroyQuantityFrameSprites();
         BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         PrintSellPrice(gSpecialVar_ItemId, 1);
@@ -4255,7 +4261,6 @@ static void Task_ChooseHowManyToDeposit(u8 taskId)
         DestroyQuantityFrameSprites();
         BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
-        BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
         ReturnToItemList(taskId);
     }
 }
@@ -4367,7 +4372,6 @@ static void Task_WallyTutorialBagMenu(u8 taskId)
             break;
         case WALLY_BAG_DELAY * 2:
             PlaySE(SE_SELECT);
-            BagMenu_PrintCursor(tListTaskId, COLORID_NONE);
             gSpecialVar_ItemId = ITEM_POKE_BALL;
             OpenContextMenu(taskId);
             tTimer++;
@@ -4450,8 +4454,7 @@ static void LoadBagMenuTextWindows(void)
     DeactivateAllTextPrinters();
     LoadUserWindowBorderGfx(0, 1, BG_PLTT_ID(14));
     LoadMessageBoxGfx(0, 10, BG_PLTT_ID(13));
-    ListMenuLoadStdPalAt(BG_PLTT_ID(12), 1);
-    LoadPalette(&gStandardMenuPalette, BG_PLTT_ID(15), PLTT_SIZE_4BPP);
+    LoadPalette(gStandardMenuPalette, BG_PLTT_ID(15), PLTT_SIZE_4BPP);
     for (i = 0; i <= WIN_POCKET_NAME; i++)
     {
         FillWindowPixelBuffer(i, PIXEL_FILL(0));
@@ -4609,7 +4612,7 @@ static void SetupSellWindows(void)
 
     windowId = BagMenu_AddWindowNoFrame(ITEMWIN_SELL_PRICE);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
-    BagMenu_Print(windowId, FONT_NORMAL, sText_Price, 0, 0, 0, 0, TEXT_SKIP_DRAW, COLORID_POCKET_NAME);
+    BagMenu_Print(windowId, FONT_NORMAL, COMPOUND_STRING("Price"), 0, 0, 0, 0, TEXT_SKIP_DRAW, COLORID_POCKET_NAME);
     CopyWindowToVram(windowId, COPYWIN_GFX);
 
     windowId = BagMenu_AddWindowNoFrame(ITEMWIN_MONEY);
@@ -4736,7 +4739,7 @@ static void UpdateMoveBattleInfo(s32 itemIndex)
 static void PrintContestDescription(s32 itemIndex)
 {
     const u8 *str;
-    u8 desc[200];
+    u8 *desc = gBagMenu->descriptionBuffer;
     u8 fontId;
     s32 maxWidth = sDefaultBagWindows[WIN_DESCRIPTION].width * 8 - 3;
 
@@ -4751,9 +4754,9 @@ static void PrintContestDescription(s32 itemIndex)
         StringExpandPlaceholders(gStringVar4, gText_ReturnToVar1);
         str = gStringVar4;
     }
-    fontId = FormatDescriptionByWidth(desc, maxWidth, FONT_SHORT_NARROW, str, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+    fontId = FormatDescriptionByWidth(desc, ITEM_DESCRIPTION_BUFFER_SIZE, maxWidth, FONT_SHORT_NARROW, str, GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
     FillWindowPixelBuffer(WIN_DESCRIPTION, PIXEL_FILL(0));
-    AddTextPrinterParameterized4(WIN_DESCRIPTION, fontId, 3, 1, 0, 1, sFontColorTable[COLORID_NORMAL], 0, desc);
+    BagMenu_Print(WIN_DESCRIPTION, fontId, desc, 3, 1, 0, 1, 0, COLORID_NORMAL);
 }
 #endif
 
@@ -4982,7 +4985,7 @@ static const u8 sBagMenuSortBerriesTMsHMs[] =
     ACTION_CANCEL,
 };
 
-static void AddBagSortSubMenu(void)
+static void AddBagSortSubMenu(u8 taskId)
 {
     switch (gBagPosition.pocket)
     {
@@ -5009,25 +5012,22 @@ static void AddBagSortSubMenu(void)
         break;
     }
 
-    StringExpandPlaceholders(gStringVar4, sText_SortItemsHow);
-    FillWindowPixelBuffer(1, PIXEL_FILL(0));
-    BagMenu_Print(1, 1, gStringVar4, 3, 1, 0, 0, 0, 0);
-
     if (gBagMenu->contextMenuNumItems == 2)
-        PrintContextMenuItems(BagMenu_AddWindow(ITEMWIN_1x2));
+        PrintContextMenuItems(BagMenu_AddWindow(ITEMWIN_1x2_HIGH));
     else if (gBagMenu->contextMenuNumItems == 4)
-        PrintContextMenuItemGrid(BagMenu_AddWindow(ITEMWIN_2x2), 2, 2);
+        PrintContextMenuItemGrid(BagMenu_AddWindow(ITEMWIN_2x2_HIGH), 2, 2);
     else
-        PrintContextMenuItemGrid(BagMenu_AddWindow(ITEMWIN_2x3), 2, 3);
+        PrintContextMenuItemGrid(BagMenu_AddWindow(ITEMWIN_2x3_HIGH), 2, 3);
+
+    StringExpandPlaceholders(gStringVar4, sText_SortItemsHow);
+    DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4,
+                       gBagMenu->contextMenuNumItems <= 2 ? Task_ItemContext_SingleRow
+                                                          : Task_ItemContext_MultipleRows);
 }
 
 static void Task_LoadBagSortOptions(u8 taskId)
 {
-    AddBagSortSubMenu();
-    if (gBagMenu->contextMenuNumItems <= 2)
-        gTasks[taskId].func = Task_ItemContext_SingleRow;
-    else
-        gTasks[taskId].func = Task_ItemContext_MultipleRows;
+    AddBagSortSubMenu(taskId);
 }
 
 #define tSortType data[2]
@@ -5081,7 +5081,7 @@ static void SortBagItems(u8 taskId)
 
     StringCopy(gStringVar1, sSortTypeStrings[tSortType]);
     StringExpandPlaceholders(gStringVar4, sText_ItemsSorted);
-    DisplayItemMessage(taskId, 1, gStringVar4, Task_SortFinish);
+    DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4, Task_SortFinish);
 }
 
 #undef tSortType
@@ -5090,7 +5090,7 @@ static void Task_SortFinish(u8 taskId)
 {
     if (gMain.newKeys & (A_BUTTON | B_BUTTON))
     {
-        RemoveItemMessageWindow(4);
+        RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         ReturnToItemList(taskId);
     }
 }
@@ -5329,12 +5329,13 @@ static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
     return FALSE;
 }
 
-static bool32 PerformTextFormatting(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
+static bool32 PerformTextFormatting(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
 {
     u8 *end, *ptr, *curLine, *lastSpace;
+    u8 *limit = result + resultSize - 1;
 
     end = result;
-    while (*str != EOS)
+    while (*str != EOS && end < limit)
     {
         if (*str == CHAR_SPACE || *str == CHAR_NEWLINE)
         {
@@ -5394,14 +5395,14 @@ static bool32 PerformTextFormatting(u8 *result, s32 maxWidth, u8 fontId, const u
     return (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
 }
 
-static u8 FormatDescriptionByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
+static u8 FormatDescriptionByWidth(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
 {
     u32 lineCount;
     bool32 lastLineFits;
 
     while (TRUE)
     {
-        lastLineFits = PerformTextFormatting(result, maxWidth, fontId, str, letterSpacing, &lineCount);
+        lastLineFits = PerformTextFormatting(result, resultSize, maxWidth, fontId, str, letterSpacing, &lineCount);
 
         if (lineCount < 3 && lastLineFits)
             break;
@@ -5456,11 +5457,11 @@ static void UpdateBerryInfo(s32 itemIndex)
         if (berryInfo->firmness != BERRY_FIRMNESS_UNKNOWN)
             BagMenu_Print(WIN_BERRY_INFO, FONT_SHORT_NARROW, sBerryFirmnessStrings[berryInfo->firmness], GetStringRightAlignXOffset(FONT_SHORT_NARROW, sBerryFirmnessStrings[berryInfo->firmness], 48), 16, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
 
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, sText_BerryFlavorSpicy,   4,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->spicy  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, sText_BerryFlavorDry,    39,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->dry    ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, sText_BerryFlavorSweet,  63,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->sweet  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, sText_BerryFlavorBitter,  4, 16, 0, 0, TEXT_SKIP_DRAW, berryInfo->bitter ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, sText_BerryFlavorSour,   42, 16, 0, 0, TEXT_SKIP_DRAW, berryInfo->sour   ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Spicy"),   4,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->spicy  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Dry"),    39,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->dry    ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sweet"),  63,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->sweet  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Bitter"),  4, 16, 0, 0, TEXT_SKIP_DRAW, berryInfo->bitter ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sour"),   42, 16, 0, 0, TEXT_SKIP_DRAW, berryInfo->sour   ? COLORID_NORMAL : COLORID_NO_FLAVOR);
 
         CopyWindowToVram(WIN_BERRY_INFO, COPYWIN_GFX);
         CopyWindowToVram(WIN_BERRY_FLAVORS, COPYWIN_GFX);
@@ -5474,8 +5475,8 @@ static void PrintBerryDescriptionInfo(s32 itemIndex)
     if (itemIndex != LIST_CANCEL)
     {
         const struct BerryInfo *berryInfo = GetBerryInfo(ItemIdToBerryType(BagList_GetItemId(gBagPosition.pocket, itemIndex)));
-        AddTextPrinterParameterized4(WIN_DESCRIPTION, FONT_SMALL_NARROWER, 3,  2, 0, 1, sFontColorTable[COLORID_NORMAL], 0, berryInfo->description1);
-        AddTextPrinterParameterized4(WIN_DESCRIPTION, FONT_SMALL_NARROWER, 3, 15, 0, 1, sFontColorTable[COLORID_NORMAL], 0, berryInfo->description2);
+        BagMenu_Print(WIN_DESCRIPTION, FONT_SMALL_NARROWER, berryInfo->description1, 3,  2, 0, 1, 0, COLORID_NORMAL);
+        BagMenu_Print(WIN_DESCRIPTION, FONT_SMALL_NARROWER, berryInfo->description2, 3, 15, 0, 1, 0, COLORID_NORMAL);
     }
 }
 #endif
@@ -5614,6 +5615,32 @@ static void BagMenu_SetPartySlotPalette(u8 slot, u8 pal)
             u16 *entry = &buf[(baseRow + row) * 32 + (PARTY_PANEL_START_COL + col)];
             *entry = (*entry & 0x0FFF) | ((u16)pal << 12);
         }
+    ScheduleBgCopyTilemapToVram(2);
+}
+
+static void BagMenu_RedrawPartyPanel(void)
+{
+    u16 *buf = (u16 *)gBagMenu->mainTilemapBuffer;
+    u8 *base = Alloc(BG_SCREEN_SIZE);
+
+    if (base != NULL)
+    {
+        u16 *src = (u16 *)base;
+        u8 firstRow = PARTY_PANEL_START_ROW + BagMenu_PanelRowOffset();
+        u8 row, col;
+
+        DecompressDataWithHeaderWram(sBagScreen_BG2TileMap, base);
+        for (row = firstRow; row < firstRow + PARTY_SIZE * PARTY_PANEL_SLOT_HEIGHT; row++)
+            for (col = PARTY_PANEL_START_COL; col < PARTY_PANEL_START_COL + PARTY_PANEL_SLOT_WIDTH; col++)
+                buf[row * 32 + col] = src[row * 32 + col];
+        Free(base);
+    }
+    else
+    {
+        DecompressDataWithHeaderWram(sBagScreen_BG2TileMap, gBagMenu->mainTilemapBuffer);
+    }
+
+    BagMenu_DrawPartySlots();
     ScheduleBgCopyTilemapToVram(2);
 }
 
@@ -6906,10 +6933,18 @@ static void BagMenu_UsePPOnMove(u8 taskId, u8 moveSlot)
     DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4, Task_BagMenu_PartyAfterItemUse);
 }
 
+// Numbering comes from GetCurrentPpToMaxPpState and is not severity-ordered.
+enum {
+    PP_STATE_BELOW_HALF,
+    PP_STATE_BELOW_QUARTER,
+    PP_STATE_EMPTY,
+    PP_STATE_ABOVE_HALF, // no warning color, prints with the font defaults
+};
+
 static const u8 sPPMoveSelectColors[][3] = {
-    [0] = {0, 4, 5},
-    [1] = {0, 6, 7},
-    [2] = {0, 8, 9},
+    [PP_STATE_BELOW_HALF]    = {0, 4, 5},
+    [PP_STATE_BELOW_QUARTER] = {0, 6, 7},
+    [PP_STATE_EMPTY]         = {0, 8, 9},
 };
 
 static void BagMenu_ShowPPMoveSelectWindow(u8 taskId)
@@ -6938,7 +6973,7 @@ static void BagMenu_ShowPPMoveSelectWindow(u8 taskId)
             StringAppend(gStringVar3, gText_Slash);
             StringAppend(gStringVar3, gStringVar2);
             x = GetStringRightAlignXOffset(FONT_NORMAL, gStringVar3, WindowWidthPx(windowId));
-            if (ppState == 3)
+            if (ppState == PP_STATE_ABOVE_HALF)
                 AddTextPrinterParameterized(windowId, FONT_NORMAL, gStringVar3, x, (i * 16) + 1, TEXT_SKIP_DRAW, NULL);
             else
                 AddTextPrinterParameterized4(windowId, FONT_NORMAL, x, (i * 16) + 1, 0, 0, sPPMoveSelectColors[ppState], TEXT_SKIP_DRAW, gStringVar3);
@@ -8048,12 +8083,10 @@ static void Task_BagMenu_FusionAnim(u8 taskId)
                 sBagFusionState->firstFusionSlot--;
             }
             BagMenu_FreePartyIcons();
-            DecompressDataWithHeaderWram(sBagScreen_BG2TileMap, gBagMenu->mainTilemapBuffer);
-            BagMenu_DrawPartySlots();
+            BagMenu_RedrawPartyPanel();
             if (BagMenu_IsMultiFull())
                 ShowMultiBattleSwapPrompt(TRUE);
             BagMenu_CreatePartyIcons();
-            ScheduleBgCopyTilemapToVram(2);
             tAnimState++;
         }
         break;
@@ -8681,10 +8714,8 @@ static void BagMenu_MultiFullFlipPage(void)
         }
     }
 
-    DecompressDataWithHeaderWram(sBagScreen_BG2TileMap, gBagMenu->mainTilemapBuffer);
-    BagMenu_DrawPartySlots();
+    BagMenu_RedrawPartyPanel();
     ShowMultiBattleSwapPrompt(TRUE);
-    ScheduleBgCopyTilemapToVram(2);
 
     for (i = 0; i < PARTY_SIZE; i++)
         BagMenu_CreatePanelMonIcon(i, -8 * MULTI_FULL_SWAP_TILES);

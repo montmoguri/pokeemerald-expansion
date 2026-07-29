@@ -37,6 +37,9 @@ enum {
     ITEMWIN_MONEY,
 #if SWSH_ITEM_MENU
     ITEMWIN_SELL_PRICE,
+    ITEMWIN_1x2_HIGH,
+    ITEMWIN_2x2_HIGH,
+    ITEMWIN_2x3_HIGH,
 #endif
 #if SWSH_ITEM_MENU_IN_BAG_USE
     ITEMWIN_PP_MOVE_SELECT,
@@ -106,6 +109,8 @@ struct BagPosition
 
 extern struct BagPosition gBagPosition;
 
+#define ITEM_DESCRIPTION_BUFFER_SIZE 200
+
 struct BagMenu
 {
     MainCallback newScreenCallback;
@@ -153,6 +158,7 @@ struct BagMenu
     s32 hoveredItemIndex;
     u16 *moveTypeIconTilesPtr;
     u8 *moveTypeIconsCache;
+    u8 descriptionBuffer[ITEM_DESCRIPTION_BUFFER_SIZE];
 #if SWSH_ITEM_MENU_BERRY_STAT
     u8 berryInfoMode;
 #endif
