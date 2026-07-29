@@ -342,6 +342,7 @@ static void BagMenu_UpdateTMHMPartyBlend(s32 itemIndex);
 static void BagMenu_DisableTMHMPartyBlend(void);
 static void BagMenu_ApplyPartyBlend(bool8 (*isEligible)(u8 partySlot));
 static bool8 BagMenu_MonHoldsItem(u8 partySlot);
+static void BagMenu_HideDepletedItemCursor(enum Item);
 static void BagMenu_UseSacredAsh(u8);
 static void BagMenu_GetEVStatName(enum ItemEffectType effectType, u8 *dest);
 static void BagMenu_UsePPOnMove(u8, u8);
@@ -6506,6 +6507,14 @@ static void BagMenu_GetMedicineEffectMessage(enum Item item, u32 statusCured)
 
 #define tRevivedMask data[7]
 
+static void BagMenu_HideDepletedItemCursor(enum Item item)
+{
+    u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
+
+    if (iconSpriteId != SPRITE_NONE && !CheckBagHasItem(item, 1))
+        gSprites[iconSpriteId].invisible = TRUE;
+}
+
 static void BagMenu_UseSacredAsh(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
@@ -6602,6 +6611,7 @@ static void BagMenu_UseMedicine(u8 taskId)
     for (s16 i = 1; i < tItemCount; i++)
         ExecuteTableBasedItemEffect(mon, item, tPartySlot, 0);
     RemoveBagItem(item, tItemCount);
+    BagMenu_HideDepletedItemCursor(item);
 
     if (GetMonData(mon, MON_DATA_STATUS) != oldStatus)
         BagMenu_UpdateStatusIcons();
@@ -6651,6 +6661,7 @@ static void BagMenu_UseResetEVs(u8 taskId)
 
     PlaySE(SE_USE_ITEM);
     RemoveBagItem(item, 1);
+    BagMenu_HideDepletedItemCursor(item);
     GetMonNickname(mon, gStringVar1);
     StringExpandPlaceholders(gStringVar4, sText_PartyBasePointsReset);
     DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4, Task_BagMenu_PartyAfterItemUse);
@@ -6674,6 +6685,7 @@ static void BagMenu_UseDynamaxCandy(u8 taskId)
     dynamaxLevel++;
     SetMonData(mon, MON_DATA_DYNAMAX_LEVEL, &dynamaxLevel);
     RemoveBagItem(item, 1);
+    BagMenu_HideDepletedItemCursor(item);
     GetMonNickname(mon, gStringVar1);
     StringExpandPlaceholders(gStringVar4, sText_PartyDynamaxLevelUp);
     DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4, Task_BagMenu_PartyAfterItemUse);
@@ -6759,6 +6771,7 @@ static void BagMenu_UseReduceEV(u8 taskId)
 
     PlaySE(SE_USE_ITEM);
     RemoveBagItem(item, tItemCount);
+    BagMenu_HideDepletedItemCursor(item);
     GetMonNickname(mon, gStringVar1);
     BagMenu_GetEVStatName(effectType, gStringVar2);
     if (friendship != newFriendship)
@@ -6806,6 +6819,7 @@ static void BagMenu_AbilityChangeYes(u8 taskId)
     PlaySE(SE_USE_ITEM);
     SetMonData(mon, MON_DATA_ABILITY_NUM, &abilityNum);
     RemoveBagItem(item, 1);
+    BagMenu_HideDepletedItemCursor(item);
     GetMonNickname(mon, gStringVar1);
     u32 species = GetMonData(mon, MON_DATA_SPECIES);
     StringCopy(gStringVar2, gAbilitiesInfo[GetAbilityBySpecies(species, abilityNum)].name);
@@ -6878,6 +6892,7 @@ static void BagMenu_MintYes(u8 taskId)
     SetMonData(mon, MON_DATA_HIDDEN_NATURE, &newNature);
     CalculateMonStats(mon);
     RemoveBagItem(item, 1);
+    BagMenu_HideDepletedItemCursor(item);
     GetMonNickname(mon, gStringVar1);
     CopyItemName(item, gStringVar2);
     StringExpandPlaceholders(gStringVar4, sText_PartyMintDone);
@@ -6928,6 +6943,7 @@ static void BagMenu_UsePPOnMove(u8 taskId, u8 moveSlot)
 
     PlaySE(SE_USE_ITEM);
     RemoveBagItem(item, 1);
+    BagMenu_HideDepletedItemCursor(item);
     StringCopy(gStringVar1, GetMoveName(GetMonData(mon, MON_DATA_MOVE1 + moveSlot)));
     BagMenu_GetMedicineEffectMessage(item, 0);
     DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4, Task_BagMenu_PartyAfterItemUse);
@@ -7077,6 +7093,7 @@ static void BagMenu_UseRareCandy(u8 taskId)
     sBagItemUseState->initialLevel = initialLevel;
     sBagItemUseState->finalLevel = GetMonData(mon, MON_DATA_LEVEL);
     RemoveBagItem(item, appliedCount);
+    BagMenu_HideDepletedItemCursor(item);
     GetMonNickname(mon, gStringVar1);
 
     if (sBagItemUseState->finalLevel > sBagItemUseState->initialLevel)
@@ -7483,6 +7500,7 @@ static void BagMenu_GiveItem(u8 taskId)
         BagMenu_UpdateHeldItemIcon(tPartySlot);
         BagMenu_ApplyPartyBlend(BagMenu_MonHoldsItem);
         RemoveBagItem(item, 1);
+        BagMenu_HideDepletedItemCursor(item);
         StringExpandPlaceholders(gStringVar4, gText_PkmnWasGivenItem);
         if (GetMonData(mon, MON_DATA_SPECIES) != speciesBefore)
         {
@@ -7527,6 +7545,7 @@ static void BagMenu_GiveSwapYes(u8 taskId)
         SetMonData(mon, MON_DATA_HELD_ITEM, itemBytes);
         TryFormChange(mon, FORM_CHANGE_ITEM_HOLD, B_TRAINER_PLAYER);
         BagMenu_UpdateHeldItemIcon(tPartySlot);
+        BagMenu_HideDepletedItemCursor(item);
         CopyItemName(item, gStringVar1);
         CopyItemName(gBagMenu->partyGiveSwapItem, gStringVar2);
         StringExpandPlaceholders(gStringVar4, gText_SwitchedPkmnItem);
