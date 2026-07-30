@@ -163,8 +163,12 @@ enum {
 // Item list ID for toSwapPos to indicate an item is not currently being swapped
 #define NOT_SWAPPING 0xFF
 
-struct ListBuffer1 {
-    struct ListMenuItem subBuffers[MAX_POCKET_ITEMS];
+struct BagListConfig {
+    u8 windowId;
+    u8 item_X;
+    u8 upText_Y;
+    u8 fontId;
+    u8 itemVerticalPadding;
 };
 
 struct ListBuffer2 {
@@ -267,7 +271,6 @@ static bool8 CanSwapItems(void);
 static void StartItemSwap(u8 taskId);
 static void Task_SwitchBagPocket(u8);
 static void Task_HandleSwappingItemsInput(u8);
-static void BagMenu_SetSwapListSelection(u8, u16, u16 *, u16 *);
 static void PrintContextMenuItems(u8);
 static void PrintContextMenuItemGrid(u8, u8, u8);
 static void Task_ItemContext_SingleRow(u8);
@@ -309,7 +312,12 @@ static void UpdatePocketItemLists(void);
 static void InitPocketListPositions(void);
 static void InitPocketScrollPositions(void);
 static u8 CreateBagInputHandlerTask(u8);
-static void BagMenu_MoveCursorCallback(s32, bool8, struct ListMenu *);
+static void BagMenu_MoveCursorCallback(s32, bool8);
+static void RefreshItemListRow(u8);
+static void RefreshItemListColors(void);
+static void BagList_ScrollRows(bool32);
+static u8 BagList_RowHeight(void);
+static void BagList_Reset(u16, u16);
 static void BagMenu_ItemPrintCallback(u8, u32, u8);
 static void ItemMenu_UseOutOfBattle(u8);
 static void ItemMenu_Toss(u8);
@@ -564,26 +572,13 @@ static const struct BgTemplate sBgTemplates_ItemMenu[] =
     },
 };
 
-static const struct ListMenuTemplate sItemListMenu =
+static const struct BagListConfig sBagList =
 {
-    .items = NULL,
-    .moveCursorFunc = BagMenu_MoveCursorCallback,
-    .itemPrintFunc = BagMenu_ItemPrintCallback,
-    .totalItems = 0,
-    .maxShowed = 0,
     .windowId = WIN_ITEM_LIST,
-    .header_X = 0,
     .item_X = 8,
-    .cursor_X = 0,
     .upText_Y = 1,
-    .cursorPal = 1,
-    .fillValue = 0,
-    .cursorShadowPal = 3,
-    .lettersSpacing = 0,
-    .itemVerticalPadding = 0,
-    .scrollMultiple = LIST_NO_MULTIPLE_SCROLL,
     .fontId = FONT_NARROW,
-    .cursorKind = CURSOR_INVISIBLE
+    .itemVerticalPadding = 0,
 };
 
 static const u8 sText_NothingToSort[] = _("There's nothing to sort!");
@@ -1522,7 +1517,6 @@ static const struct WindowTemplate sContextMenuWindowTemplates[] =
 
 EWRAM_DATA struct BagMenu *gBagMenu = 0;
 EWRAM_DATA struct BagPosition gBagPosition = {0};
-static EWRAM_DATA struct ListBuffer1 *sListBuffer1 = 0;
 static EWRAM_DATA struct ListBuffer2 *sListBuffer2 = 0;
 EWRAM_DATA u16 gSpecialVar_ItemId = 0;
 static EWRAM_DATA struct TempWallyBag *sTempWallyBag = 0;
@@ -1678,7 +1672,6 @@ void VBlankCB_BagMenuRun(void)
     }
 }
 
-#define tListTaskId             data[0]
 #define tListPosition           data[1]
 #define tQuantity               data[2]
 #define tNeverRead              data[3]
@@ -1844,7 +1837,7 @@ static bool8 SetupBagMenu(void)
         break;
     case 14:
         taskId = CreateBagInputHandlerTask(gBagPosition.location);
-        gTasks[taskId].tListTaskId = ListMenuInit(&gMultiuseListMenuTemplate, gBagPosition.scrollPosition[gBagPosition.pocket], gBagPosition.cursorPosition[gBagPosition.pocket]);
+        BagList_Reset(gBagPosition.scrollPosition[gBagPosition.pocket], gBagPosition.cursorPosition[gBagPosition.pocket]);
         gTasks[taskId].tNeverRead = 0;
         gTasks[taskId].tItemCount = 0;
 #if SWSH_ITEM_MENU_IN_BAG_USE
@@ -2074,7 +2067,6 @@ static u8 CreateBagInputHandlerTask(u8 location)
 
 static void AllocateBagItemListBuffers(void)
 {
-    sListBuffer1 = Alloc(sizeof(*sListBuffer1));
     sListBuffer2 = Alloc(sizeof(*sListBuffer2));
 }
 
@@ -2333,36 +2325,20 @@ static void BagList_MoveSlot(u8 pocketId, u32 from, u32 to)
 static void LoadBagItemListBuffers(u8 pocketId)
 {
     u16 i;
-    struct ListMenuItem *subBuffer;
 
     if (!gBagMenu->hideCloseBagText)
     {
         for (i = 0; i < gBagMenu->numItemStacks[pocketId] - 1; i++)
-        {
             GetItemNameFromPocket(sListBuffer2->name[i], BagList_GetItemId(pocketId, i));
-            subBuffer = sListBuffer1->subBuffers;
-            subBuffer[i].name = sListBuffer2->name[i];
-            subBuffer[i].id = i;
-        }
         StringCopy(sListBuffer2->name[i], gText_CloseBag);
-        subBuffer = sListBuffer1->subBuffers;
-        subBuffer[i].name = sListBuffer2->name[i];
-        subBuffer[i].id = LIST_CANCEL;
     }
     else
     {
         for (i = 0; i < gBagMenu->numItemStacks[pocketId]; i++)
-        {
             GetItemNameFromPocket(sListBuffer2->name[i], BagList_GetItemId(pocketId, i));
-            subBuffer = sListBuffer1->subBuffers;
-            subBuffer[i].name = sListBuffer2->name[i];
-            subBuffer[i].id = i;
-        }
     }
-    gMultiuseListMenuTemplate = sItemListMenu;
-    gMultiuseListMenuTemplate.totalItems = gBagMenu->numItemStacks[pocketId];
-    gMultiuseListMenuTemplate.items = sListBuffer1->subBuffers;
-    gMultiuseListMenuTemplate.maxShowed = gBagMenu->numShownItems[pocketId];
+    gBagMenu->listTotal = gBagMenu->numItemStacks[pocketId];
+    gBagMenu->listShown = gBagMenu->numShownItems[pocketId];
 }
 
 static void GetItemNameFromPocket(u8 *dest, enum Item itemId)
@@ -2401,9 +2377,8 @@ static void GetItemNameFromPocket(u8 *dest, enum Item itemId)
 
 static void CreateCursorSprite(void)
 {
-    u8 rowHeight = GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT) + sItemListMenu.itemVerticalPadding;
     u8 windowTop = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8;
-    u8 initialY = windowTop + sItemListMenu.upText_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * rowHeight + 8;
+    u8 initialY = windowTop + sBagList.upText_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * BagList_RowHeight() + 8;
 
     gBagMenu->cursorAnimId = CreateComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
         .from = Q_24_8(initialY),
@@ -2435,9 +2410,8 @@ static void CreateScrollThumbSprite(void)
 
 static void CreateHoverSlotSprites(void)
 {
-    u8 rowHeight = GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT) + sItemListMenu.itemVerticalPadding;
     u8 windowTop = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8;
-    u8 initialY = windowTop + sItemListMenu.upText_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * rowHeight + 8;
+    u8 initialY = windowTop + sBagList.upText_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * BagList_RowHeight() + 8;
     u8 i;
 
     for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
@@ -2487,46 +2461,203 @@ static void SpriteCB_BagScrollThumb(struct Sprite *sprite)
         sprite->y2 = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->scrollThumbAnimId]);
 }
 
-static void RefreshItemListRow(struct ListMenu *list, u8 row)
+static s32 BagList_IdAt(u32 index)
 {
-    u8 rowHeight = GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT) + list->template.itemVerticalPadding;
-    u8 windowWidth = sDefaultBagWindows[WIN_ITEM_LIST].width * 8;
-    s32 absIndex = (s32)(list->scrollOffset + row);
-    u8 rowY;
-
-    if (absIndex >= (s32)gBagMenu->numItemStacks[gBagPosition.pocket])
-        return;
-
-    rowY = list->template.upText_Y + row * rowHeight;
-    FillWindowPixelRect(WIN_ITEM_LIST, PIXEL_FILL(0), 0, rowY, windowWidth, rowHeight);
-    BagMenu_ItemPrintCallback(WIN_ITEM_LIST, (u32)absIndex, rowY);
-    BagMenu_Print(WIN_ITEM_LIST, FONT_NARROW, gMultiuseListMenuTemplate.items[absIndex].name,
-                  sItemListMenu.item_X, rowY, 0, 0, TEXT_SKIP_DRAW,
-                  absIndex == gBagMenu->hoveredItemIndex ? COLORID_HOVER_NAME : COLORID_NORMAL);
+    if (!gBagMenu->hideCloseBagText && gBagMenu->listTotal != 0 && index == gBagMenu->listTotal - 1u)
+        return LIST_CANCEL;
+    return (s32)index;
 }
 
-static void RefreshItemListColors(struct ListMenu *list)
+static s32 BagList_SelectedId(void)
 {
-    u8 row;
-    for (row = 0; row < list->template.maxShowed; row++)
+    u8 pocket = gBagPosition.pocket;
+    return BagList_IdAt(gBagPosition.scrollPosition[pocket] + gBagPosition.cursorPosition[pocket]);
+}
+
+// Places the cursor on absPos, scrolling so it sits halfScreen rows down where
+// the list is long enough to allow it.
+static void BagList_SeekTo(u16 absPos)
+{
+    u8 pocket = gBagPosition.pocket;
+    u16 total = gBagMenu->listTotal;
+    u8 shown = gBagMenu->listShown;
+    u16 top = 0;
+
+    if (total > shown)
     {
-        if ((s32)(list->scrollOffset + row) >= (s32)gBagMenu->numItemStacks[gBagPosition.pocket])
-            break;
-        RefreshItemListRow(list, row);
+        u16 halfScreen = shown / 2;
+        u16 maxTop = total - shown;
+
+        if (absPos > halfScreen)
+            top = min(absPos - halfScreen, maxTop);
     }
+
+    gBagPosition.scrollPosition[pocket] = top;
+    gBagPosition.cursorPosition[pocket] = absPos - top;
+}
+
+// Moves the selection one row. Scroll position is left to BagList_SeekTo,
+// which derives it from the absolute index alone, so the cursor can never
+// drift out of step with the rows on screen.
+static void BagList_Step(bool32 movingDown, bool32 allowWrap)
+{
+    u8 pocket = gBagPosition.pocket;
+    u16 total = gBagMenu->listTotal;
+    u16 abs = gBagPosition.scrollPosition[pocket] + gBagPosition.cursorPosition[pocket];
+
+    if (total == 0)
+        return;
+
+    if (movingDown)
+    {
+        if (abs < total - 1u)
+            abs++;
+        else if (allowWrap)
+            abs = 0;
+    }
+    else
+    {
+        if (abs != 0)
+            abs--;
+        else if (allowWrap)
+            abs = total - 1u;
+    }
+
+    BagList_SeekTo(abs);
+}
+
+// Full repaint at the current position. Clears the window first so rows left
+// over from a longer list don't survive.
+static void BagList_Refresh(void)
+{
+    PutWindowTilemap(WIN_ITEM_LIST);
+    FillWindowPixelBuffer(WIN_ITEM_LIST, PIXEL_FILL(0));
+    BagMenu_MoveCursorCallback(BagList_SelectedId(), TRUE);
     CopyWindowToVram(WIN_ITEM_LIST, COPYWIN_GFX);
 }
 
-static s16 BagMenu_GetListRowSpriteY(struct ListMenu *list)
+static void BagList_Reset(u16 scroll, u16 row)
 {
-    u8 rowHeight = GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT) + list->template.itemVerticalPadding;
-    u8 windowTop = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8;
-    return windowTop + list->template.upText_Y + list->selectedRow * rowHeight + 8;
+    u8 pocket = gBagPosition.pocket;
+
+    gBagPosition.scrollPosition[pocket] = scroll;
+    gBagPosition.cursorPosition[pocket] = row;
+    BagList_Refresh();
 }
 
-static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit, struct ListMenu *list)
+static void BagList_SetPosition(u16 absPos)
 {
-    s16 spriteY = BagMenu_GetListRowSpriteY(list);
+    BagList_SeekTo(absPos);
+    BagList_Refresh();
+}
+
+// allowWrap is gated on a fresh press by the caller, so holding the d-pad
+// stops at either end rather than cycling the list.
+// allowWrap is gated on a fresh press by the caller, so holding the d-pad
+// stops at either end rather than cycling the list.
+static void BagList_Move(bool32 movingDown, bool32 allowWrap)
+{
+    u8 pocket = gBagPosition.pocket;
+    u16 oldScroll = gBagPosition.scrollPosition[pocket];
+    u16 oldAbs = oldScroll + gBagPosition.cursorPosition[pocket];
+    u16 newScroll;
+
+    BagList_Step(movingDown, allowWrap);
+
+    newScroll = gBagPosition.scrollPosition[pocket];
+    if (newScroll + gBagPosition.cursorPosition[pocket] == oldAbs)
+        return;
+
+    // Shift the rows before the callback, so its two-row hover fixup lands on
+    // rows that already hold the right items.
+    if (newScroll != oldScroll)
+        BagList_ScrollRows(newScroll > oldScroll);
+
+    BagMenu_MoveCursorCallback(BagList_SelectedId(), FALSE);
+    CopyWindowToVram(WIN_ITEM_LIST, COPYWIN_GFX);
+}
+
+static s32 BagList_ProcessInput(void)
+{
+    if (JOY_NEW(A_BUTTON))
+        return BagList_SelectedId();
+
+    if (JOY_NEW(B_BUTTON))
+        return LIST_CANCEL;
+
+    if (JOY_REPEAT(DPAD_UP))
+        BagList_Move(FALSE, JOY_NEW(DPAD_UP));
+    else if (JOY_REPEAT(DPAD_DOWN))
+        BagList_Move(TRUE, JOY_NEW(DPAD_DOWN));
+
+    return LIST_NOTHING_CHOSEN;
+}
+
+static u8 BagList_RowHeight(void)
+{
+    return GetFontAttribute(sBagList.fontId, FONTATTR_MAX_LETTER_HEIGHT) + sBagList.itemVerticalPadding;
+}
+
+static void RefreshItemListRow(u8 row)
+{
+    u8 windowWidth = sDefaultBagWindows[WIN_ITEM_LIST].width * 8;
+    s32 absIndex = (s32)(gBagPosition.scrollPosition[gBagPosition.pocket] + row);
+    u8 rowY;
+
+    if (absIndex >= (s32)gBagMenu->listTotal)
+        return;
+
+    rowY = sBagList.upText_Y + row * BagList_RowHeight();
+    FillWindowPixelRect(WIN_ITEM_LIST, PIXEL_FILL(0), 0, rowY, windowWidth, BagList_RowHeight());
+    BagMenu_ItemPrintCallback(WIN_ITEM_LIST, (u32)absIndex, rowY);
+    BagMenu_Print(WIN_ITEM_LIST, sBagList.fontId, sListBuffer2->name[absIndex],
+                  sBagList.item_X, rowY, 0, 0, TEXT_SKIP_DRAW,
+                  absIndex == gBagMenu->hoveredItemIndex ? COLORID_HOVER_NAME : COLORID_NORMAL);
+}
+
+static void RefreshItemListColors(void)
+{
+    u8 row;
+    for (row = 0; row < gBagMenu->listShown; row++)
+    {
+        if ((s32)(gBagPosition.scrollPosition[gBagPosition.pocket] + row) >= (s32)gBagMenu->listTotal)
+            break;
+        RefreshItemListRow(row);
+    }
+}
+
+static void BagList_ScrollRows(bool32 movingDown)
+{
+    u8 rowHeight = BagList_RowHeight();
+    u16 width = sDefaultBagWindows[WIN_ITEM_LIST].width * 8;
+    u16 windowHeight = sDefaultBagWindows[WIN_ITEM_LIST].height * 8;
+
+    if (movingDown)
+    {
+        ScrollWindow(WIN_ITEM_LIST, 0, rowHeight, PIXEL_FILL(0));
+        RefreshItemListRow(gBagMenu->listShown - 1);
+        FillWindowPixelRect(WIN_ITEM_LIST, PIXEL_FILL(0), 0, 0, width, sBagList.upText_Y);
+    }
+    else
+    {
+        u16 y = gBagMenu->listShown * rowHeight + sBagList.upText_Y;
+
+        ScrollWindow(WIN_ITEM_LIST, 1, rowHeight, PIXEL_FILL(0));
+        RefreshItemListRow(0);
+        if (y < windowHeight)
+            FillWindowPixelRect(WIN_ITEM_LIST, PIXEL_FILL(0), 0, y, width, windowHeight - y);
+    }
+}
+
+static s16 BagMenu_GetListRowSpriteY(void)
+{
+    u8 windowTop = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8;
+    return windowTop + sBagList.upText_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * BagList_RowHeight() + 8;
+}
+
+static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit)
+{
+    s16 spriteY = BagMenu_GetListRowSpriteY();
     u8 total = gBagMenu->numItemStacks[gBagPosition.pocket];
     u32 durationFrames = 8;
 
@@ -2573,14 +2704,14 @@ static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit, struct ListM
          && (oldHovered - itemIndex == 1 || itemIndex - oldHovered == 1)
          && gBagMenu->toSwapPos == NOT_SWAPPING)
         {
-            s32 oldRow = oldHovered - (s32)list->scrollOffset;
-            if (oldRow >= 0 && oldRow < list->template.maxShowed)
-                RefreshItemListRow(list, oldRow);
-            RefreshItemListRow(list, list->selectedRow);
+            s32 oldRow = oldHovered - (s32)gBagPosition.scrollPosition[gBagPosition.pocket];
+            if (oldRow >= 0 && oldRow < gBagMenu->listShown)
+                RefreshItemListRow(oldRow);
+            RefreshItemListRow(gBagPosition.cursorPosition[gBagPosition.pocket]);
         }
         else
         {
-            RefreshItemListColors(list);
+            RefreshItemListColors();
         }
     }
 #if SWSH_ITEM_MENU_IN_BAG_USE
@@ -2691,8 +2822,8 @@ static void BagMenu_ItemPrintCallback(u8 windowId, u32 itemIndex, u8 y)
         }
 
         if (isHovered)
-            BagMenu_Print(windowId, FONT_NARROW, gMultiuseListMenuTemplate.items[itemIndex].name,
-                          sItemListMenu.item_X, y, 0, 0, TEXT_SKIP_DRAW, COLORID_HOVER_NAME);
+            BagMenu_Print(windowId, sBagList.fontId, sListBuffer2->name[itemIndex],
+                          sBagList.item_X, y, 0, 0, TEXT_SKIP_DRAW, COLORID_HOVER_NAME);
     }
 }
 
@@ -2835,7 +2966,6 @@ static void FreeBagMenu(void)
 #endif
     Free(gBagMenu->moveTypeIconsCache);
     Free(sListBuffer2);
-    Free(sListBuffer1);
     FreeAllWindowBuffers();
     Free(gBagMenu);
 }
@@ -2865,11 +2995,8 @@ static void Task_FadeAndCloseBagMenuIfMulch(u8 taskId)
 
 static void Task_CloseBagMenu(u8 taskId)
 {
-    s16 *data = gTasks[taskId].data;
     if (!gPaletteFade.active)
     {
-        DestroyListMenuTask(tListTaskId, &gBagPosition.scrollPosition[gBagPosition.pocket], &gBagPosition.cursorPosition[gBagPosition.pocket]);
-
         // If ready for a new screen (e.g. party menu for giving an item) go to that screen
         // Otherwise exit the bag and use callback set up when the bag was first opened
         if (gBagMenu->newScreenCallback != NULL)
@@ -3011,15 +3138,13 @@ void DisplayItemMessage(u8 taskId, u8 fontId, const u8 *str, TaskFunc callback)
 
 void CloseItemMessage(u8 taskId)
 {
-    s16 *data = gTasks[taskId].data;
     u16 *scrollPos = &gBagPosition.scrollPosition[gBagPosition.pocket];
     u16 *cursorPos = &gBagPosition.cursorPosition[gBagPosition.pocket];
     RemoveItemMessageWindow(ITEMWIN_MESSAGE);
-    DestroyListMenuTask(tListTaskId, scrollPos, cursorPos);
     UpdatePocketItemList(gBagPosition.pocket);
     UpdatePocketListPosition(gBagPosition.pocket);
     LoadBagItemListBuffers(gBagPosition.pocket);
-    tListTaskId = ListMenuInit(&gMultiuseListMenuTemplate, *scrollPos, *cursorPos);
+    BagList_Reset(*scrollPos, *cursorPos);
     UpdateEmptyPocket();
     ScheduleBgCopyTilemapToVram(1);
     ReturnToItemList(taskId);
@@ -3029,46 +3154,6 @@ static void AddItemQuantityWindow(void)
 {
     CreateQuantityFrameSprites(96);
     PrintQuantity(BagMenu_AddWindowNoFrame(ITEMWIN_QUANTITY), 1);
-}
-
-static bool8 BagMenu_TryWraparoundScroll(u8 listTaskId, u16 *scrollPos, u16 *cursorPos)
-{
-    struct ListMenu *list = (void *) gTasks[listTaskId].data;
-    u16 total = list->template.totalItems;
-
-    if (total < 2)
-        return FALSE;
-
-    if (JOY_NEW(DPAD_UP) && list->scrollOffset == 0 && list->selectedRow == 0)
-    {
-        u16 maxShowed = list->template.maxShowed;
-
-        if (total > maxShowed)
-        {
-            list->scrollOffset = total - maxShowed;
-            list->selectedRow = maxShowed - 1;
-        }
-        else
-        {
-            list->scrollOffset = 0;
-            list->selectedRow = total - 1;
-        }
-    }
-    else if (JOY_NEW(DPAD_DOWN) && list->scrollOffset + list->selectedRow == total - 1)
-    {
-        list->scrollOffset = 0;
-        list->selectedRow = 0;
-    }
-    else
-    {
-        return FALSE;
-    }
-
-    *scrollPos = list->scrollOffset;
-    *cursorPos = list->selectedRow;
-    PlaySE(SE_SELECT);
-    RedrawListMenu(listTaskId);
-    return TRUE;
 }
 
 static void Task_BagMenu_HandleInput(u8 taskId)
@@ -3113,7 +3198,6 @@ static void Task_BagMenu_HandleInput(u8 taskId)
 #endif
                 else if (!pocketEmpty && CanSwapItems() == TRUE)
                 {
-                    ListMenuGetScrollAndRow(tListTaskId, scrollPos, cursorPos);
                     if (gBagMenu->hideCloseBagText || (*scrollPos + *cursorPos) != gBagMenu->numItemStacks[gBagPosition.pocket] - 1)
                     {
                         PlaySE(SE_SELECT);
@@ -3147,7 +3231,6 @@ static void Task_BagMenu_HandleInput(u8 taskId)
 
                     PlaySE(SE_SELECT);
                     BagDestroyPocketScrollArrowPair();
-                    ListMenuGetScrollAndRow(data[0], scrollPos, cursorPos);
                     gTasks[taskId].func = Task_LoadBagSortOptions;
                     return;
                 }
@@ -3155,10 +3238,7 @@ static void Task_BagMenu_HandleInput(u8 taskId)
             break;
         }
 
-        if (BagMenu_TryWraparoundScroll(tListTaskId, scrollPos, cursorPos))
-            return;
-        listPosition = ListMenu_ProcessInput(tListTaskId);
-        ListMenuGetScrollAndRow(tListTaskId, scrollPos, cursorPos);
+        listPosition = BagList_ProcessInput();
         switch (listPosition)
         {
         case LIST_NOTHING_CHOSEN:
@@ -3326,7 +3406,6 @@ static void SwitchBagPocket(u8 taskId, s16 deltaBagPocketId, bool16 skipEraseLis
         }
         ClearWindowTilemap(WIN_ITEM_LIST);
         ClearWindowTilemap(WIN_DESCRIPTION);
-        DestroyListMenuTask(tListTaskId, &gBagPosition.scrollPosition[gBagPosition.pocket], &gBagPosition.cursorPosition[gBagPosition.pocket]);
         ScheduleBgCopyTilemapToVram(1);
         gSprites[gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)]].invisible = TRUE;
     }
@@ -3370,7 +3449,7 @@ static void Task_SwitchBagPocket(u8 taskId)
 #endif
         ChangeBagPocketId(&gBagPosition.pocket, tPocketSwitchDir);
         LoadBagItemListBuffers(gBagPosition.pocket);
-        tListTaskId = ListMenuInit(&gMultiuseListMenuTemplate, gBagPosition.scrollPosition[gBagPosition.pocket], gBagPosition.cursorPosition[gBagPosition.pocket]);
+        BagList_Reset(gBagPosition.scrollPosition[gBagPosition.pocket], gBagPosition.cursorPosition[gBagPosition.pocket]);
         UpdateEmptyPocket();
         PutWindowTilemap(WIN_DESCRIPTION);
         PutWindowTilemap(WIN_POCKET_NAME);
@@ -3429,29 +3508,10 @@ static void StartItemSwap(u8 taskId)
     gTasks[taskId].func = Task_HandleSwappingItemsInput;
 }
 
-static void BagMenu_SetSwapListSelection(u8 listTaskId, u16 absPos, u16 *scrollPos, u16 *cursorPos)
-{
-    struct ListMenu *list = (void *) gTasks[listTaskId].data;
-    u16 total = gBagMenu->numItemStacks[gBagPosition.pocket];
-    u16 maxShowed = gBagMenu->numShownItems[gBagPosition.pocket];
-
-    if (total > maxShowed && absPos > total - maxShowed)
-        list->scrollOffset = total - maxShowed;
-    else
-        list->scrollOffset = 0;
-
-    list->selectedRow = absPos - list->scrollOffset;
-    *scrollPos = list->scrollOffset;
-    *cursorPos = list->selectedRow;
-    RedrawListMenu(listTaskId);
-}
-
 static void Task_HandleSwappingItemsInput(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
     u8 pocket = gBagPosition.pocket;
-    u16 *scrollPos = &gBagPosition.scrollPosition[pocket];
-    u16 *cursorPos = &gBagPosition.cursorPosition[pocket];
     u8 lastRealPos = gBagMenu->numItemStacks[pocket] - (gBagMenu->hideCloseBagText ? 1 : 2);
 
     if (MenuHelpers_ShouldWaitForLinkRecv() != TRUE)
@@ -3471,8 +3531,7 @@ static void Task_HandleSwappingItemsInput(u8 taskId)
             tListPosition++;
             gBagMenu->toSwapPos = tListPosition;
             LoadBagItemListBuffers(pocket);
-            ListMenu_ProcessInput(tListTaskId);
-            ListMenuGetScrollAndRow(tListTaskId, scrollPos, cursorPos);
+            BagList_Move(TRUE, FALSE);
         }
         else if (JOY_NEW(DPAD_DOWN) && tListPosition == lastRealPos && lastRealPos > 0)
         {
@@ -3480,7 +3539,7 @@ static void Task_HandleSwappingItemsInput(u8 taskId)
             tListPosition = 0;
             gBagMenu->toSwapPos = tListPosition;
             LoadBagItemListBuffers(pocket);
-            BagMenu_SetSwapListSelection(tListTaskId, 0, scrollPos, cursorPos);
+            BagList_SetPosition(0);
         }
         else if (JOY_REPEAT(DPAD_UP) && tListPosition > 0)
         {
@@ -3488,8 +3547,7 @@ static void Task_HandleSwappingItemsInput(u8 taskId)
             tListPosition--;
             gBagMenu->toSwapPos = tListPosition;
             LoadBagItemListBuffers(pocket);
-            ListMenu_ProcessInput(tListTaskId);
-            ListMenuGetScrollAndRow(tListTaskId, scrollPos, cursorPos);
+            BagList_Move(FALSE, FALSE);
         }
         else if (JOY_NEW(DPAD_UP) && tListPosition == 0 && lastRealPos > 0)
         {
@@ -3497,7 +3555,7 @@ static void Task_HandleSwappingItemsInput(u8 taskId)
             tListPosition = lastRealPos;
             gBagMenu->toSwapPos = tListPosition;
             LoadBagItemListBuffers(pocket);
-            BagMenu_SetSwapListSelection(tListTaskId, lastRealPos, scrollPos, cursorPos);
+            BagList_SetPosition(lastRealPos);
         }
     }
 }
@@ -3880,15 +3938,13 @@ static void ConfirmToss(u8 taskId)
 
 static void RefreshListMenu(u8 taskId)
 {
-    s16 *data = gTasks[taskId].data;
     u16 *scrollPos = &gBagPosition.scrollPosition[gBagPosition.pocket];
     u16 *cursorPos = &gBagPosition.cursorPosition[gBagPosition.pocket];
 
-    DestroyListMenuTask(tListTaskId, scrollPos, cursorPos);
     UpdatePocketItemList(gBagPosition.pocket);
     UpdatePocketListPosition(gBagPosition.pocket);
     LoadBagItemListBuffers(gBagPosition.pocket);
-    tListTaskId = ListMenuInit(&gMultiuseListMenuTemplate, *scrollPos, *cursorPos);
+    BagList_Reset(*scrollPos, *cursorPos);
     UpdateEmptyPocket();
     ScheduleBgCopyTilemapToVram(1);
 }
@@ -3909,7 +3965,6 @@ static void TossItem(u8 taskId)
 
 static void ItemMenu_Register(u8 taskId)
 {
-    s16 *data = gTasks[taskId].data;
     u16 *scrollPos = &gBagPosition.scrollPosition[gBagPosition.pocket];
     u16 *cursorPos = &gBagPosition.cursorPosition[gBagPosition.pocket];
 
@@ -3917,9 +3972,9 @@ static void ItemMenu_Register(u8 taskId)
         gSaveBlock1Ptr->registeredItem = ITEM_NONE;
     else
         gSaveBlock1Ptr->registeredItem = gSpecialVar_ItemId;
-    DestroyListMenuTask(tListTaskId, scrollPos, cursorPos);
+
     LoadBagItemListBuffers(gBagPosition.pocket);
-    tListTaskId = ListMenuInit(&gMultiuseListMenuTemplate, *scrollPos, *cursorPos);
+    BagList_Reset(*scrollPos, *cursorPos);
     ScheduleBgCopyTilemapToVram(1);
     ItemMenu_Cancel(taskId);
 }
@@ -4380,7 +4435,6 @@ static void Task_WallyTutorialBagMenu(u8 taskId)
         case WALLY_BAG_DELAY * 3:
             PlaySE(SE_SELECT);
             RemoveContextWindow();
-            DestroyListMenuTask(tListTaskId, 0, 0);
             RestoreBagAfterWallyTutorial();
             Task_FadeAndCloseBagMenu(taskId);
             break;
@@ -5074,10 +5128,9 @@ static void SortBagItems(u8 taskId)
     else
 #endif
         SortItemsInBag(&gBagPockets[gBagPosition.pocket], tSortType);
-    DestroyListMenuTask(data[0], scrollPos, cursorPos);
     UpdatePocketListPosition(gBagPosition.pocket);
     LoadBagItemListBuffers(gBagPosition.pocket);
-    data[0] = ListMenuInit(&gMultiuseListMenuTemplate, *scrollPos, *cursorPos);
+    BagList_Reset(*scrollPos, *cursorPos);
     ScheduleBgCopyTilemapToVram(1);
 
     StringCopy(gStringVar1, sSortTypeStrings[tSortType]);
@@ -6357,7 +6410,7 @@ static void BagMenu_ClosePartySelect(u8 taskId)
     {
         struct Sprite *spr = &gSprites[iconSpriteId];
         spr->x2 = 102;
-        spr->y2 = BagMenu_GetListRowSpriteY((void *) gTasks[tListTaskId].data) + 4;
+        spr->y2 = BagMenu_GetListRowSpriteY() + 4;
         spr->invisible = FALSE;
     }
 
@@ -6368,15 +6421,13 @@ static void BagMenu_ClosePartySelect(u8 taskId)
 
 static void BagMenu_RefreshItemList(u8 taskId)
 {
-    s16 *data = gTasks[taskId].data;
     u16 *scrollPos = &gBagPosition.scrollPosition[gBagPosition.pocket];
     u16 *cursorPos = &gBagPosition.cursorPosition[gBagPosition.pocket];
 
-    DestroyListMenuTask(tListTaskId, scrollPos, cursorPos);
     UpdatePocketItemList(gBagPosition.pocket);
     UpdatePocketListPosition(gBagPosition.pocket);
     LoadBagItemListBuffers(gBagPosition.pocket);
-    tListTaskId = ListMenuInit(&gMultiuseListMenuTemplate, *scrollPos, *cursorPos);
+    BagList_Reset(*scrollPos, *cursorPos);
     ScheduleBgCopyTilemapToVram(1);
 }
 

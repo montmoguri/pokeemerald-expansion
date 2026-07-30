@@ -156,6 +156,8 @@ struct BagMenu
     u32 pocketScrollArrowAnimIds[2];
     u32 partyItemIconAnimId;
     s32 hoveredItemIndex;
+    u16 listTotal;
+    u8 listShown;
     u16 *moveTypeIconTilesPtr;
     u8 *moveTypeIconsCache;
     u8 descriptionBuffer[ITEM_DESCRIPTION_BUFFER_SIZE];
