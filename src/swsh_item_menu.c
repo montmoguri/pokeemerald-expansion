@@ -1334,21 +1334,21 @@ static const struct WindowTemplate sDefaultBagWindows[] =
 #if SWSH_ITEM_MENU_BERRY_STAT
     [WIN_BERRY_INFO] = {
         .bg = 1,
-        .tilemapLeft = 8,
-        .tilemapTop = 16,
-        .width = 6,
-        .height = 4,
+        .tilemapLeft = 9,
+        .tilemapTop = 18,
+        .width = 11,
+        .height = 2,
         .paletteNum = 1,
         .baseBlock = 619,
     },
     [WIN_BERRY_FLAVORS] = {
         .bg = 1,
-        .tilemapLeft = 15,
+        .tilemapLeft = 8,
         .tilemapTop = 16,
-        .width = 11,
-        .height = 4,
+        .width = 18,
+        .height = 2,
         .paletteNum = 1,
-        .baseBlock = 643,
+        .baseBlock = 641,
     },
 #endif
 #if SWSH_ITEM_MENU_IN_BAG_USE
@@ -5505,17 +5505,17 @@ static void UpdateBerryInfo(s32 itemIndex)
             ptr = ConvertIntToDecimalStringN(ptr, fraction, STR_CONV_MODE_LEFT_ALIGN, 1);
             *ptr++ = CHAR_DBL_QUOTE_RIGHT;
             *ptr = EOS;
-            BagMenu_Print(WIN_BERRY_INFO, FONT_SHORT_NARROW, gStringVar4, GetStringRightAlignXOffset(FONT_SHORT_NARROW, gStringVar4, 48), 2, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+            BagMenu_Print(WIN_BERRY_INFO, FONT_SHORT_NARROW, gStringVar4, 3, 1, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
         }
 
         if (berryInfo->firmness != BERRY_FIRMNESS_UNKNOWN)
-            BagMenu_Print(WIN_BERRY_INFO, FONT_SHORT_NARROW, sBerryFirmnessStrings[berryInfo->firmness], GetStringRightAlignXOffset(FONT_SHORT_NARROW, sBerryFirmnessStrings[berryInfo->firmness], 48), 16, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+            BagMenu_Print(WIN_BERRY_INFO, FONT_SHORT_NARROW, sBerryFirmnessStrings[berryInfo->firmness], 32, 1, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
 
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Spicy"),   4,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->spicy  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Dry"),    39,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->dry    ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sweet"),  63,  0, 0, 0, TEXT_SKIP_DRAW, berryInfo->sweet  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Bitter"),  4, 16, 0, 0, TEXT_SKIP_DRAW, berryInfo->bitter ? COLORID_NORMAL : COLORID_NO_FLAVOR);
-        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sour"),   42, 16, 0, 0, TEXT_SKIP_DRAW, berryInfo->sour   ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Spicy"),   5,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->spicy  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Dry"),    35,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->dry    ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sweet"),  56,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->sweet  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Bitter"),  87, 1, 0, 0, TEXT_SKIP_DRAW, berryInfo->bitter ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+        BagMenu_Print(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sour"),   120, 1, 0, 0, TEXT_SKIP_DRAW, berryInfo->sour   ? COLORID_NORMAL : COLORID_NO_FLAVOR);
 
         CopyWindowToVram(WIN_BERRY_INFO, COPYWIN_GFX);
         CopyWindowToVram(WIN_BERRY_FLAVORS, COPYWIN_GFX);
