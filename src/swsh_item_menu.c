@@ -2321,7 +2321,7 @@ static void CreateCursorSprite(void)
         .easingFunc = ComfyAnimEasing_EaseOutCubic,
     });
 
-    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, 80, initialY, 0);
+    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, 84, initialY, 0);
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
 }
 
