@@ -3,9 +3,9 @@
 
 #define SWSH_ITEM_MENU                  TRUE  // Use SwSh bag menu
 
-#define SWSH_ITEM_MENU_CONTEST_INFO     (SWSH_ITEM_MENU && FALSE)               // Show contest info for TMs/HMs in the item menu
-#define SWSH_ITEM_MENU_BERRY_STAT       (SWSH_ITEM_MENU && FALSE)               // Show berry stat (flavors, size, etc.) in the item menu
-#define SWSH_ITEM_MENU_BERRY_TAG        (SWSH_ITEM_MENU_BERRY_STAT && FALSE)    // Show berry tag info
+#define SWSH_ITEM_MENU_CONTEST_INFO     (SWSH_ITEM_MENU && TRUE)               // Show contest info for TMs/HMs in the item menu
+#define SWSH_ITEM_MENU_BERRY_STAT       (SWSH_ITEM_MENU && TRUE)               // Show berry stat (flavors, size, etc.) in the item menu
+#define SWSH_ITEM_MENU_BERRY_TAG        (SWSH_ITEM_MENU_BERRY_STAT && TRUE)    // Show berry tag info
 #define SWSH_ITEM_MENU_SCROLLING_BG     (SWSH_ITEM_MENU && TRUE)                // Enable scrolling background (BG3)
 
 #define SWSH_ITEM_MENU_IN_BAG_USE       (SWSH_ITEM_MENU && TRUE)                // Perform item actions (Use/Give) in bag (skip party menu)

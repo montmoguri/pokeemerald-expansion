@@ -177,9 +177,6 @@ struct BagMenu
     s8 prevHPBarSlot;
     bool8 hpBarWindowMapped;
     u8 multiFullPage; // 0 = player team, 1 = partner team (12v12 multi battle)
-#if SWSH_ITEM_MENU_IN_BATTLE_USE
-    u8 multiSwapPromptSpriteIds[2];
-#endif
 #endif
 #if SWSH_ITEM_MENU_PYRAMID
     struct ItemSlot pyramidScratch[PYRAMID_BAG_ITEMS_COUNT];
