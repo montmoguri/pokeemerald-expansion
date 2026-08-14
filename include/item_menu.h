@@ -84,6 +84,8 @@ enum BattlePocket
 #if SWSH_ITEM_MENU
 #define HOVER_SLOT_SPRITES_COUNT     5
 #define FRAME_QUANTITY_SPRITES_COUNT 2
+#define PROMPT_WIDTH                 3
+#define PROMPT_HEIGHT                3
 #endif
 enum {
     ITEMMENUSPRITE_BAG,
@@ -158,6 +160,7 @@ struct BagMenu
     s32 hoveredItemIndex;
     u16 listTotal;
     u8 listShown;
+    u16 promptTilemapBackup[PROMPT_WIDTH * PROMPT_HEIGHT]; // storing BG2 tilemap to re-draw when info/swap prompt clears
     u16 *moveTypeIconTilesPtr;
     u8 *moveTypeIconsCache;
     u8 descriptionBuffer[ITEM_DESCRIPTION_BUFFER_SIZE];

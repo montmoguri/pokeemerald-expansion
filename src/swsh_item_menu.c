@@ -149,12 +149,11 @@ enum {
 #endif
 };
 
-#define PROMPT_LEFT          8
-#define PROMPT_TOP           16
-#define PROMPT_WIDTH         4
-#define PROMPT_HEIGHT        4
+#define PROMPT_LEFT          10
+#define PROMPT_TOP           0
 #define PROMPT_INFO_TILE     45
-#define PROMPT_SWAP_TILE     61
+#define PROMPT_SWAP_TILE     54
+// for prompt dimensions, check PROMPT_WIDTH and PROMP_HEIGHT in item_menu.h
 
 // Item list ID for toSwapPos to indicate an item is not currently being swapped
 #define NOT_SWAPPING 0xFF
@@ -239,6 +238,7 @@ static void PrintBerryDescriptionInfo(s32);
 static void UpdateMoveBattleInfo(s32);
 static bool8 PocketHasInfoPrompt(u8);
 static void ShowInfoPrompt(void);
+static void SavePromptTilemap(void);
 static void HidePrompt(void);
 #if SWSH_ITEM_MENU_CONTEST_INFO
 static void UpdateMoveContestInfo(s32);
@@ -434,7 +434,7 @@ static void BagMenu_UpdateStatusIcons(void);
 static void BagMenu_UpdateStatusIconPos(u8 hoveredSlot);
 static void BagMenu_ApplyItemUseBlend(void);
 static void BagMenu_DrawPartyHPBar(s8 slot);
-static void BagMenu_DrawPartyHPBarPixels(u8 slot, u8 filledWidth);
+static void BagMenu_DrawPartyHPBarPixels(u8 slot, u8 filledWidth, u16 hp, u16 maxHp);
 static void Task_BagMenu_HPBarAnim(u8 taskId);
 static bool8 BagMenu_ShouldShowHPBar(void);
 static bool8 BagMenu_ShouldLoadPartyPanel(void);
@@ -552,7 +552,7 @@ static const struct BgTemplate sBgTemplates_ItemMenu[] =
     },
     {
         .bg = 2,
-        .charBaseIndex = 3,
+        .charBaseIndex = 2,
         .mapBaseIndex = 29,
         .screenSize = 0,
         .paletteMode = 0,
@@ -561,7 +561,7 @@ static const struct BgTemplate sBgTemplates_ItemMenu[] =
     },
     {
         .bg = 3,
-        .charBaseIndex = 3,
+        .charBaseIndex = 2,
         .mapBaseIndex = 28,
         .screenSize = 0,
         .paletteMode = 0,
@@ -993,7 +993,7 @@ static const struct OamData sOamData_StatusIcon =
     .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(32x8),
     .size = SPRITE_SIZE(32x8),
-    .priority = 2,
+    .priority = 1,
 };
 
 static const union AnimCmd sSpriteAnim_StatusPoison[]    = { ANIMCMD_FRAME(0,  0), ANIMCMD_END };
@@ -1193,6 +1193,7 @@ enum {
     COLORID_GRAY_CURSOR,
     COLORID_TMHM_INFO,
     COLORID_NO_FLAVOR,
+    COLORID_PARTY_HP,
 };
 static const u8 sFontColorTable[][3] = {
                             // bgColor, textColor, shadowColor
@@ -1202,7 +1203,8 @@ static const u8 sFontColorTable[][3] = {
     [COLORID_POCKET_NAME] = {0,  2,  6},
     [COLORID_GRAY_CURSOR] = {0,  3,  6},
     [COLORID_TMHM_INFO]   = {0, 14, 10},
-    [COLORID_NO_FLAVOR]   = {0,  3,  7}
+    [COLORID_NO_FLAVOR]   = {0,  3,  7},
+    [COLORID_PARTY_HP]    = {0, 10, 11},
 };
 
 static const struct WindowTemplate sDefaultBagWindows[] =
@@ -1218,7 +1220,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     },
     [WIN_DESCRIPTION] = {
         .bg = 1,
-        .tilemapLeft = 12,
+        .tilemapLeft = 11,
         .tilemapTop = 16,
         .width = 18,
         .height = 4,
@@ -1236,7 +1238,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     },
     [WIN_PP_LABEL] = {
         .bg = 1,
-        .tilemapLeft = 13,
+        .tilemapLeft = 12,
         .tilemapTop = 18,
         .width = 2,
         .height = 2,
@@ -1245,7 +1247,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     },
     [WIN_POW_ACC_LABEL] = {
         .bg = 1,
-        .tilemapLeft = 20,
+        .tilemapLeft = 19,
         .tilemapTop = 16,
         .width = 5,
         .height = 4,
@@ -1254,7 +1256,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     },
     [WIN_PP_INFO] = {
         .bg = 1,
-        .tilemapLeft = 15,
+        .tilemapLeft = 14,
         .tilemapTop = 18,
         .width = 2,
         .height = 2,
@@ -1263,7 +1265,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     },
     [WIN_POW_ACC_INFO] = {
         .bg = 1,
-        .tilemapLeft = 26,
+        .tilemapLeft = 25,
         .tilemapTop = 16,
         .width = 2,
         .height = 4,
@@ -1273,7 +1275,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
 #if SWSH_ITEM_MENU_CONTEST_INFO
     [WIN_APP_JAM_LABEL] = {
         .bg = 1,
-        .tilemapLeft = 19,
+        .tilemapLeft = 18,
         .tilemapTop = 16,
         .width = 4,
         .height = 4,
@@ -1284,7 +1286,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
 #if SWSH_ITEM_MENU_BERRY_STAT
     [WIN_BERRY_INFO] = {
         .bg = 1,
-        .tilemapLeft = 12,
+        .tilemapLeft = 13,
         .tilemapTop = 18,
         .width = 11,
         .height = 2,
@@ -1305,9 +1307,9 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     [WIN_PARTY_HP_BAR] = {
         .bg          = 1,
         .tilemapLeft = 2,
-        .tilemapTop  = 3,
-        .width       = 4,
-        .height      = 1,
+        .tilemapTop  = 2,
+        .width       = 7,
+        .height      = 2,
         .paletteNum  = 2,
         .baseBlock   = 687,
     },
@@ -1638,10 +1640,10 @@ static void CB2_Bag(void)
 }
 
 #if SWSH_ITEM_MENU_IN_BAG_USE
-#define PARTY_MON_ICON_X            30
+#define PARTY_MON_ICON_X            26
 #define PARTY_MON_ICON_Y(slot)      (24 * (slot) + 16)
-#define PARTY_STATUS_ICON_X         (PARTY_MON_ICON_X + 14)
-#define PARTY_STATUS_ICON_Y(slot)   (PARTY_MON_ICON_Y(slot) + 7)
+#define PARTY_STATUS_ICON_X         (PARTY_MON_ICON_X + 28)
+#define PARTY_STATUS_ICON_Y(slot)   (PARTY_MON_ICON_Y(slot) - 1)
 #define PARTY_HELD_ITEM_X           (PARTY_MON_ICON_X + 16)
 #define PARTY_HELD_ITEM_Y(slot)     (PARTY_MON_ICON_Y(slot) + 12)
 #define PARTY_ITEM_ICON_X           (PARTY_MON_ICON_X - 14)
@@ -1918,6 +1920,7 @@ static bool8 LoadBagMenu_Graphics(void)
         {
             DecompressDataWithHeaderWram(sBagScreen_BG2TileMap, gBagMenu->mainTilemapBuffer);
             DecompressDataWithHeaderWram(sBagScreen_BG3TileMap, gBagMenu->scrollingBgTilemapBuffer);
+            SavePromptTilemap();
             gBagMenu->graphicsLoadState++;
         }
         break;
@@ -2815,7 +2818,7 @@ static void UpdateEmptyPocket(void)
 
 static void CreatePocketScrollArrowPair(void)
 {
-    static const u8 sArrowX[2] = {104, 223};
+    static const u8 sArrowX[2] = {112, 215};
     u8 i;
 
 #if SWSH_ITEM_MENU_PYRAMID
@@ -3306,7 +3309,7 @@ static void SwitchBagPocket(u8 taskId, s16 deltaBagPocketId, bool16 skipEraseLis
             ClearWindowTilemap(WIN_POW_ACC_INFO);
 #if SWSH_ITEM_MENU_CONTEST_INFO
             ClearWindowTilemap(WIN_APP_JAM_LABEL);
-            FillBgTilemapBufferRect_Palette0(2, 4, 24, 16, 4, 4);
+            FillBgTilemapBufferRect_Palette0(2, 4, 23, 16, 4, 4);
 #endif
             gBagMenu->moveInfoMode = 0;
         }
@@ -4634,9 +4637,26 @@ static void ShowInfoPrompt(void)
     DrawPrompt(PROMPT_INFO_TILE);
 }
 
+static void SavePromptTilemap(void)
+{
+    u16 *buf = (u16 *)gBagMenu->mainTilemapBuffer;
+    u8 row, col;
+
+    for (row = 0; row < PROMPT_HEIGHT; row++)
+        for (col = 0; col < PROMPT_WIDTH; col++)
+            gBagMenu->promptTilemapBackup[row * PROMPT_WIDTH + col]
+                = buf[(PROMPT_TOP + row) * 32 + (PROMPT_LEFT + col)];
+}
+
 static void HidePrompt(void)
 {
-    FillBgTilemapBufferRect_Palette0(2, 4, PROMPT_LEFT, PROMPT_TOP, PROMPT_WIDTH, PROMPT_HEIGHT);
+    u16 *buf = (u16 *)gBagMenu->mainTilemapBuffer;
+    u8 row, col;
+
+    for (row = 0; row < PROMPT_HEIGHT; row++)
+        for (col = 0; col < PROMPT_WIDTH; col++)
+            buf[(PROMPT_TOP + row) * 32 + (PROMPT_LEFT + col)]
+                = gBagMenu->promptTilemapBackup[row * PROMPT_WIDTH + col];
     ScheduleBgCopyTilemapToVram(2);
 }
 
@@ -4711,7 +4731,7 @@ static void UpdateMoveBattleInfo(s32 itemIndex)
         GetStringRightAlignXOffset(FONT_SHORT_NARROW, text, valInfoWidth), 16, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
     CopyWindowToVram(WIN_POW_ACC_INFO, COPYWIN_GFX);
 
-    gSprites[gBagMenu->moveTypeIconSpriteId].x = 136;
+    gSprites[gBagMenu->moveTypeIconSpriteId].x = 128;
     gSprites[gBagMenu->moveTypeIconSpriteId].oam.paletteNum = gTypesInfo[GetMoveType(move)].palette;
     gSprites[gBagMenu->moveTypeIconSpriteId].data[0] = GetMoveType(move);
     gSprites[gBagMenu->moveTypeIconSpriteId].invisible = FALSE;
@@ -4758,12 +4778,12 @@ static void SwitchMoveInfoMode(s32 itemIndex)
         }
         LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcon);
 
-        gBagMenu->moveTypeIconSpriteId = CreateSprite(&sSpriteTemplate_MoveTypeIcon, 136, 136, 0);
+        gBagMenu->moveTypeIconSpriteId = CreateSprite(&sSpriteTemplate_MoveTypeIcon, 128, 136, 0);
         {
             u16 tileStart = GetSpriteTileStartByTag(TAG_MOVE_TYPE_ICON);
             gBagMenu->moveTypeIconTilesPtr = (tileStart == 0xFFFF) ? NULL : (u16 *)((u8 *)OBJ_VRAM0 + 32 * tileStart);
         }
-        gBagMenu->categoryIconSpriteId = CreateSprite(&sSpriteTemplate_CategoryIcon, 104, 136, 0);
+        gBagMenu->categoryIconSpriteId = CreateSprite(&sSpriteTemplate_CategoryIcon, 96, 136, 0);
 
         FillWindowPixelBuffer(WIN_PP_LABEL, PIXEL_FILL(0));
         BagMenu_Print(WIN_PP_LABEL, FONT_SHORT_NARROW, sText_MoveInfoPP, 0, 0, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
@@ -4858,7 +4878,7 @@ static void SwitchMoveInfoMode(s32 itemIndex)
         ClearWindowTilemap(WIN_POW_ACC_INFO);
 #if SWSH_ITEM_MENU_CONTEST_INFO
         ClearWindowTilemap(WIN_APP_JAM_LABEL);
-        FillBgTilemapBufferRect_Palette0(2, 4, 24, 16, 4, 4);
+        FillBgTilemapBufferRect_Palette0(2, 4, 23, 16, 4, 4);
         ScheduleBgCopyTilemapToVram(2);
 #endif
 
@@ -4880,7 +4900,7 @@ static void UpdateMoveContestInfo(s32 itemIndex)
 
     if (itemIndex == LIST_CANCEL)
     {
-        FillBgTilemapBufferRect_Palette0(2, 13, 24, 16, 4, 4);
+        FillBgTilemapBufferRect_Palette0(2, 13, 23, 16, 4, 4);
         gSprites[gBagMenu->moveTypeIconSpriteId].invisible = TRUE;
         ScheduleBgCopyTilemapToVram(2);
         CopyWindowToVram(WIN_PP_INFO, COPYWIN_GFX);
@@ -4898,7 +4918,7 @@ static void UpdateMoveContestInfo(s32 itemIndex)
     // Contest type icon
     {
         u32 category = GetMoveContestCategory(move);
-        gSprites[gBagMenu->moveTypeIconSpriteId].x = 120;
+        gSprites[gBagMenu->moveTypeIconSpriteId].x = 112;
         gSprites[gBagMenu->moveTypeIconSpriteId].oam.paletteNum = gContestCategoryInfo[category].palette;
         gSprites[gBagMenu->moveTypeIconSpriteId].data[0] = NUMBER_OF_MON_TYPES + category;
         gSprites[gBagMenu->moveTypeIconSpriteId].invisible = FALSE;
@@ -4916,9 +4936,9 @@ static void UpdateMoveContestInfo(s32 itemIndex)
     }
 
     for (i = 0; i < 8; i++)
-        buf[(16 + i / 4) * 32 + (24 + i % 4)] = (appeal == 0xFF || i < appeal) ? 14 : 13;
+        buf[(16 + i / 4) * 32 + (23 + i % 4)] = (appeal == 0xFF || i < appeal) ? 14 : 13;
     for (i = 0; i < 8; i++)
-        buf[(18 + i / 4) * 32 + (24 + i % 4)] = (jam == 0xFF || i < jam) ? 15 : 13;
+        buf[(18 + i / 4) * 32 + (23 + i % 4)] = (jam == 0xFF || i < jam) ? 15 : 13;
     ScheduleBgCopyTilemapToVram(2);
 }
 #endif // SWSH_ITEM_MENU_CONTEST_INFO
@@ -5515,11 +5535,27 @@ static void SwitchBerryInfoMode(s32 itemIndex)
 // Party Panel
 // ============================================================
 
-#define PARTY_PANEL_START_COL   1
-#define PARTY_PANEL_START_ROW   1
-#define PARTY_PANEL_SLOT_WIDTH  7
-#define PARTY_PANEL_SLOT_HEIGHT 3
-#define PARTY_HP_BAR_Y_OFFSET   4   // pixel offset of the HP bar
+#define PARTY_PANEL_START_COL       1
+#define PARTY_PANEL_START_ROW       1
+#define PARTY_PANEL_SLOT_WIDTH      8
+#define PARTY_PANEL_SLOT_HEIGHT     3
+
+#define PARTY_HP_BAR_WIN_WIDTH      56  // WIN_PARTY_HP_BAR width * 8px
+#define PARTY_HP_BAR_X_OFFSET       1
+#define PARTY_HP_BAR_Y_OFFSET       7
+#define PARTY_HP_BAR_MAX_WIDTH      48  // hp bar fill width
+#define PARTY_HP_BAR_FILL_HEIGHT    6
+#define PARTY_HP_BAR_BORDER_COLOR   9
+
+#define PARTY_HP_BAR_GREEN_COLOR    12
+#define PARTY_HP_BAR_YELLOW_COLOR   13
+#define PARTY_HP_BAR_RED_COLOR      14
+#define PARTY_HP_BAR_EMPTY_COLOR    15
+#define PARTY_HP_BAR_GREEN_WIDTH    (PARTY_HP_BAR_MAX_WIDTH * 50 / 100)
+#define PARTY_HP_BAR_YELLOW_WIDTH   (PARTY_HP_BAR_MAX_WIDTH * 20 / 100)
+
+#define PARTY_HP_BAR_TEXT_Y         2
+#define PARTY_HP_BAR_TEXT_RIGHT     (PARTY_HP_BAR_WIN_WIDTH - 8)
 
 // coming from the party menu, only show the target mon
 // drawn with slot 0's graphics shifted this many tile rows down
@@ -5757,8 +5793,7 @@ static void BagMenu_UpdateStatusIconPos(u8 hoveredSlot)
     {
         if (gBagMenu->statusIconSpriteIds[i] == SPRITE_NONE)
             continue;
-        gSprites[gBagMenu->statusIconSpriteIds[i]].y = PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset()
-            + (BagMenu_ShouldShowHPBar() && i == hoveredSlot ? 0 : 4);
+        gSprites[gBagMenu->statusIconSpriteIds[i]].y = PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset();
     }
 }
 
@@ -5768,26 +5803,56 @@ static void BagMenu_MoveHPBarWindow(u8 slot)
         return;
     if (gBagMenu->hpBarWindowMapped)
         ClearWindowTilemap(WIN_PARTY_HP_BAR);
-    SetWindowAttribute(WIN_PARTY_HP_BAR, WINDOW_TILEMAP_TOP, 3 + slot * 3);
+    SetWindowAttribute(WIN_PARTY_HP_BAR, WINDOW_TILEMAP_TOP,
+                       PARTY_PANEL_START_ROW + BagMenu_PanelRowOffset() + slot * PARTY_PANEL_SLOT_HEIGHT + 1);
     PutWindowTilemap(WIN_PARTY_HP_BAR);
     gBagMenu->hpBarWindowMapped = TRUE;
     gBagMenu->prevHPBarSlot = (s8)slot;
 }
 
-static void BagMenu_DrawPartyHPBarPixels(u8 slot, u8 filledWidth)
+static void BagMenu_DrawPartyHPBarFill(u8 colorIdx, u8 filledWidth)
+{
+    FillWindowPixelBuffer(WIN_PARTY_HP_BAR, PIXEL_FILL(0));
+    FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(PARTY_HP_BAR_BORDER_COLOR),
+                        PARTY_HP_BAR_X_OFFSET - 1, PARTY_HP_BAR_Y_OFFSET - 1,
+                        PARTY_HP_BAR_MAX_WIDTH + 2, PARTY_HP_BAR_FILL_HEIGHT + 2);
+    if (filledWidth > 0)
+        FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(colorIdx),
+                            PARTY_HP_BAR_X_OFFSET, PARTY_HP_BAR_Y_OFFSET, filledWidth, PARTY_HP_BAR_FILL_HEIGHT);
+    if (filledWidth < PARTY_HP_BAR_MAX_WIDTH)
+        FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(PARTY_HP_BAR_EMPTY_COLOR),
+                            PARTY_HP_BAR_X_OFFSET + filledWidth, PARTY_HP_BAR_Y_OFFSET,
+                            PARTY_HP_BAR_MAX_WIDTH - filledWidth, PARTY_HP_BAR_FILL_HEIGHT);
+}
+
+#if SWSH_ITEM_MENU_PARTY_HP_VALUE
+static void BagMenu_PrintPartyHPValues(u16 hp, u16 maxHp)
+{
+    u8 text[8];
+    u8 *end = ConvertIntToDecimalStringN(text, hp, STR_CONV_MODE_LEFT_ALIGN, 3);
+
+    *end++ = CHAR_SLASH;
+    ConvertIntToDecimalStringN(end, maxHp, STR_CONV_MODE_LEFT_ALIGN, 3);
+
+    BagMenu_Print(WIN_PARTY_HP_BAR, FONT_SMALL_NARROW, text,
+                  GetStringRightAlignXOffset(FONT_SMALL_NARROW, text, PARTY_HP_BAR_TEXT_RIGHT),
+                  PARTY_HP_BAR_TEXT_Y, 0, 0, TEXT_SKIP_DRAW, COLORID_PARTY_HP);
+}
+#endif
+
+static void BagMenu_DrawPartyHPBarPixels(u8 slot, u8 filledWidth, u16 hp, u16 maxHp)
 {
     u8 colorIdx;
 
-    if (filledWidth > 16)     colorIdx = 12;    // green
-    else if (filledWidth > 6) colorIdx = 13;    // yellow
-    else                      colorIdx = 14;    // red
+    if (filledWidth > PARTY_HP_BAR_GREEN_WIDTH)       colorIdx = PARTY_HP_BAR_GREEN_COLOR;
+    else if (filledWidth > PARTY_HP_BAR_YELLOW_WIDTH) colorIdx = PARTY_HP_BAR_YELLOW_COLOR;
+    else                                              colorIdx = PARTY_HP_BAR_RED_COLOR;
 
     BagMenu_MoveHPBarWindow(slot);
-    FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(0), 0, PARTY_HP_BAR_Y_OFFSET, 32, 2);
-    if (filledWidth > 0)
-        FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(colorIdx), 0, PARTY_HP_BAR_Y_OFFSET, filledWidth, 2);
-    if (filledWidth < 32)
-        FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(15), filledWidth, PARTY_HP_BAR_Y_OFFSET, 32 - filledWidth, 2);
+    BagMenu_DrawPartyHPBarFill(colorIdx, filledWidth);
+#if SWSH_ITEM_MENU_PARTY_HP_VALUE
+    BagMenu_PrintPartyHPValues(hp, maxHp);
+#endif
     CopyWindowToVram(WIN_PARTY_HP_BAR, COPYWIN_GFX);
     ScheduleBgCopyTilemapToVram(1);
 }
@@ -5798,13 +5863,18 @@ static void BagMenu_DrawPartyHPBarPixels(u8 slot, u8 filledWidth)
 static void Task_BagMenu_HPBarAnim(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
+    struct Pokemon *mon = BagMenu_GetPanelMon((u8)tPartySlot);
+    u16 maxHp = GetMonData(mon, MON_DATA_MAX_HP);
     u8 curWidth    = (u8)tHPBarCurWidth;
     u8 targetWidth = (u8)tHPBarTargetWidth;
+    u16 shownHp;
 
     if (curWidth < targetWidth)
         curWidth++;
     tHPBarCurWidth = curWidth;
-    BagMenu_DrawPartyHPBarPixels((u8)tPartySlot, curWidth);
+    shownHp = (curWidth == targetWidth) ? GetMonData(mon, MON_DATA_HP)
+                                        : curWidth * maxHp / PARTY_HP_BAR_MAX_WIDTH;
+    BagMenu_DrawPartyHPBarPixels((u8)tPartySlot, curWidth, shownHp, maxHp);
 
     if (curWidth == targetWidth)
         DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4, Task_BagMenu_PartyAfterItemUse);
@@ -5842,7 +5912,7 @@ static void BagMenu_DrawPartyHPBar(s8 slot)
 
         if (GetMonData(mon, MON_DATA_IS_EGG))
         {
-            FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(0), 0, PARTY_HP_BAR_Y_OFFSET, 32, 2);
+            FillWindowPixelBuffer(WIN_PARTY_HP_BAR, PIXEL_FILL(0));
         }
         else
         {
@@ -5854,16 +5924,16 @@ static void BagMenu_DrawPartyHPBar(s8 slot)
             switch (GetHPBarLevel(hp, maxHp))
             {
             case HP_BAR_FULL:
-            case HP_BAR_GREEN:  fillColorIdx = 12; break;
-            case HP_BAR_YELLOW: fillColorIdx = 13; break;
-            default:            fillColorIdx = 14; break;
+            case HP_BAR_GREEN:  fillColorIdx = PARTY_HP_BAR_GREEN_COLOR; break;
+            case HP_BAR_YELLOW: fillColorIdx = PARTY_HP_BAR_YELLOW_COLOR; break;
+            default:            fillColorIdx = PARTY_HP_BAR_RED_COLOR; break;
             }
 
-            hpFraction = GetScaledHPFraction(hp, maxHp, 32);
-            if (hpFraction > 0)
-                FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(fillColorIdx), 0, PARTY_HP_BAR_Y_OFFSET, hpFraction, 2);
-            if (hpFraction < 32)
-                FillWindowPixelRect(WIN_PARTY_HP_BAR, PIXEL_FILL(15), hpFraction, PARTY_HP_BAR_Y_OFFSET, 32 - hpFraction, 2);
+            hpFraction = GetScaledHPFraction(hp, maxHp, PARTY_HP_BAR_MAX_WIDTH);
+            BagMenu_DrawPartyHPBarFill(fillColorIdx, hpFraction);
+#if SWSH_ITEM_MENU_PARTY_HP_VALUE
+            BagMenu_PrintPartyHPValues(hp, maxHp);
+#endif
         }
     }
 
@@ -6591,11 +6661,11 @@ static void BagMenu_UseMedicine(u8 taskId)
 
         if (BagMenu_ShouldShowHPBar())
         {
-            u8 oldFraction = GetScaledHPFraction(hp, maxHp, 32);
-            u8 newFraction = GetScaledHPFraction(newHp, maxHp, 32);
+            u8 oldFraction = GetScaledHPFraction(hp, maxHp, PARTY_HP_BAR_MAX_WIDTH);
+            u8 newFraction = GetScaledHPFraction(newHp, maxHp, PARTY_HP_BAR_MAX_WIDTH);
             if (newFraction > oldFraction)
             {
-                BagMenu_DrawPartyHPBarPixels(tPartySlot, oldFraction);
+                BagMenu_DrawPartyHPBarPixels(tPartySlot, oldFraction, hp, maxHp);
                 tHPBarCurWidth = oldFraction;
                 tHPBarTargetWidth = newFraction;
                 gTasks[taskId].func = Task_BagMenu_HPBarAnim;
