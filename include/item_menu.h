@@ -156,7 +156,6 @@ struct BagMenu
     u32 cursorAnimId;
     u32 scrollThumbAnimId;
     u32 pocketScrollArrowAnimIds[2];
-    u32 partyItemIconAnimId;
     s32 hoveredItemIndex;
     u16 listTotal;
     u8 listShown;

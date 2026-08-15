@@ -352,6 +352,7 @@ static void BagMenu_DisableTMHMPartyBlend(void);
 static void BagMenu_ApplyPartyBlend(bool8 (*isEligible)(u8 partySlot));
 static bool8 BagMenu_MonHoldsItem(u8 partySlot);
 static void BagMenu_HideDepletedItemCursor(enum Item);
+static void BagMenu_PartySnapCursor(u8 slot);
 static void BagMenu_UseSacredAsh(u8);
 static void BagMenu_GetEVStatName(enum ItemEffectType effectType, u8 *dest);
 static void BagMenu_UsePPOnMove(u8, u8);
@@ -1628,7 +1629,6 @@ void GoToBagMenu(u8 location, u8 pocket, MainCallback exitCallback)
         gBagMenu->pocketScrollArrowAnimIds[1] = INVALID_COMFY_ANIM;
         gBagMenu->cursorAnimId = INVALID_COMFY_ANIM;
         gBagMenu->scrollThumbAnimId = INVALID_COMFY_ANIM;
-        gBagMenu->partyItemIconAnimId = INVALID_COMFY_ANIM;
         gBagMenu->hoveredItemIndex = LIST_CANCEL;
         gBagMenu->showItemIconId = ITEM_NONE;
         memset(gBagMenu->windowIds, WINDOW_NONE, sizeof(gBagMenu->windowIds));
@@ -1694,6 +1694,8 @@ static void CB2_Bag(void)
 #define PARTY_HELD_ITEM_Y(slot)     (PARTY_MON_ICON_Y(slot) + 10)
 #define PARTY_ITEM_ICON_X           (PARTY_MON_ICON_X - 14)
 #define PARTY_ITEM_ICON_Y(slot)     PARTY_MON_ICON_Y(slot)
+#define PARTY_CURSOR_X              (PARTY_ITEM_ICON_X - 2)
+#define PARTY_CURSOR_Y(slot)        (PARTY_ITEM_ICON_Y(slot) + 4)
 
 enum {
     BAG_REENTRY_NONE,
@@ -1844,13 +1846,7 @@ static bool8 SetupBagMenu(void)
 #if SWSH_ITEM_MENU_IN_BAG_USE
         if (sBagItemUseState != NULL && sBagItemUseState->reentryPhase != BAG_REENTRY_NONE)
         {
-            u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
-            if (iconSpriteId != SPRITE_NONE)
-            {
-                gSprites[iconSpriteId].x2 = PARTY_ITEM_ICON_X;
-                gSprites[iconSpriteId].y2 = PARTY_ITEM_ICON_Y(sBagItemUseState->slot);
-            }
-            gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
+            BagMenu_PartySnapCursor(sBagItemUseState->slot);
         }
         else
 #endif
@@ -2353,6 +2349,8 @@ static void GetItemNameFromPocket(u8 *dest, enum Item itemId)
     }
 }
 
+#define LIST_CURSOR_X               84
+
 static void CreateCursorSprite(void)
 {
     u8 windowTop = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8;
@@ -2365,7 +2363,7 @@ static void CreateCursorSprite(void)
         .easingFunc = ComfyAnimEasing_EaseOutCubic,
     });
 
-    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, 84, initialY, 0);
+    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY, 0);
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
 }
 
@@ -2980,7 +2978,6 @@ static void Task_CloseBagMenu(u8 taskId)
         ReleaseComfyAnim(gBagMenu->scrollThumbAnimId);
         ReleaseComfyAnim(gBagMenu->pocketScrollArrowAnimIds[0]);
         ReleaseComfyAnim(gBagMenu->pocketScrollArrowAnimIds[1]);
-        ReleaseComfyAnim(gBagMenu->partyItemIconAnimId);
         ResetSpriteData();
         FreeAllSpritePalettes();
         FreeBagMenu();
@@ -6380,25 +6377,40 @@ static void BagMenu_ApplyItemUseBlend(void)
         BagMenu_ApplyPartyBlend(BagMenu_IsMonEligibleForItem);
 }
 
-static void BagMenu_PartyStartItemIconYAnim(struct Sprite *spr, s16 toY)
+static void BagMenu_PartySnapCursor(u8 slot)
 {
-    struct ComfyAnimEasingConfig config = {
-        .from = Q_24_8(spr->y2),
-        .to = Q_24_8(toY),
-        .durationFrames = 8,
-        .easingFunc = ComfyAnimEasing_EaseOutCubic,
-    };
+#if SWSH_ITEM_MENU_ITEM_CURSOR
+    u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
 
-    if (gBagMenu->partyItemIconAnimId == INVALID_COMFY_ANIM)
-        gBagMenu->partyItemIconAnimId = CreateComfyAnim_Easing(&config);
-    else
-        InitComfyAnim_Easing(&config, &gComfyAnims[gBagMenu->partyItemIconAnimId]);
+    gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
+    if (iconSpriteId != SPRITE_NONE)
+    {
+        gSprites[iconSpriteId].x2 = PARTY_ITEM_ICON_X;
+        gSprites[iconSpriteId].y2 = PARTY_ITEM_ICON_Y(slot);
+    }
+#else
+    struct Sprite *cursor = &gSprites[gBagMenu->cursorSpriteId];
+
+    cursor->callback = SpriteCallbackDummy;
+    cursor->invisible = FALSE;
+    cursor->x = PARTY_CURSOR_X;
+    cursor->y = PARTY_CURSOR_Y(slot);
+#endif
+}
+
+static void BagMenu_PartyExitCursor(void)
+{
+#if SWSH_ITEM_MENU_ITEM_CURSOR
+    gSprites[gBagMenu->cursorSpriteId].invisible = FALSE;
+#else
+    gSprites[gBagMenu->cursorSpriteId].x = LIST_CURSOR_X;
+    gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
+#endif
 }
 
 void BagMenu_OpenPartySelect(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
-    u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
 
     if (gItemUseCB == ItemUseCB_SacredAsh)
     {
@@ -6411,19 +6423,13 @@ void BagMenu_OpenPartySelect(u8 taskId)
     BagMenu_ApplyItemUseBlend();
     if (gBagMenu->partyGiveMode)
         BagMenu_UpdateHeldItemIcon(0);
-    gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
     BagMenu_SetPartySlotPalette(0, PARTY_SLOT_HOVER_PAL);
     BagMenu_UpdateStatusIconPos(0);
 
     if (BagMenu_ShouldShowHPBar())
         BagMenu_DrawPartyHPBar(0);
 
-    if (iconSpriteId != SPRITE_NONE)
-    {
-        struct Sprite *spr = &gSprites[iconSpriteId];
-        spr->x2 = PARTY_ITEM_ICON_X;
-        BagMenu_PartyStartItemIconYAnim(spr, PARTY_ITEM_ICON_Y(0));
-    }
+    BagMenu_PartySnapCursor(0);
 
     gTasks[taskId].func = Task_BagMenu_PartyInput;
 }
@@ -6439,13 +6445,6 @@ static void Task_BagMenu_PartyInput(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
     u8 slotLimit = BagMenu_PanelSlotLimit();
-    u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
-
-    if (iconSpriteId != SPRITE_NONE && gBagMenu->partyItemIconAnimId != INVALID_COMFY_ANIM)
-        gSprites[iconSpriteId].y2 = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->partyItemIconAnimId]);
-
-    if (gBagMenu->partyItemIconAnimId != INVALID_COMFY_ANIM && !gComfyAnims[gBagMenu->partyItemIconAnimId].completed)
-        return;
 
 #if SWSH_ITEM_MENU_IN_BATTLE_USE
     if (BagMenu_IsMultiFull() && GetLRKeysPressed())
@@ -6463,8 +6462,7 @@ static void Task_BagMenu_PartyInput(u8 taskId)
         BagMenu_SetPartySlotPalette(tPartySlot, PARTY_SLOT_HOVER_PAL);
         BagMenu_UpdateStatusIconPos(tPartySlot);
         PlaySE(SE_SELECT);
-        if (iconSpriteId != SPRITE_NONE)
-            BagMenu_PartyStartItemIconYAnim(&gSprites[iconSpriteId], PARTY_ITEM_ICON_Y(tPartySlot));
+        BagMenu_PartySnapCursor(tPartySlot);
         if (gBagMenu->partyGiveMode)
             BagMenu_UpdateHeldItemIcon(tPartySlot);
         if (BagMenu_ShouldShowHPBar())
@@ -6477,8 +6475,7 @@ static void Task_BagMenu_PartyInput(u8 taskId)
         BagMenu_SetPartySlotPalette(tPartySlot, PARTY_SLOT_HOVER_PAL);
         BagMenu_UpdateStatusIconPos(tPartySlot);
         PlaySE(SE_SELECT);
-        if (iconSpriteId != SPRITE_NONE)
-            BagMenu_PartyStartItemIconYAnim(&gSprites[iconSpriteId], PARTY_ITEM_ICON_Y(tPartySlot));
+        BagMenu_PartySnapCursor(tPartySlot);
         if (gBagMenu->partyGiveMode)
             BagMenu_UpdateHeldItemIcon(tPartySlot);
         if (BagMenu_ShouldShowHPBar())
@@ -6539,7 +6536,7 @@ static void BagMenu_ClosePartySelect(u8 taskId)
     if (gBagPosition.pocket == POCKET_TM_HM)
         BagMenu_UpdateTMHMPartyBlend(gBagMenu->hoveredItemIndex);
 
-    gSprites[gBagMenu->cursorSpriteId].invisible = FALSE;
+    BagMenu_PartyExitCursor();
 
     if (iconSpriteId != SPRITE_NONE)
     {
@@ -7494,7 +7491,7 @@ static void Task_BagMenu_RareCandyReentry(u8 taskId)
     case BAG_REENTRY_MOVE_FORGET:
     {
         tPartySlot = sBagItemUseState->slot;
-        gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
+        BagMenu_PartySnapCursor(tPartySlot);
         sBagItemUseState->reentryPhase = BAG_REENTRY_NONE;
         gTasks[taskId].func = Task_BagMenu_MoveLearnAfterForget;
         break;
@@ -7503,7 +7500,7 @@ static void Task_BagMenu_RareCandyReentry(u8 taskId)
     {
         u8 slot = sBagItemUseState->slot;
         tPartySlot = slot;
-        gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
+        BagMenu_PartySnapCursor(slot);
         if (BagMenu_ShouldShowHPBar())
             BagMenu_DrawPartyHPBar(slot);
         BagMenu_FreeItemUseState();
@@ -7515,12 +7512,8 @@ static void Task_BagMenu_RareCandyReentry(u8 taskId)
 
 static void Task_BagMenu_MoveLearnAfterForget(u8 taskId)
 {
-    u8 moveSlot;
+    u8 moveSlot = GetMoveSlotToReplace();
 
-    if (gBagMenu->partyItemIconAnimId != INVALID_COMFY_ANIM && !gComfyAnims[gBagMenu->partyItemIconAnimId].completed)
-        return;
-
-    moveSlot = GetMoveSlotToReplace();
     if (moveSlot != MAX_MON_MOVES)
     {
         struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][sBagItemUseState->slot];
@@ -8480,13 +8473,6 @@ static void Task_BagMenu_FusionAwaitSecond(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
     u8 partyCount = CalculatePlayerPartyCount();
-    u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
-
-    if (iconSpriteId != SPRITE_NONE && gBagMenu->partyItemIconAnimId != INVALID_COMFY_ANIM)
-        gSprites[iconSpriteId].y2 = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->partyItemIconAnimId]);
-
-    if (gBagMenu->partyItemIconAnimId != INVALID_COMFY_ANIM && !gComfyAnims[gBagMenu->partyItemIconAnimId].completed)
-        return;
 
     if (JOY_NEW(DPAD_DOWN))
     {
@@ -8494,8 +8480,7 @@ static void Task_BagMenu_FusionAwaitSecond(u8 taskId)
         tPartySlot = (tPartySlot == partyCount - 1) ? 0 : tPartySlot + 1;
         BagMenu_SetPartySlotPalette(tPartySlot, PARTY_SLOT_HOVER_PAL);
         PlaySE(SE_SELECT);
-        if (iconSpriteId != SPRITE_NONE)
-            BagMenu_PartyStartItemIconYAnim(&gSprites[iconSpriteId], PARTY_ITEM_ICON_Y(tPartySlot));
+        BagMenu_PartySnapCursor(tPartySlot);
     }
     else if (JOY_NEW(DPAD_UP))
     {
@@ -8503,8 +8488,7 @@ static void Task_BagMenu_FusionAwaitSecond(u8 taskId)
         tPartySlot = (tPartySlot == 0) ? partyCount - 1 : tPartySlot - 1;
         BagMenu_SetPartySlotPalette(tPartySlot, PARTY_SLOT_HOVER_PAL);
         PlaySE(SE_SELECT);
-        if (iconSpriteId != SPRITE_NONE)
-            BagMenu_PartyStartItemIconYAnim(&gSprites[iconSpriteId], PARTY_ITEM_ICON_Y(tPartySlot));
+        BagMenu_PartySnapCursor(tPartySlot);
     }
     else if (JOY_NEW(B_BUTTON))
     {
