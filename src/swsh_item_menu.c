@@ -8687,22 +8687,24 @@ static s16 BagMenu_ComputeMultiUseMax(u8 taskId)
 
     if (gItemUseCB == ItemUseCB_RareCandy)
     {
-        u8 level = GetMonData(mon, MON_DATA_LEVEL);
-        u8 holdEffectParam = GetItemHoldEffectParam(item);
+        u32 level = GetMonData(mon, MON_DATA_LEVEL);
+        u32 holdEffectParam = GetItemHoldEffectParam(item);
+        u32 levelCap = B_RARE_CANDY_CAP ? GetCurrentLevelCap() : MAX_LEVEL;
 
-        if (holdEffectParam == 0)
+        if (level >= MAX_LEVEL || level >= levelCap)
+            return 0;
+
+        if (holdEffectParam == 0) // rare candy
         {
-            if (B_RARE_CANDY_CAP && level >= GetCurrentLevelCap())
-                return 0;
-            if (level >= MAX_LEVEL)
-                return 0;
-            return B_RARE_CANDY_CAP ? (s16)min(bagQty, GetCurrentLevelCap() - level) : bagQty;
+            return (s16)min(bagQty, levelCap - level);
         }
-        else
+        else // exp candies
         {
-            if (level >= MAX_LEVEL)
-                return 0;
-            return bagQty;
+            u32 growthRate = gSpeciesInfo[GetMonData(mon, MON_DATA_SPECIES)].growthRate;
+            u32 expToCap = gExperienceTables[growthRate][levelCap] - GetMonData(mon, MON_DATA_EXP);
+            u32 candyExp = sExpCandyExperienceTable[holdEffectParam - 1];
+
+            return (s16)min(bagQty, (expToCap + candyExp - 1) / candyExp);
         }
     }
 
