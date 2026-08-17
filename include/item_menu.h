@@ -83,7 +83,7 @@ enum BattlePocket
 #define ITEMMENU_SWAP_LINE_LENGTH 8  // Swap line is 8 sprites long
 #if SWSH_ITEM_MENU
 #define HOVER_SLOT_SPRITES_COUNT     5
-#define FRAME_QUANTITY_SPRITES_COUNT 2
+#define FRAME_QUANTITY_SPRITES_COUNT 4
 #define PROMPT_WIDTH                 3
 #define PROMPT_HEIGHT                3
 #endif
