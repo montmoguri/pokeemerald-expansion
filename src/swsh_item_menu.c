@@ -6161,6 +6161,9 @@ static void BagMenu_UpdateTMHMPartyBlend(s32 itemIndex)
 {
     u8 i;
 
+    if (!BagMenu_ShouldLoadPartyPanel())
+        return;
+
     if (gBagMenu->numItemStacks[gBagPosition.pocket] == (u8)(!gBagMenu->hideCloseBagText))
     {
         BagMenu_DisableTMHMPartyBlend();
