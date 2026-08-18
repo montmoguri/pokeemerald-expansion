@@ -2023,6 +2023,14 @@ extern const u16 gStatusPal_Icons[];
 extern const u16 gCategoryIcons_Pal[];
 extern const u32 gCategoryIcons_Gfx[];
 
+// SwSh assets shared across branches
+extern const u32 gStatusGfxSwSh_Icons[];
+extern const u16 gStatusPalSwSh_Icons[];
+extern const u32 gCursorSwSh_Gfx[];
+extern const u16 gMonShadowSwSh_Pal[];
+extern const u32 gMoveTypesSwSh_Gfx[];
+extern const u16 gMoveTypesSwSh_Pal[];
+
 extern const u32 gShopMenu_Gfx[];
 extern const u32 gShopMenu_Tilemap[];
 extern const u16 gShopMenu_Pal[];

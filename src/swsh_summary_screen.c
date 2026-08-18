@@ -201,9 +201,7 @@ enum StatusIcon
     STATUS_ICON_PKRS,
     STATUS_ICON_FNT,
     STATUS_ICON_FRB,
-#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
     STATUS_ICON_TOX,
-#endif
     STATUS_ICON_COUNT,
     STATUS_ICON_NONE = STATUS_ICON_COUNT,
 };
@@ -621,9 +619,7 @@ static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
     INCGFX_U8("graphics/summary_screen/swsh/button_lr.png", ".4bpp"),
 };
 static const u32 sTeraTypes_Gfx[]                   = INCGFX_U32("graphics/summary_screen/swsh/tera_types.png", ".4bpp.smol");
-// Share sDynamaxLevels_Pal
 static const u32 sDynamaxLevels_Gfx[]               = INCGFX_U32("graphics/summary_screen/swsh/dynamax_levels.png", ".4bpp.smol");
-static const u32 sCursor_Gfx[]                  = INCGFX_U32("graphics/summary_screen/swsh/cursor.png", ".4bpp.smol");
 static const u32 sMoveSlot_Gfx[]                    = INCGFX_U32("graphics/summary_screen/swsh/move_slot.png", ".4bpp.smol");
 // Share sCategoryIcons_Pal
 static const u32 sCategoryIcons_Gfx[]               = INCGFX_U32("graphics/summary_screen/swsh/category_icons.png", ".4bpp.smol");
@@ -633,23 +629,12 @@ static const u32 sShinyIcon_Gfx[]                   = INCGFX_U32("graphics/summa
 static const u32 sGenderIcons_Gfx[]                 = INCGFX_U32("graphics/summary_screen/swsh/gender_icons.png", ".4bpp.smol");
 static const u32 sFriendshipIcon_Gfx[]              = INCGFX_U32("graphics/summary_screen/swsh/heart.png", ".4bpp.smol");
 static const u32 sGigantamaxIcon_Gfx[]              = INCGFX_U32("graphics/summary_screen/swsh/gigantamax.png", ".4bpp.smol");
-#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
-static const u32 sStatusGfx_Icons[]                 = INCGFX_U32("graphics/summary_screen/swsh/status_icons.png", ".4bpp.smol");
-static const u16 sStatusPal_Icons[]                 = INCGFX_U16("graphics/summary_screen/swsh/status_icons.png", ".gbapal");
-#endif
-
 static const u16 sCategoryIcons_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/category_icons.png", ".gbapal");
 static const u16 sGenderIcons_Pal[]                 = INCGFX_U16("graphics/summary_screen/swsh/gender_icons.png", ".gbapal");
 static const u16 sDynamaxLevels_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/dynamax_levels.png", ".gbapal");
 static const u16 sMoveSlot_Pals[]                   = INCGFX_U16("graphics/summary_screen/swsh/move_slot.png", ".gbapal");
-static const u16 sMonShadow_Pal[]                   = INCGFX_U16("graphics/summary_screen/swsh/shadow.pal", ".gbapal");
-#if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
-    static const u32 sMoveTypes_Gfx[] = INCGFX_U32("graphics/summary_screen/swsh/move_types.png", ".4bpp.smol");
-    #if SWSH_SUMMARY_SWSH_TYPE_ICONS_SV_PAL == TRUE
-        static const u16 sMoveTypes_Pal[] = INCGFX_U16("graphics/summary_screen/swsh/tera_types.png", ".gbapal");
-    #else
-        static const u16 sMoveTypes_Pal[] = INCGFX_U16("graphics/summary_screen/swsh/move_types.png", ".gbapal");
-    #endif
+#if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE && SWSH_SUMMARY_SWSH_TYPE_ICONS_SV_PAL == TRUE
+    static const u16 sMoveTypes_Pal[] = INCGFX_U16("graphics/summary_screen/swsh/tera_types.png", ".gbapal");
 #endif
 
 
@@ -1185,7 +1170,7 @@ static const union AnimCmd *const sSpriteAnimTable_MoveTypes[NUMBER_OF_MON_TYPES
 static const struct CompressedSpriteSheet sSpriteSheet_MoveTypes =
 {
 #if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
-    .data = sMoveTypes_Gfx,
+    .data = gMoveTypesSwSh_Gfx,
 #else
     .data = gMoveTypes_Gfx,
 #endif
@@ -1448,7 +1433,7 @@ static const struct OamData sOamData_Cursor =
 
 static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 {
-    .data = sCursor_Gfx,
+    .data = gCursorSwSh_Gfx,
     .size = (16 * 16) / 2,
     .tag = TAG_MOVE_CURSOR
 };
@@ -1625,12 +1610,10 @@ static const union AnimCmd sSpriteAnim_StatusFrostbite[] = {
     ANIMCMD_FRAME(28, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
 static const union AnimCmd sSpriteAnim_StatusToxic[] = {
     ANIMCMD_FRAME(32, 0, FALSE, FALSE),
     ANIMCMD_END
 };
-#endif
 
 static const union AnimCmd *const sSpriteAnimTable_StatusCondition[] = {
     sSpriteAnim_StatusPoison,
@@ -1641,32 +1624,21 @@ static const union AnimCmd *const sSpriteAnimTable_StatusCondition[] = {
     sSpriteAnim_StatusPokerus,
     sSpriteAnim_StatusFaint,
     sSpriteAnim_StatusFrostbite,
-#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
     sSpriteAnim_StatusToxic,
-#endif
 };
 
 STATIC_ASSERT(ARRAY_COUNT(sSpriteAnimTable_StatusCondition) == STATUS_ICON_COUNT, StatusIconAnimCount);
 
 static const struct CompressedSpriteSheet sSpriteSheet_StatusIcons =
 {
-#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
-    .data = sStatusGfx_Icons,
+    .data = gStatusGfxSwSh_Icons,
     .size = 0x480,
-#else
-    .data = gStatusGfx_Icons,
-    .size = 0x400,
-#endif
     .tag = TAG_MON_STATUS
 };
 
 static const struct SpritePalette sSpritePal_StatusIcons =
 {
-#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
-    .data = sStatusPal_Icons,
-#else
-    .data = gStatusPal_Icons,
-#endif
+    .data = gStatusPalSwSh_Icons,
     .tag = TAG_MON_STATUS
 };
 
@@ -1873,7 +1845,7 @@ static const struct SpriteTemplate sSpriteTemplate_MaxCondSparkle =
 
 static const struct SpritePalette sSpritePal_MonShadow =
 {
-    sMonShadow_Pal, TAG_MON_SHADOW
+    gMonShadowSwSh_Pal, TAG_MON_SHADOW
 };
 
 // code
@@ -2311,8 +2283,10 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 19:
-    #if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
+    #if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE && SWSH_SUMMARY_SWSH_TYPE_ICONS_SV_PAL == TRUE
         LoadPalette(sMoveTypes_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
+    #elif SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
+        LoadPalette(gMoveTypesSwSh_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
     #else
         LoadPalette(gMoveTypes_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
     #endif
@@ -4072,7 +4046,7 @@ static void ClearPageWindowTilemaps(u8 page)
         if (SWSH_SUMMARY_MON_SHADOWS)
         {
             u8 shadowId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW];
-            LoadPalette(sMonShadow_Pal, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
+            LoadPalette(gMonShadowSwSh_Pal, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
         }
         if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
         {
@@ -6374,10 +6348,8 @@ static u32 GetStatusIcon(struct Pokemon *mon)
         return STATUS_ICON_FNT;
 
     u32 status = GetMonData(mon, MON_DATA_STATUS);
-#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
     if (status & STATUS1_TOXIC_POISON)
         return STATUS_ICON_TOX;
-#endif
     if (status & STATUS1_PSN_ANY)
         return STATUS_ICON_PSN;
     if (status & STATUS1_SLEEP)
