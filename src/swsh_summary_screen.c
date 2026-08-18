@@ -289,7 +289,8 @@ static EWRAM_DATA struct PokemonSummaryScreenData
     u8 monAnimPlayed; // tracks if anim has been played at least once
     u8 heldMoveSlot; // move slot lifted during the switch-move animation, MOVE_SLOT_COUNT when none
     u32 heldMoveSlotAnimId; // comfy anim driving the lifted slot, INVALID_COMFY_ANIM when none
-    u32 moveCursorAnimId; // comfy anim driving the move cursor's slot-to-slot slide, INVALID_COMFY_ANIM when unallocated
+    u32 cursorAnimId; // comfy anim driving the move cursor's slot-to-slot slide, INVALID_COMFY_ANIM when unallocated
+    u32 cursorBobAnimId; // comfy anim driving the move cursor's idle bob, INVALID_COMFY_ANIM when unallocated
 #if SWSH_SUMMARY_SHOW_CONTEST_PAGES
     struct ConditionGraph conditionGraph;
     struct Sprite *conditionSparkles[MAX_CONDITION_SPARKLES];
@@ -333,7 +334,7 @@ static void LiftMoveSlot(u8);
 static void DropMoveSlot(u8);
 static void SetMoveSlotSpritesRow(u8, u8);
 static void SwapMoveSlotSpriteIds(u8, u8);
-static void SnapMoveCursorToSlot(void);
+static void SnapCursorToSlot(void);
 static void AnimateLiftedSlotToTarget(void);
 static void SwapMonMoves(struct Pokemon *, u8, u8);
 static void SwapBoxMonMoves(struct BoxPokemon *, u8, u8);
@@ -430,9 +431,9 @@ static void DestroyDynamaxLevelSprites(void);
 static void CreateHeldItemSprite(void);
 static void DestroyHeldItemIconSprite(void);
 static void CreateStatusSprite(void);
-static void CreateMoveCursorSprite(void);
-static void DestroyMoveCursorSprite(void);
-static void SpriteCB_MoveCursor(struct Sprite *);
+static void CreateCursorSprite(void);
+static void DestroyCursorSprite(void);
+static void SpriteCB_Cursor(struct Sprite *);
 static void CreateMoveSlotSprites(void);
 static void DestroyMoveSlotSprites(void);
 static void UpdateMoveSlotVisibility(void);
@@ -622,7 +623,7 @@ static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
 static const u32 sTeraTypes_Gfx[]                   = INCGFX_U32("graphics/summary_screen/swsh/tera_types.png", ".4bpp.smol");
 // Share sDynamaxLevels_Pal
 static const u32 sDynamaxLevels_Gfx[]               = INCGFX_U32("graphics/summary_screen/swsh/dynamax_levels.png", ".4bpp.smol");
-static const u32 sMoveCursor_Gfx[]                  = INCGFX_U32("graphics/summary_screen/swsh/move_cursor.png", ".4bpp.smol");
+static const u32 sCursor_Gfx[]                  = INCGFX_U32("graphics/summary_screen/swsh/cursor.png", ".4bpp.smol");
 static const u32 sMoveSlot_Gfx[]                    = INCGFX_U32("graphics/summary_screen/swsh/move_slot.png", ".4bpp.smol");
 // Share sCategoryIcons_Pal
 static const u32 sCategoryIcons_Gfx[]               = INCGFX_U32("graphics/summary_screen/swsh/category_icons.png", ".4bpp.smol");
@@ -1435,7 +1436,7 @@ static const union TextColor sMoveSlotPPColors[4] =
 #define MOVE_SLOT_NAME_FILL_COLOR 14
 #define MOVE_SLOT_PP_FILL_COLOR   15
 
-static const struct OamData sOamData_MoveCursor =
+static const struct OamData sOamData_Cursor =
 {
     .affineMode = ST_OAM_AFFINE_OFF,
     .objMode = ST_OAM_OBJ_NORMAL,
@@ -1445,33 +1446,18 @@ static const struct OamData sOamData_MoveCursor =
     .priority = 1,
 };
 
-static const struct CompressedSpriteSheet sSpriteSheet_MoveCursor =
+static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 {
-    .data = sMoveCursor_Gfx,
-    .size = (16 * 16 * 3) / 2,
+    .data = sCursor_Gfx,
+    .size = (16 * 16) / 2,
     .tag = TAG_MOVE_CURSOR
 };
 
-static const union AnimCmd sAnim_MoveCursor[] =
-{
-    ANIMCMD_FRAME(0, 8),
-    ANIMCMD_FRAME(4, 8),
-    ANIMCMD_FRAME(8, 8),
-    ANIMCMD_FRAME(4, 8),
-    ANIMCMD_JUMP(0)
-};
-
-static const union AnimCmd *const sAnims_MoveCursor[] =
-{
-    sAnim_MoveCursor,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_MoveCursor =
+static const struct SpriteTemplate sSpriteTemplate_Cursor =
 {
     .tileTag = TAG_MOVE_CURSOR,
-    .paletteTag = TAG_DYNAMAX_LEVELS,
-    .oam = &sOamData_MoveCursor,
-    .anims = sAnims_MoveCursor,
+    .paletteTag = TAG_MON_STATUS,
+    .oam = &sOamData_Cursor,
 };
 
 // Shared palette for the move cursor/frame, ability box, and Dynamax box/level sprites
@@ -1899,7 +1885,8 @@ void ShowPokemonSummaryScreen_SwSh(u8 mode, void *mons, u8 monIndex, u8 maxMonIn
     sMonSummaryScreen->mode = mode;
     sMonSummaryScreen->heldMoveSlot = MOVE_SLOT_COUNT;
     sMonSummaryScreen->heldMoveSlotAnimId = INVALID_COMFY_ANIM;
-    sMonSummaryScreen->moveCursorAnimId = INVALID_COMFY_ANIM;
+    sMonSummaryScreen->cursorAnimId = INVALID_COMFY_ANIM;
+    sMonSummaryScreen->cursorBobAnimId = INVALID_COMFY_ANIM;
     if (monIndex == PC_MON_CHOSEN)
     {
         sMonSummaryScreen->monList.boxMons = GetBoxedMonPtr(gSpecialVar_MonBoxId, 0);
@@ -2283,7 +2270,7 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 9:
-        LoadCompressedSpriteSheet(&sSpriteSheet_MoveCursor);
+        LoadCompressedSpriteSheet(&sSpriteSheet_Cursor);
         sMonSummaryScreen->switchCounter++;
         break;
     case 10:
@@ -2583,7 +2570,8 @@ static void PatchPageIndicatorIcons(void)
 static void FreeSummaryScreen(void)
 {
     ReleaseComfyAnim(sMonSummaryScreen->heldMoveSlotAnimId);
-    ReleaseComfyAnim(sMonSummaryScreen->moveCursorAnimId);
+    ReleaseComfyAnim(sMonSummaryScreen->cursorAnimId);
+    ReleaseComfyAnim(sMonSummaryScreen->cursorBobAnimId);
     FreeAllWindowBuffers();
     Free(sMonSummaryScreen);
 }
@@ -3250,7 +3238,7 @@ static void SwitchToMoveSelection(u8 taskId)
 
     CreateTask(Task_ShowEffectTilemap, 1);
 
-    CreateMoveCursorSprite();
+    CreateCursorSprite();
     UpdateMoveSlotPalette();
     gTasks[taskId].func = Task_HandleInput_MoveSelect;
 }
@@ -3340,7 +3328,7 @@ static void ChangeSelectedMove(s16 *taskData, s8 direction, u8 *moveIndexPtr)
 
 static void CloseMoveSelectMode(u8 taskId)
 {
-    DestroyMoveCursorSprite();
+    DestroyCursorSprite();
     UpdateMoveSlotPalette();
     ClearWindowTilemap(PSS_LABEL_WINDOW_PROMPT_SWITCH);
     PrintMoveDescription(MOVE_NONE);
@@ -3435,7 +3423,7 @@ static void ExitMovePositionSwitchMode(u8 taskId, bool8 swapMoves)
         SwapMovesTypeSprites(sMonSummaryScreen->firstMoveIndex, sMonSummaryScreen->secondMoveIndex);
         sMonSummaryScreen->firstMoveIndex = sMonSummaryScreen->secondMoveIndex;
     }
-    SnapMoveCursorToSlot();
+    SnapCursorToSlot();
     UpdateMoveSlotPalette();
 
     move = sMonSummaryScreen->summary.moves[sMonSummaryScreen->firstMoveIndex];
@@ -3518,7 +3506,7 @@ static void SwapBoxMonMoves(struct BoxPokemon *mon, u8 moveIndex1, u8 moveIndex2
 static void Task_SetHandleReplaceMoveInput(u8 taskId)
 {
     SetNewMoveTypeIcon();
-    CreateMoveCursorSprite();
+    CreateCursorSprite();
     UpdateMoveSlotPalette();
     gTasks[taskId].func = Task_HandleReplaceMoveInput;
 }
@@ -6432,12 +6420,16 @@ static void HandleStatusSprite(struct Pokemon *mon)
     }
 }
 
-static void CreateMoveCursorSprite(void)
+#define CURSOR_BOB_RANGE 3
+#define CURSOR_BOB_FRAMES 20
+#define sBobTarget data[0]
+
+static void CreateCursorSprite(void)
 {
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES
         || sMonSummaryScreen->currPageIndex == PSS_PAGE_CONTEST_MOVES)
     {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_MoveCursor, 10, 35, 0);
+        u8 spriteId = CreateSprite(&sSpriteTemplate_Cursor, 8, 35, 0);
         s16 initialY2 = sMonSummaryScreen->firstMoveIndex * 18;
         struct ComfyAnimEasingConfig config = {
             .from = Q_24_8(initialY2),
@@ -6446,31 +6438,45 @@ static void CreateMoveCursorSprite(void)
             .easingFunc = ComfyAnimEasing_EaseOutCubic,
         };
 
-        if (sMonSummaryScreen->moveCursorAnimId == INVALID_COMFY_ANIM)
-            sMonSummaryScreen->moveCursorAnimId = CreateComfyAnim_Easing(&config);
+        if (sMonSummaryScreen->cursorAnimId == INVALID_COMFY_ANIM)
+            sMonSummaryScreen->cursorAnimId = CreateComfyAnim_Easing(&config);
         else
-            InitComfyAnim_Easing(&config, &gComfyAnims[sMonSummaryScreen->moveCursorAnimId]);
+            InitComfyAnim_Easing(&config, &gComfyAnims[sMonSummaryScreen->cursorAnimId]);
+
+        struct ComfyAnimEasingConfig bobConfig = {
+            .from = Q_24_8(0),
+            .to = Q_24_8(CURSOR_BOB_RANGE),
+            .durationFrames = CURSOR_BOB_FRAMES,
+            .easingFunc = ComfyAnimEasing_EaseInOutQuad,
+        };
+
+        if (sMonSummaryScreen->cursorBobAnimId == INVALID_COMFY_ANIM)
+            sMonSummaryScreen->cursorBobAnimId = CreateComfyAnim_Easing(&bobConfig);
+        else
+            InitComfyAnim_Easing(&bobConfig, &gComfyAnims[sMonSummaryScreen->cursorBobAnimId]);
 
         sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] = spriteId;
         gSprites[spriteId].y2 = initialY2;
-        gSprites[spriteId].callback = SpriteCB_MoveCursor;
+        gSprites[spriteId].x2 = 0;
+        gSprites[spriteId].sBobTarget = CURSOR_BOB_RANGE;
+        gSprites[spriteId].callback = SpriteCB_Cursor;
     }
 }
 
-static void DestroyMoveCursorSprite(void)
+static void DestroyCursorSprite(void)
 {
     DestroySpriteInArray(SPRITE_ARR_ID_MOVE_CURSOR);
 }
 
-static void SpriteCB_MoveCursor(struct Sprite *sprite)
+static void SpriteCB_Cursor(struct Sprite *sprite)
 {
     s32 targetY = Q_24_8(sMonSummaryScreen->firstMoveIndex * 18);
     struct ComfyAnim *anim;
 
-    if (sMonSummaryScreen->moveCursorAnimId == INVALID_COMFY_ANIM)
+    if (sMonSummaryScreen->cursorAnimId == INVALID_COMFY_ANIM)
         return;
 
-    anim = &gComfyAnims[sMonSummaryScreen->moveCursorAnimId];
+    anim = &gComfyAnims[sMonSummaryScreen->cursorAnimId];
 
     if (anim->config.data.easing.to != targetY)
         InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
@@ -6481,7 +6487,30 @@ static void SpriteCB_MoveCursor(struct Sprite *sprite)
         }, anim);
 
     sprite->y2 = ReadComfyAnimValueSmooth(anim);
+
+    if (sMonSummaryScreen->cursorBobAnimId != INVALID_COMFY_ANIM)
+    {
+        struct ComfyAnim *bob = &gComfyAnims[sMonSummaryScreen->cursorBobAnimId];
+
+        if (bob->completed && sprite->x2 == sprite->sBobTarget)
+        {
+            sprite->sBobTarget = (sprite->sBobTarget == 0) ? CURSOR_BOB_RANGE : 0;
+            InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+                .from = Q_24_8(sprite->x2),
+                .to = Q_24_8(sprite->sBobTarget),
+                .durationFrames = CURSOR_BOB_FRAMES,
+                .easingFunc = ComfyAnimEasing_EaseInOutQuad,
+            }, bob);
+            TryAdvanceComfyAnim(bob);
+        }
+
+        sprite->x2 = ReadComfyAnimValueSmooth(bob);
+    }
 }
+
+#undef CURSOR_BOB_RANGE
+#undef CURSOR_BOB_FRAMES
+#undef sBobTarget
 
 static void LiftMoveSlot(u8 slot)
 {
@@ -6580,18 +6609,18 @@ static void SwapMoveSlotSpriteIds(u8 slotA, u8 slotB)
     }
 }
 
-static void SnapMoveCursorToSlot(void)
+static void SnapCursorToSlot(void)
 {
     u8 cursorId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR];
     s16 y2 = sMonSummaryScreen->firstMoveIndex * 18;
 
-    if (sMonSummaryScreen->moveCursorAnimId != INVALID_COMFY_ANIM)
+    if (sMonSummaryScreen->cursorAnimId != INVALID_COMFY_ANIM)
         InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
             .from = Q_24_8(y2),
             .to = Q_24_8(y2),
             .durationFrames = 1,
             .easingFunc = ComfyAnimEasing_EaseOutCubic,
-        }, &gComfyAnims[sMonSummaryScreen->moveCursorAnimId]);
+        }, &gComfyAnims[sMonSummaryScreen->cursorAnimId]);
 
     if (cursorId != SPRITE_NONE)
     {
