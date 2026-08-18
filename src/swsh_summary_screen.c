@@ -191,6 +191,23 @@ enum SwShSummarySprites
 #endif
 };
 
+enum StatusIcon
+{
+    STATUS_ICON_PSN,
+    STATUS_ICON_PRZ,
+    STATUS_ICON_SLP,
+    STATUS_ICON_FRZ,
+    STATUS_ICON_BRN,
+    STATUS_ICON_PKRS,
+    STATUS_ICON_FNT,
+    STATUS_ICON_FRB,
+#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
+    STATUS_ICON_TOX,
+#endif
+    STATUS_ICON_COUNT,
+    STATUS_ICON_NONE = STATUS_ICON_COUNT,
+};
+
 static EWRAM_DATA struct PokemonSummaryScreenData
 {
     /*0x00*/ union {
@@ -424,6 +441,7 @@ static void SummaryScreen_DestroyAnimDelayTask(void);
 static void SetShinySprite(void);
 static void SetPokerusCuredSprite(void);
 static void HandleStatusSprite(struct Pokemon *);
+static u32 GetStatusIcon(struct Pokemon *);
 static u8 AddWindowFromTemplateList(const struct WindowTemplate*, u8);
 static void ClearCancelText(void);
 static bool32 ShouldRemoveHyphen(const u8*, const u8*, const u8*);
@@ -1621,6 +1639,12 @@ static const union AnimCmd sSpriteAnim_StatusFrostbite[] = {
     ANIMCMD_FRAME(28, 0, FALSE, FALSE),
     ANIMCMD_END
 };
+#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
+static const union AnimCmd sSpriteAnim_StatusToxic[] = {
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+#endif
 
 static const union AnimCmd *const sSpriteAnimTable_StatusCondition[] = {
     sSpriteAnim_StatusPoison,
@@ -1631,16 +1655,22 @@ static const union AnimCmd *const sSpriteAnimTable_StatusCondition[] = {
     sSpriteAnim_StatusPokerus,
     sSpriteAnim_StatusFaint,
     sSpriteAnim_StatusFrostbite,
+#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
+    sSpriteAnim_StatusToxic,
+#endif
 };
+
+STATIC_ASSERT(ARRAY_COUNT(sSpriteAnimTable_StatusCondition) == STATUS_ICON_COUNT, StatusIconAnimCount);
 
 static const struct CompressedSpriteSheet sSpriteSheet_StatusIcons =
 {
 #if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
     .data = sStatusGfx_Icons,
+    .size = 0x480,
 #else
     .data = gStatusGfx_Icons,
-#endif
     .size = 0x400,
+#endif
     .tag = TAG_MON_STATUS
 };
 
@@ -3825,7 +3855,7 @@ static void PrintNotEggInfo(void)
 {
     struct Pokemon *mon = &sMonSummaryScreen->currentMon;
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
-    u8 statusAnim = GetMonAilment(&sMonSummaryScreen->currentMon);
+    u32 statusIcon = GetStatusIcon(mon);
 
     // print nickname
     GetMonNickname(mon, gStringVar1);
@@ -3835,7 +3865,7 @@ static void PrintNotEggInfo(void)
     // PrintGenderSymbol(mon, summary->species2);
 
     // print level only if no status condition
-    if (statusAnim == 0)
+    if (statusIcon == STATUS_ICON_NONE)
     {
         // Convert level number to string
         ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
@@ -6350,32 +6380,50 @@ static void DestroyHeldItemIconSprite(void)
     }
 }
 
+static u32 GetStatusIcon(struct Pokemon *mon)
+{
+    if (GetMonData(mon, MON_DATA_HP) == 0)
+        return STATUS_ICON_FNT;
+
+    u32 status = GetMonData(mon, MON_DATA_STATUS);
+#if SWSH_SUMMARY_SWSH_STATUS_ICONS == TRUE
+    if (status & STATUS1_TOXIC_POISON)
+        return STATUS_ICON_TOX;
+#endif
+    if (status & STATUS1_PSN_ANY)
+        return STATUS_ICON_PSN;
+    if (status & STATUS1_SLEEP)
+        return STATUS_ICON_SLP;
+    if (status & STATUS1_PARALYSIS)
+        return STATUS_ICON_PRZ;
+    if (status & STATUS1_FREEZE)
+        return STATUS_ICON_FRZ;
+    if (status & STATUS1_BURN)
+        return STATUS_ICON_BRN;
+    if (status & STATUS1_FROSTBITE)
+        return STATUS_ICON_FRB;
+    if (ShouldPokemonShowActivePokerus(mon))
+        return STATUS_ICON_PKRS;
+
+    return STATUS_ICON_NONE;
+}
+
 static void CreateStatusSprite(void)
 {
     u8 *spriteId = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_STATUS];
-    u8 statusAnim;
 
     if (*spriteId == SPRITE_NONE)
         *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 205, 16, 6); // moved from 213 to 179 to print status where level is.
 
-    statusAnim = GetMonAilment(&sMonSummaryScreen->currentMon);
-    if (statusAnim != 0)
-    {
-        StartSpriteAnim(&gSprites[*spriteId], statusAnim - 1);
-        SetSpriteInvisibility(SPRITE_ARR_ID_STATUS, FALSE);
-    }
-    else
-    {
-        SetSpriteInvisibility(SPRITE_ARR_ID_STATUS, TRUE);
-    }
+    HandleStatusSprite(&sMonSummaryScreen->currentMon);
 }
 
 static void HandleStatusSprite(struct Pokemon *mon)
 {
-    u8 statusAnim = GetMonAilment(&sMonSummaryScreen->currentMon);
-    if (statusAnim != 0)
+    u32 statusIcon = GetStatusIcon(mon);
+    if (statusIcon != STATUS_ICON_NONE)
     {
-        StartSpriteAnim(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_STATUS]], statusAnim - 1);
+        StartSpriteAnim(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_STATUS]], statusIcon);
         SetSpriteInvisibility(SPRITE_ARR_ID_STATUS, FALSE);
     }
     else
