@@ -621,15 +621,13 @@ static const u8 sButtons_Gfx[][4 * TILE_SIZE_4BPP] = {
 static const u32 sTeraTypes_Gfx[]                   = INCGFX_U32("graphics/summary_screen/swsh/tera_types.png", ".4bpp.smol");
 static const u32 sDynamaxLevels_Gfx[]               = INCGFX_U32("graphics/summary_screen/swsh/dynamax_levels.png", ".4bpp.smol");
 static const u32 sMoveSlot_Gfx[]                    = INCGFX_U32("graphics/summary_screen/swsh/move_slot.png", ".4bpp.smol");
-// Share sCategoryIcons_Pal
-static const u32 sCategoryIcons_Gfx[]               = INCGFX_U32("graphics/summary_screen/swsh/category_icons.png", ".4bpp.smol");
 static const u32 sPokerusCuredIcon_Gfx[]            = INCGFX_U32("graphics/summary_screen/swsh/pokerus_cured_icon.png", ".4bpp.smol");
 static const u32 sShinyIcon_Gfx[]                   = INCGFX_U32("graphics/summary_screen/swsh/shiny_icon.png", ".4bpp.smol");
 // Share sGenderIcons_Pal
 static const u32 sGenderIcons_Gfx[]                 = INCGFX_U32("graphics/summary_screen/swsh/gender_icons.png", ".4bpp.smol");
 static const u32 sFriendshipIcon_Gfx[]              = INCGFX_U32("graphics/summary_screen/swsh/heart.png", ".4bpp.smol");
 static const u32 sGigantamaxIcon_Gfx[]              = INCGFX_U32("graphics/summary_screen/swsh/gigantamax.png", ".4bpp.smol");
-static const u16 sCategoryIcons_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/category_icons.png", ".gbapal");
+static const u16 sMarkings_Pal[]                    = INCGFX_U16("graphics/summary_screen/swsh/markings.pal", ".gbapal");
 static const u16 sGenderIcons_Pal[]                 = INCGFX_U16("graphics/summary_screen/swsh/gender_icons.png", ".gbapal");
 static const u16 sDynamaxLevels_Pal[]               = INCGFX_U16("graphics/summary_screen/swsh/dynamax_levels.png", ".gbapal");
 static const u16 sMoveSlot_Pals[]                   = INCGFX_U16("graphics/summary_screen/swsh/move_slot.png", ".gbapal");
@@ -887,15 +885,9 @@ static const struct OamData sOamData_CategoryIcons_SwSh =
 
 static const struct CompressedSpriteSheet sSpriteSheet_CategoryIcons =
 {
-    .data = sCategoryIcons_Gfx,
+    .data = gCategoryIconsSwSh_Gfx,
     .size = 32*16*3/2,
     .tag = TAG_CATEGORY_ICONS,
-};
-
-static const struct SpritePalette sSpritePal_CategoryIcons =
-{
-    .data = sCategoryIcons_Pal,
-    .tag = TAG_CATEGORY_ICONS
 };
 
 static const union AnimCmd sSpriteAnim_CategoryPhysical_SwSh[] =
@@ -926,7 +918,7 @@ static const union AnimCmd *const sSpriteAnimTable_CategoryIcons_SwSh[] =
 static const struct SpriteTemplate sSpriteTemplate_CategoryIcons =
 {
     .tileTag = TAG_CATEGORY_ICONS,
-    .paletteTag = TAG_CATEGORY_ICONS,
+    .paletteTag = TAG_MON_STATUS,
     .oam = &sOamData_CategoryIcons_SwSh,
     .anims = sSpriteAnimTable_CategoryIcons_SwSh,
 };
@@ -1445,7 +1437,7 @@ static const struct SpriteTemplate sSpriteTemplate_Cursor =
     .oam = &sOamData_Cursor,
 };
 
-// Shared palette for the move cursor/frame, ability box, and Dynamax box/level sprites
+// Shared palette for the Dynamax level and Gigantamax sprites
 static const struct SpritePalette sSpritePal_DynamaxLevels =
 {
     .data = sDynamaxLevels_Pal,
@@ -1631,14 +1623,14 @@ STATIC_ASSERT(ARRAY_COUNT(sSpriteAnimTable_StatusCondition) == STATUS_ICON_COUNT
 
 static const struct CompressedSpriteSheet sSpriteSheet_StatusIcons =
 {
-    .data = gStatusGfxSwSh_Icons,
-    .size = 0x480,
+    .data = gStatusIconsSwSh_Gfx,
+    .size = STATUS_ICON_COUNT * 4 * TILE_SIZE_4BPP,
     .tag = TAG_MON_STATUS
 };
 
 static const struct SpritePalette sSpritePal_StatusIcons =
 {
-    .data = gStatusPalSwSh_Icons,
+    .data = gStatusIconsSwSh_Pal,
     .tag = TAG_MON_STATUS
 };
 
@@ -1730,7 +1722,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_ShinyIcon =
 static const struct SpriteTemplate sSpriteTemplate_ShinyIcon =
 {
     .tileTag = TAG_SHINY_ICON,
-    .paletteTag = TAG_CATEGORY_ICONS,
+    .paletteTag = TAG_GENDER_ICON,
     .oam = &sOamData_ShinyIcon,
 };
 
@@ -1761,7 +1753,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_GigantamaxIcon =
 static const struct SpriteTemplate sSpriteTemplate_GigantamaxIcon =
 {
     .tileTag = TAG_GIGANTAMAX_ICON,
-    .paletteTag = TAG_GENDER_ICON,
+    .paletteTag = TAG_DYNAMAX_LEVELS,
     .oam = &sOamData_GigantamaxIcon,
 };
 
@@ -1792,7 +1784,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_PokerusCuredIcon =
 static const struct SpriteTemplate sSpriteTemplate_PokerusCuredIcon =
 {
     .tileTag = TAG_POKERUS_CURED_ICON,
-    .paletteTag = TAG_CATEGORY_ICONS,
+    .paletteTag = TAG_GENDER_ICON,
     .oam = &sOamData_PokerusCuredIcon,
 };
 
@@ -2246,43 +2238,36 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 10:
-        sMonSummaryScreen->switchCounter++;
-        break;
-    case 11:
         LoadCompressedSpriteSheet(&sSpriteSheet_StatusIcons);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 12:
+    case 11:
         LoadSpritePalette(&sSpritePal_StatusIcons);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 13:
+    case 12:
         LoadCompressedSpriteSheet(&sSpriteSheet_ShinyIcon);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 14:
-        LoadSpritePalette(&sSpritePal_CategoryIcons);
-        sMonSummaryScreen->switchCounter++;
-        break;
-    case 15:
+    case 13:
         LoadCompressedSpriteSheet(&sSpriteSheet_PokerusCuredIcon);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 16:
+    case 14:
         if (SWSH_SUMMARY_CATEGORY_ICONS)
             LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcons);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 17:
+    case 15:
         if (SWSH_SUMMARY_SHOW_FRIENDSHIP)
             LoadCompressedSpriteSheet(&sSpriteSheet_FriendshipIcon);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 18:
+    case 16:
         LoadSpritePalette(&sSpritePal_GenderIcons);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 19:
+    case 17:
     #if SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE && SWSH_SUMMARY_SWSH_TYPE_ICONS_SV_PAL == TRUE
         LoadPalette(sMoveTypes_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
     #elif SWSH_SUMMARY_SWSH_TYPE_ICONS == TRUE
@@ -2292,83 +2277,72 @@ static bool8 DecompressGraphics(void)
     #endif
         sMonSummaryScreen->switchCounter++;
         break;
-    case 20:
+    case 18:
         if (SWSH_SUMMARY_SHOW_GIGANTAMAX)
             LoadCompressedSpriteSheet(&sSpriteSheet_GigantamaxIcon);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 21:
+    case 19:
         if (SWSH_SUMMARY_SHOW_TERA_TYPE)
             LoadCompressedSpriteSheet(&sSpriteSheet_TeraType);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 22:
-        sMonSummaryScreen->switchCounter++;
-        break;
-    case 23:
-        sMonSummaryScreen->switchCounter++;
-        break;
-    case 24:
-        sMonSummaryScreen->switchCounter++;
-        break;
-    case 25:
+    case 20:
         if (SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL)
             LoadCompressedSpriteSheet(&sSpriteSheet_DynamaxLevels);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 26:
+    case 21:
+        if (SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL || SWSH_SUMMARY_SHOW_GIGANTAMAX)
+            LoadSpritePalette(&sSpritePal_DynamaxLevels);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 27:
-        LoadSpritePalette(&sSpritePal_DynamaxLevels);
-        sMonSummaryScreen->switchCounter++;
-        break;
-    case 28:
+    case 22:
         LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[0]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 29:
+    case 23:
         LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[1]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 30:
+    case 24:
         LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[2]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 31:
+    case 25:
         LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[3]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 32:
+    case 26:
         LoadCompressedSpriteSheet(&sSpriteSheets_MoveSlot[4]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 33:
+    case 27:
         LoadSpritePalette(&sSpritePal_MoveSlotMain);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 34:
+    case 28:
         LoadSpritePalette(&sSpritePal_MoveSlotFocus);
         sMonSummaryScreen->switchCounter++;
         break;
 #if SWSH_SUMMARY_SHOW_CONTEST_PAGES
-    case 35:
+    case 29:
         DecompressDataWithHeaderWram(sSummaryPage_ContestMoves_Tilemap, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONTEST_MOVES]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 36:
+    case 30:
         DecompressDataWithHeaderWram(sSummaryEffect_Contest_Tilemap, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_CONTEST]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 37:
+    case 31:
         DecompressDataWithHeaderWram(sSummaryPage_Conditions_Tilemap, sMonSummaryScreen->bg2TilemapBuffers[PSS_PAGE_CONDITIONS]);
         sMonSummaryScreen->switchCounter++;
         break;
-    case 38:
+    case 32:
         PatchPageIndicatorIcons();
         sMonSummaryScreen->switchCounter++;
         break;
-    case 39:
+    case 33:
         ConditionGraph_Init(&sMonSummaryScreen->conditionGraph);
         CpuFill32(0xEEEEEEEE, (void *)(BG_CHAR_ADDR(2) + SUMMARY_GRAPH_FILL_TILE * TILE_SIZE_4BPP), TILE_SIZE_4BPP);
         {
@@ -2379,7 +2353,7 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter = 0;
         return TRUE;
 #else
-    case 35:
+    case 29:
         sMonSummaryScreen->switchCounter = 0;
         return TRUE;
 #endif
@@ -6161,7 +6135,7 @@ static void StopPokemonAnimations(void)  // A subtle effect, this function stops
 
 static void CreateMonMarkingsSprite(struct Pokemon *mon)
 {
-    struct Sprite *sprite = CreateMonMarkingComboSprite(TAG_MON_MARKINGS, TAG_CATEGORY_ICONS, sCategoryIcons_Pal);
+    struct Sprite *sprite = CreateMonMarkingComboSprite(TAG_MON_MARKINGS, TAG_MON_MARKINGS, sMarkings_Pal);
 
     sMonSummaryScreen->markingsSprite = sprite;
     if (sprite != NULL)

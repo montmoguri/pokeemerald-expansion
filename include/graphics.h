@@ -2024,8 +2024,9 @@ extern const u16 gCategoryIcons_Pal[];
 extern const u32 gCategoryIcons_Gfx[];
 
 // SwSh assets shared across branches
-extern const u32 gStatusGfxSwSh_Icons[];
-extern const u16 gStatusPalSwSh_Icons[];
+extern const u32 gStatusIconsSwSh_Gfx[];
+extern const u16 gStatusIconsSwSh_Pal[];
+extern const u32 gCategoryIconsSwSh_Gfx[];
 extern const u32 gCursorSwSh_Gfx[];
 extern const u16 gMonShadowSwSh_Pal[];
 extern const u32 gMoveTypesSwSh_Gfx[];
