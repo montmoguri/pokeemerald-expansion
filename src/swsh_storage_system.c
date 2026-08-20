@@ -4794,7 +4794,7 @@ static void CreateBoxMonIconAtPos(u8 boxPosition)
         s16 y = 8 * (3 * (boxPosition / IN_BOX_COLUMNS)) + 40;
         u32 personality = GetCurrentBoxMonData(boxPosition, MON_DATA_PERSONALITY);
 
-        sStorage->boxMonsSprites[boxPosition] = CreateMonIconSprite(species, personality, x, y, 2, 19 - (boxPosition % IN_BOX_COLUMNS), isEgg);
+        sStorage->boxMonsSprites[boxPosition] = CreateMonIconSprite(species, personality, x, y, 1, 19 - (boxPosition % IN_BOX_COLUMNS), isEgg);
         if (ShouldBoxmonSpriteBeTransparent(StorageGetCurrentBox(), boxPosition))
             sStorage->boxMonsSprites[boxPosition]->oam.objMode = ST_OAM_OBJ_BLEND;
     }
@@ -4816,6 +4816,7 @@ static void StartBoxMonIconsScrollOut(s16 speed)
         {
             sStorage->boxMonsSprites[i]->sSpeed = speed;
             sStorage->boxMonsSprites[i]->sDelay = 1;
+            sStorage->boxMonsSprites[i]->oam.priority = 2;
             sStorage->boxMonsSprites[i]->callback = SpriteCB_BoxMonIconScrollOut;
         }
     }
@@ -4839,6 +4840,7 @@ static void SpriteCB_BoxMonIconScrollIn(struct Sprite *sprite)
         sStorage->iconScrollNumIncoming--;
         sprite->x = sprite->sScrollInDestX;
         sprite->invisible = FALSE;
+        sprite->oam.priority = 1;
         sprite->callback = SpriteCallbackDummy;
     }
 }
