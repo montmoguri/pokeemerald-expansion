@@ -878,15 +878,15 @@ enum SwShCategoryIcon
 
 static const struct OamData sOamData_CategoryIcons_SwSh =
 {
-    .size = SPRITE_SIZE(32x16),
-    .shape = SPRITE_SHAPE(32x16),
+    .size = SPRITE_SIZE(16x16),
+    .shape = SPRITE_SHAPE(16x16),
     .priority = 0,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_CategoryIcons =
 {
     .data = gCategoryIconsSwSh_Gfx,
-    .size = 32*16*3/2,
+    .size = 16 * 16 * 3/2,
     .tag = TAG_CATEGORY_ICONS,
 };
 
@@ -898,13 +898,13 @@ static const union AnimCmd sSpriteAnim_CategoryPhysical_SwSh[] =
 
 static const union AnimCmd sSpriteAnim_CategorySpecial_SwSh[] =
 {
-    ANIMCMD_FRAME(8, 0),
+    ANIMCMD_FRAME(4, 0),
     ANIMCMD_END
 };
 
 static const union AnimCmd sSpriteAnim_CategoryStatus_SwSh[] =
 {
-    ANIMCMD_FRAME(16, 0),
+    ANIMCMD_FRAME(8, 0),
     ANIMCMD_END
 };
 
