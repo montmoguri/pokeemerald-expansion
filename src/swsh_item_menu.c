@@ -1222,7 +1222,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     },
     [WIN_PP_LABEL] = {
         .bg = 1,
-        .tilemapLeft = 12,
+        .tilemapLeft = 13,
         .tilemapTop = 18,
         .width = 2,
         .height = 2,
@@ -1240,7 +1240,7 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     },
     [WIN_PP_INFO] = {
         .bg = 1,
-        .tilemapLeft = 14,
+        .tilemapLeft = 15,
         .tilemapTop = 18,
         .width = 2,
         .height = 2,
@@ -1623,7 +1623,7 @@ static void CB2_Bag(void)
 #if SWSH_ITEM_MENU_IN_BAG_USE
 #define PARTY_MON_ICON_X            24
 #define PARTY_MON_ICON_Y(slot)      (24 * (slot) + 16)
-#define PARTY_STATUS_ICON_X         (PARTY_MON_ICON_X + 29)
+#define PARTY_STATUS_ICON_X         (PARTY_MON_ICON_X + 28)
 #define PARTY_STATUS_ICON_Y(slot)   (PARTY_MON_ICON_Y(slot) + 0)
 #define PARTY_HELD_ITEM_X           (PARTY_MON_ICON_X + 10)
 #define PARTY_HELD_ITEM_Y(slot)     (PARTY_MON_ICON_Y(slot) + 10)
@@ -2296,7 +2296,7 @@ static void CreateCursorSprite(void)
         .easingFunc = ComfyAnimEasing_EaseOutCubic,
     });
 
-    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY, 0);
+    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY, 2);
     StartBagCursorBob(gBagMenu->cursorSpriteId);
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
 }
@@ -2703,6 +2703,7 @@ static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit)
                 struct Sprite *spr = &gSprites[iconSpriteId];
                 spr->x2 = 102;
                 spr->y2 = spriteY + 4;
+                spr->subpriority = 1;
                 if (gBagMenu->toSwapPos == NOT_SWAPPING)
                 {
                     spr->oam.affineMode = ST_OAM_AFFINE_NORMAL;
@@ -4747,6 +4748,11 @@ static void HidePrompt(void)
     ScheduleBgCopyTilemapToVram(2);
 }
 
+#define MOVE_INFO_TYPE_ICON_X       120
+#define MOVE_INFO_TYPE_ICON_Y       137
+#define MOVE_INFO_CATEGORY_ICON_X   90
+#define MOVE_INFO_CATEGORY_ICON_Y   144
+
 static void SpriteCB_MoveTypeIcon(struct Sprite *sprite)
 {
     if (sprite->data[0] != 0xFF)
@@ -4818,7 +4824,7 @@ static void UpdateMoveBattleInfo(s32 itemIndex)
         GetStringRightAlignXOffset(FONT_SHORT_NARROW, text, valInfoWidth), 16, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
     CopyWindowToVram(WIN_POW_ACC_INFO, COPYWIN_GFX);
 
-    gSprites[gBagMenu->moveTypeIconSpriteId].x = 128;
+    gSprites[gBagMenu->moveTypeIconSpriteId].x = MOVE_INFO_TYPE_ICON_X;
     gSprites[gBagMenu->moveTypeIconSpriteId].oam.paletteNum = gTypesInfo[GetMoveType(move)].palette;
     gSprites[gBagMenu->moveTypeIconSpriteId].data[0] = GetMoveType(move);
     gSprites[gBagMenu->moveTypeIconSpriteId].invisible = FALSE;
@@ -4865,12 +4871,12 @@ static void SwitchMoveInfoMode(s32 itemIndex)
         }
         LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcon);
 
-        gBagMenu->moveTypeIconSpriteId = CreateSprite(&sSpriteTemplate_MoveTypeIcon, 128, 136, 0);
+        gBagMenu->moveTypeIconSpriteId = CreateSprite(&sSpriteTemplate_MoveTypeIcon, MOVE_INFO_TYPE_ICON_X, MOVE_INFO_TYPE_ICON_Y, 1);
         {
             u16 tileStart = GetSpriteTileStartByTag(TAG_MOVE_TYPE_ICON);
             gBagMenu->moveTypeIconTilesPtr = (tileStart == 0xFFFF) ? NULL : (u16 *)((u8 *)OBJ_VRAM0 + 32 * tileStart);
         }
-        gBagMenu->categoryIconSpriteId = CreateSprite(&sSpriteTemplate_CategoryIcon, 96, 136, 0);
+        gBagMenu->categoryIconSpriteId = CreateSprite(&sSpriteTemplate_CategoryIcon, MOVE_INFO_CATEGORY_ICON_X, MOVE_INFO_CATEGORY_ICON_Y, 1);
 
         FillWindowPixelBuffer(WIN_PP_LABEL, PIXEL_FILL(0));
         BagMenu_Print(WIN_PP_LABEL, FONT_SHORT_NARROW, sText_MoveInfoPP, 0, 0, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
@@ -5005,7 +5011,7 @@ static void UpdateMoveContestInfo(s32 itemIndex)
     // Contest type icon
     {
         u32 category = GetMoveContestCategory(move);
-        gSprites[gBagMenu->moveTypeIconSpriteId].x = 112;
+        gSprites[gBagMenu->moveTypeIconSpriteId].x = MOVE_INFO_TYPE_ICON_X;
         gSprites[gBagMenu->moveTypeIconSpriteId].oam.paletteNum = gContestCategoryInfo[category].palette;
         gSprites[gBagMenu->moveTypeIconSpriteId].data[0] = NUMBER_OF_MON_TYPES + category;
         gSprites[gBagMenu->moveTypeIconSpriteId].invisible = FALSE;
