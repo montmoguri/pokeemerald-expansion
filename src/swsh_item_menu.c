@@ -74,6 +74,7 @@
 #if SWSH_ITEM_MENU
 
 #define TAG_POCKET_SCROLL_ARROW  110
+#define TAG_BAG_UI_PAL           111
 #define TAG_ITEM_CURSOR          112
 #define TAG_HOVER_SLOT           113
 #define TAG_BAG_SCROLL_THUMB     114
@@ -211,6 +212,8 @@ static void AllocateBagItemListBuffers(void);
 static void LoadBagItemListBuffers(u8);
 static void PrintPocketName(const u8 *);
 static void DrawItemListBgRow(u8);
+static void SpriteCB_CursorBob(struct Sprite *);
+static void StartBagCursorBob(u8);
 static void SpriteCB_SlideCursorY(struct Sprite *);
 static void SpriteCB_BagScrollThumb(struct Sprite *);
 static void SpriteCB_PocketScrollArrow(struct Sprite *);
@@ -282,8 +285,8 @@ static void CreateQuantityFrameSprites(u8 y);
 static void DestroyQuantityFrameSprites(void);
 static void SetupSellWindows(void);
 static void PrintSellPrice(u16 itemId);
-static void PrintQuantity(u8 windowId, s16 quantity);
-static void PrintSellTotal(u8 windowId, u32 total);
+static void PrintQuantity(s16 quantity);
+static void PrintSellTotal(u32 total);
 static void PrintMoney(u8 windowId);
 static void UpdateSellPrice(u16 itemId);
 static void DisplaySellItemPriceAndConfirm(u8);
@@ -700,23 +703,17 @@ static const u32 sBagScreen_Gfx[]               = INCGFX_U32("graphics/bag/swsh/
 static const u16 sBagScreen_Pal[]               = INCGFX_U16("graphics/bag/swsh/tiles.png", ".gbapal");
 static const u32 sBagScreen_BG2TileMap[]        = INCGFX_U32("graphics/bag/swsh/bg2.bin", ".smolTM");
 static const u32 sBagScreen_BG3TileMap[]        = INCGFX_U32("graphics/bag/swsh/bg3.bin", ".smolTM");
-static const u32 sCursor_Gfx[]                  = INCGFX_U32("graphics/bag/swsh/cursor.png", ".4bpp.smol");
 static const u32 sHoverSlot_Gfx[]               = INCGFX_U32("graphics/bag/swsh/hover_slot.png", ".4bpp.smol");
 static const u32 sScrollThumb_Gfx[]             = INCGFX_U32("graphics/bag/swsh/scroll_thumb.png", ".4bpp.smol");
-static const u32 sCategoryIcons_Gfx[]           = INCGFX_U32("graphics/bag/swsh/category_icons.png", ".4bpp.smol");
 static const u32 sPocketScrollArrows_Gfx[]      = INCGFX_U32("graphics/bag/swsh/pocket_scroll_arrows.png", ".4bpp.smol");
 static const u32 sSwapCursor_Gfx[]              = INCGFX_U32("graphics/bag/swsh/swap_cursor.png", ".4bpp.smol");
-static const u32 sFrameQuantity_Gfx[]           = INCGFX_U32("graphics/bag/swsh/frame_quantity.png", ".4bpp.smol");
 static const u8 sFrameMoney_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_money.bin");
 static const u8 sFramePrice_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_price.bin");
 static const u8 sBagMenuHMIcon_Gfx[]            = INCGFX_U8("graphics/bag/swsh/hm.png", ".4bpp");
-static const u16 sCursor_Pal[]                  = INCGFX_U16("graphics/bag/swsh/cursor.png", ".gbapal");
-static const u32 sMoveTypeIcons_Gfx[]           = INCGFX_U32("graphics/bag/swsh/move_types.png", ".4bpp.smol");
-static const u16 sMoveTypeIcons_Pal[]           = INCGFX_U16("graphics/bag/swsh/move_types.png", ".gbapal");
+static const u16 sBagUI_Pal[]                   = INCGFX_U16("graphics/bag/swsh/hover_slot.png", ".gbapal");
 
 #if SWSH_ITEM_MENU_IN_BAG_USE
 static const u8 sPartySlots_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/party_slots.bin");
-static const u32 sStatusIcons_Gfx[]             = INCGFX_U32("graphics/bag/swsh/status_icons.png", ".4bpp.smol");
 #endif
 
 static const struct OamData sOamData_Cursor =
@@ -731,37 +728,18 @@ static const struct OamData sOamData_Cursor =
 
 static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 {
-    .data = sCursor_Gfx,
-    .size = (16 * 16 * 3) / 2,
+    .data = gCursorSwSh_Gfx,
+    .size = (16 * 16) / 2,
     .tag = TAG_ITEM_CURSOR
-};
-
-static const union AnimCmd sAnim_Cursor[] =
-{
-    ANIMCMD_FRAME(0, 8),
-    ANIMCMD_FRAME(4, 8),
-    ANIMCMD_FRAME(8, 8),
-    ANIMCMD_FRAME(4, 8),
-    ANIMCMD_JUMP(0)
-};
-
-static const union AnimCmd *const sAnims_Cursor[] =
-{
-    sAnim_Cursor,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_Cursor =
 {
     .tileTag = TAG_ITEM_CURSOR,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_STATUS_ICON,
     .oam = &sOamData_Cursor,
-    .anims = sAnims_Cursor,
 };
 
-static const struct SpritePalette sSpritePalette_Cursor = {
-    .data = sCursor_Pal,
-    .tag = TAG_ITEM_CURSOR
-};
 
 static const struct CompressedSpriteSheet sSpriteSheet_SwapCursor =
 {
@@ -797,7 +775,7 @@ static const union AnimCmd *const sAnims_SwapCursor[] =
 static const struct SpriteTemplate sSpriteTemplate_SwapCursor =
 {
     .tileTag = TAG_SWAP_CURSOR,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_BAG_UI_PAL,
     .oam = &sOamData_SwapCursor,
     .anims = sAnims_SwapCursor,
 };
@@ -854,7 +832,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_HoverSlot =
 static const struct SpriteTemplate sHoverSlotSpriteTemplate =
 {
     .tileTag = TAG_HOVER_SLOT,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_BAG_UI_PAL,
     .oam = &sOamData_HoverSlot,
     .anims = sSpriteAnimTable_HoverSlot,
 };
@@ -879,7 +857,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_ScrollThumb =
 static const struct SpriteTemplate sSpriteTemplate_ScrollThumb =
 {
     .tileTag = TAG_BAG_SCROLL_THUMB,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_BAG_UI_PAL,
     .oam = &sOamData_ScrollThumb,
     .callback = SpriteCB_BagScrollThumb,
 };
@@ -925,7 +903,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_PocketScrollArrows =
 static const struct SpriteTemplate sSpriteTemplate_PocketScrollArrows =
 {
     .tileTag = TAG_POCKET_SCROLL_ARROW,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_BAG_UI_PAL,
     .oam = &sOamData_PocketScrollArrows,
     .anims = sSpriteAnimTable_PocketScrollArrows,
     .callback = SpriteCB_PocketScrollArrow,
@@ -992,6 +970,22 @@ static const struct OamData sOamData_StatusIcon =
     .priority = 1,
 };
 
+// order of shared status icons sheet
+enum StatusIcon
+{
+    STATUS_ICON_PSN,
+    STATUS_ICON_PRZ,
+    STATUS_ICON_SLP,
+    STATUS_ICON_FRZ,
+    STATUS_ICON_BRN,
+    STATUS_ICON_PKRS,
+    STATUS_ICON_FNT,
+    STATUS_ICON_FRB,
+    STATUS_ICON_TOX,
+    STATUS_ICON_COUNT,
+    STATUS_ICON_NONE = STATUS_ICON_COUNT,
+};
+
 static const union AnimCmd sSpriteAnim_StatusPoison[]    = { ANIMCMD_FRAME(0,  0), ANIMCMD_END };
 static const union AnimCmd sSpriteAnim_StatusParalyzed[] = { ANIMCMD_FRAME(4,  0), ANIMCMD_END };
 static const union AnimCmd sSpriteAnim_StatusSleep[]     = { ANIMCMD_FRAME(8,  0), ANIMCMD_END };
@@ -1000,30 +994,32 @@ static const union AnimCmd sSpriteAnim_StatusBurn[]      = { ANIMCMD_FRAME(16, 0
 static const union AnimCmd sSpriteAnim_StatusPokerus[]   = { ANIMCMD_FRAME(20, 0), ANIMCMD_END };
 static const union AnimCmd sSpriteAnim_StatusFaint[]     = { ANIMCMD_FRAME(24, 0), ANIMCMD_END };
 static const union AnimCmd sSpriteAnim_StatusFrostbite[] = { ANIMCMD_FRAME(28, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_StatusToxic[]     = { ANIMCMD_FRAME(32, 0), ANIMCMD_END };
 
 static const union AnimCmd *const sSpriteAnims_StatusIcon[] =
 {
-    sSpriteAnim_StatusPoison,
-    sSpriteAnim_StatusParalyzed,
-    sSpriteAnim_StatusSleep,
-    sSpriteAnim_StatusFrozen,
-    sSpriteAnim_StatusBurn,
-    sSpriteAnim_StatusPokerus,
-    sSpriteAnim_StatusFaint,
-    sSpriteAnim_StatusFrostbite,
+    [STATUS_ICON_PSN]  = sSpriteAnim_StatusPoison,
+    [STATUS_ICON_PRZ]  = sSpriteAnim_StatusParalyzed,
+    [STATUS_ICON_SLP]  = sSpriteAnim_StatusSleep,
+    [STATUS_ICON_FRZ]  = sSpriteAnim_StatusFrozen,
+    [STATUS_ICON_BRN]  = sSpriteAnim_StatusBurn,
+    [STATUS_ICON_PKRS] = sSpriteAnim_StatusPokerus,
+    [STATUS_ICON_FNT]  = sSpriteAnim_StatusFaint,
+    [STATUS_ICON_FRB]  = sSpriteAnim_StatusFrostbite,
+    [STATUS_ICON_TOX]  = sSpriteAnim_StatusToxic,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_StatusIcon =
 {
-    .data = sStatusIcons_Gfx,
-    .size = 0x400,
+    .data = gStatusIconsSwSh_Gfx,
+    .size = 32 * 8 * STATUS_ICON_COUNT / 2,
     .tag = TAG_STATUS_ICON,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_StatusIcon =
 {
     .tileTag = TAG_STATUS_ICON,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_STATUS_ICON,
     .oam = &sOamData_StatusIcon,
     .anims = sSpriteAnims_StatusIcon,
 };
@@ -1052,8 +1048,8 @@ static const struct OamData sOamData_CategoryIcon =
     .affineMode = ST_OAM_AFFINE_OFF,
     .objMode = ST_OAM_OBJ_NORMAL,
     .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(32x16),
-    .size = SPRITE_SIZE(32x16),
+    .shape = SPRITE_SHAPE(16x16),
+    .size = SPRITE_SIZE(16x16),
     .priority = 1,
 };
 
@@ -1065,13 +1061,13 @@ static const union AnimCmd sSpriteAnim_CategoryPhysical[] =
 
 static const union AnimCmd sSpriteAnim_CategorySpecial[] =
 {
-    ANIMCMD_FRAME(8, 0),
+    ANIMCMD_FRAME(4, 0),
     ANIMCMD_END
 };
 
 static const union AnimCmd sSpriteAnim_CategoryStatus[] =
 {
-    ANIMCMD_FRAME(16, 0),
+    ANIMCMD_FRAME(8, 0),
     ANIMCMD_END
 };
 
@@ -1084,15 +1080,15 @@ static const union AnimCmd *const sSpriteAnimTable_CategoryIcons[] =
 
 static const struct CompressedSpriteSheet sSpriteSheet_CategoryIcon =
 {
-    .data = sCategoryIcons_Gfx,
-    .size = 32 * 16 * 3 / 2,
+    .data = gCategoryIconsSwSh_Gfx,
+    .size = 16 * 16 * 3 / 2,
     .tag = TAG_CATEGORY_ICON,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_CategoryIcon =
 {
     .tileTag = TAG_CATEGORY_ICON,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_STATUS_ICON,
     .oam = &sOamData_CategoryIcon,
     .anims = sSpriteAnimTable_CategoryIcons,
 };
@@ -1102,8 +1098,8 @@ static const struct OamData sOamData_FrameQuantity =
     .affineMode = ST_OAM_AFFINE_OFF,
     .objMode = ST_OAM_OBJ_NORMAL,
     .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(32x32),
-    .size = SPRITE_SIZE(32x32),
+    .shape = SPRITE_SHAPE(64x32),
+    .size = SPRITE_SIZE(64x32),
     .priority = 1,
 };
 
@@ -1112,24 +1108,24 @@ static const union AnimCmd sSpriteAnim_FrameQuantity_0[] = {
     ANIMCMD_END
 };
 static const union AnimCmd sSpriteAnim_FrameQuantity_1[] = {
-    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
+    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
     ANIMCMD_END
 };
 static const union AnimCmd *const sSpriteAnimTable_FrameQuantity[] = {
     sSpriteAnim_FrameQuantity_0,
     sSpriteAnim_FrameQuantity_1,
 };
-static const u8 sFrameQuantityAnims[FRAME_QUANTITY_SPRITES_COUNT] = {0, 1, 1, 1};
+static const u8 sFrameQuantityAnims[FRAME_QUANTITY_SPRITES_COUNT] = {0, 1};
 
 static const struct CompressedSpriteSheet sSpriteSheet_FrameQuantity = {
-    .data = sFrameQuantity_Gfx,
-    .size = (32 * 64) / 2,
+    .data = gQuantityFrameSwSh_Gfx,
+    .size = (64 * 64) / 2,
     .tag = TAG_FRAME_QUANTITY,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_FrameQuantity = {
     .tileTag = TAG_FRAME_QUANTITY,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_STATUS_ICON,
     .oam = &sOamData_FrameQuantity,
     .anims = sSpriteAnimTable_FrameQuantity,
 };
@@ -1412,15 +1408,6 @@ static const struct WindowTemplate sContextMenuWindowTemplates[] =
         .paletteNum = 1,
         .baseBlock = 589,
     },
-    [ITEMWIN_QUANTITY] = { // Quantity input (toss/deposit/sell/multi-use), sits above the message box
-        .bg = 0,
-        .tilemapLeft = 16,
-        .tilemapTop = 11,
-        .width = 12,
-        .height = 2,
-        .paletteNum = 1,
-        .baseBlock = 765,
-    },
 #if SWSH_ITEM_MENU_IN_BAG_USE
     [ITEMWIN_PP_MOVE_SELECT] = {
         .bg = 0,
@@ -1575,6 +1562,7 @@ void GoToBagMenu(u8 location, u8 pocket, MainCallback exitCallback)
         gBagMenu->pocketScrollArrowAnimIds[0] = INVALID_COMFY_ANIM;
         gBagMenu->pocketScrollArrowAnimIds[1] = INVALID_COMFY_ANIM;
         gBagMenu->cursorAnimId = INVALID_COMFY_ANIM;
+        gBagMenu->cursorBobAnimId = INVALID_COMFY_ANIM;
         gBagMenu->scrollThumbAnimId = INVALID_COMFY_ANIM;
         gBagMenu->hoveredItemIndex = LIST_CANCEL;
         gBagMenu->showItemIconId = ITEM_NONE;
@@ -1683,9 +1671,10 @@ extern u8 IsFusionMon(enum Species species);
 
 static void BagMenu_AllocObjPalettes(void)
 {
-    AllocSpritePalette(TAG_ITEM_CURSOR);        // Pal 0
+    AllocSpritePalette(TAG_BAG_UI_PAL);         // Pal 0
     AllocSpritePalette(TAG_BAG_ITEM_ICON_0);    // Pal 1
     AllocSpritePalette(TAG_BAG_ITEM_ICON_1);    // Pal 2
+    AllocSpritePalette(TAG_STATUS_ICON);        // Pal 3, shared SwSh palette
 }
 
 static bool8 SetupBagMenu(void)
@@ -1937,7 +1926,8 @@ static bool8 LoadBagMenu_Graphics(void)
         gBagMenu->graphicsLoadState++;
         break;
     case 6:
-        LoadPalette(sCursor_Pal, OBJ_PLTT_ID(0), PLTT_SIZE_4BPP);
+        LoadPalette(sBagUI_Pal, OBJ_PLTT_ID(0), PLTT_SIZE_4BPP);
+        LoadPalette(gStatusIconsSwSh_Pal, OBJ_PLTT_ID(IndexOfSpritePaletteTag(TAG_STATUS_ICON)), PLTT_SIZE_4BPP);
         gBagMenu->graphicsLoadState++;
         break;
     case 7:
@@ -1954,7 +1944,7 @@ static bool8 LoadBagMenu_Graphics(void)
         break;
     case 10:
         gBagMenu->moveTypeIconsCache = Alloc(32 * 416 / 2);
-        DecompressDataWithHeaderWram(sMoveTypeIcons_Gfx, gBagMenu->moveTypeIconsCache);
+        DecompressDataWithHeaderWram(gMoveTypesSwSh_Gfx, gBagMenu->moveTypeIconsCache);
         gBagMenu->graphicsLoadState++;
         break;
     case 11:
@@ -2307,6 +2297,7 @@ static void CreateCursorSprite(void)
     });
 
     gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY, 0);
+    StartBagCursorBob(gBagMenu->cursorSpriteId);
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
 }
 
@@ -2340,10 +2331,62 @@ static void CreateHoverSlotSprites(void)
     }
 }
 
+#define CURSOR_BOB_RANGE 3
+#define CURSOR_BOB_FRAMES 20
+#define sBobTarget data[0]
+
+static void SpriteCB_CursorBob(struct Sprite *sprite)
+{
+    struct ComfyAnim *bob;
+
+    if (gBagMenu->cursorBobAnimId == INVALID_COMFY_ANIM)
+        return;
+
+    bob = &gComfyAnims[gBagMenu->cursorBobAnimId];
+
+    if (bob->completed && sprite->x2 == sprite->sBobTarget)
+    {
+        sprite->sBobTarget = (sprite->sBobTarget == 0) ? CURSOR_BOB_RANGE : 0;
+        InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+            .from = Q_24_8(sprite->x2),
+            .to = Q_24_8(sprite->sBobTarget),
+            .durationFrames = CURSOR_BOB_FRAMES,
+            .easingFunc = ComfyAnimEasing_EaseInOutQuad,
+        }, bob);
+        TryAdvanceComfyAnim(bob);
+    }
+
+    sprite->x2 = ReadComfyAnimValueSmooth(bob);
+}
+
+static void StartBagCursorBob(u8 spriteId)
+{
+    struct ComfyAnimEasingConfig config = {
+        .from = Q_24_8(0),
+        .to = Q_24_8(CURSOR_BOB_RANGE),
+        .durationFrames = CURSOR_BOB_FRAMES,
+        .easingFunc = ComfyAnimEasing_EaseInOutQuad,
+    };
+
+    if (gBagMenu->cursorBobAnimId == INVALID_COMFY_ANIM)
+        gBagMenu->cursorBobAnimId = CreateComfyAnim_Easing(&config);
+    else
+        InitComfyAnim_Easing(&config, &gComfyAnims[gBagMenu->cursorBobAnimId]);
+
+    gSprites[spriteId].x2 = 0;
+    gSprites[spriteId].sBobTarget = CURSOR_BOB_RANGE;
+}
+
+#undef CURSOR_BOB_RANGE
+#undef CURSOR_BOB_FRAMES
+#undef sBobTarget
+
 static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 {
     s16 y;
     u8 i;
+
+    SpriteCB_CursorBob(sprite);
 
     if (gBagMenu->cursorAnimId == INVALID_COMFY_ANIM)
         return;
@@ -2918,6 +2961,7 @@ static void Task_CloseBagMenu(u8 taskId)
 
         BagDestroyPocketScrollArrowPair();
         ReleaseComfyAnim(gBagMenu->cursorAnimId);
+        ReleaseComfyAnim(gBagMenu->cursorBobAnimId);
         ReleaseComfyAnim(gBagMenu->scrollThumbAnimId);
         ReleaseComfyAnim(gBagMenu->pocketScrollArrowAnimIds[0]);
         ReleaseComfyAnim(gBagMenu->pocketScrollArrowAnimIds[1]);
@@ -3064,7 +3108,7 @@ void CloseItemMessage(u8 taskId)
 static void AddItemQuantityWindow(void)
 {
     CreateQuantityFrameSprites(96);
-    PrintQuantity(BagMenu_AddWindowNoFrame(ITEMWIN_QUANTITY), 1);
+    PrintQuantity(1);
 }
 
 static void Task_BagMenu_HandleInput(u8 taskId)
@@ -3801,20 +3845,18 @@ static void Task_ChooseHowManyToToss(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
-        PrintQuantity(gBagMenu->windowIds[ITEMWIN_QUANTITY], tItemCount);
+        PrintQuantity(tItemCount);
     }
     else if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         AskTossItems(taskId);
     }
     else if (JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         CancelToss(taskId);
     }
 }
@@ -4083,11 +4125,8 @@ static void DisplaySellItemPriceAndConfirm(u8 taskId)
 
 static void AskSellItems(u8 taskId)
 {
-    if (gBagMenu->windowIds[ITEMWIN_QUANTITY] != WINDOW_NONE)
-    {
+    if (gBagMenu->frameQuantityIds[0] != SPRITE_NONE)
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
-    }
     BagMenu_YesNo(taskId, ITEMWIN_YESNO_HIGH, &sYesNoSellItemFunctions);
 }
 
@@ -4099,13 +4138,9 @@ static void CancelSell(u8 taskId)
 
 static void InitSellHowManyInput(u8 taskId)
 {
-    u8 windowId;
-
     CreateQuantityFrameSprites(96);
-    windowId = BagMenu_AddWindowNoFrame(ITEMWIN_QUANTITY);
-    FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
-    PrintQuantity(windowId, 1);
-    PrintSellTotal(windowId, GetItemSellPrice(gSpecialVar_ItemId));
+    PrintQuantity(1);
+    PrintSellTotal(GetItemSellPrice(gSpecialVar_ItemId));
     gTasks[taskId].func = Task_ChooseHowManyToSell;
 }
 
@@ -4115,8 +4150,8 @@ static void Task_ChooseHowManyToSell(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
-        PrintQuantity(gBagMenu->windowIds[ITEMWIN_QUANTITY], tItemCount);
-        PrintSellTotal(gBagMenu->windowIds[ITEMWIN_QUANTITY], GetItemSellPrice(gSpecialVar_ItemId) * tItemCount);
+        PrintQuantity(tItemCount);
+        PrintSellTotal(GetItemSellPrice(gSpecialVar_ItemId) * tItemCount);
     }
     else if (JOY_NEW(A_BUTTON))
     {
@@ -4127,7 +4162,6 @@ static void Task_ChooseHowManyToSell(u8 taskId)
     {
         PlaySE(SE_SELECT);
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         ReturnToItemList(taskId);
     }
@@ -4194,20 +4228,18 @@ static void Task_ChooseHowManyToDeposit(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
-        PrintQuantity(gBagMenu->windowIds[ITEMWIN_QUANTITY], tItemCount);
+        PrintQuantity(tItemCount);
     }
     else if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         TryDepositItem(taskId);
     }
     else if (JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         ReturnToItemList(taskId);
     }
@@ -4489,14 +4521,27 @@ static void DrawFrameTilemap(const u8 *tilemap, u8 left, u8 top, u8 width, u8 he
     ScheduleBgCopyTilemapToVram(2);
 }
 
+#define QUANTITY_FRAME_CURSOR_X 152
+
+#define QUANTITY_FILL_INDEX     13
+#define QUANTITY_COUNT_LEFT     16
+#define QUANTITY_COUNT_RIGHT    48
+#define QUANTITY_COUNT_TOP      8
+#define QUANTITY_TOTAL_RIGHT    48
+
 static void CreateQuantityFrameSprites(u8 y)
 {
     u8 i;
     for (i = 0; i < FRAME_QUANTITY_SPRITES_COUNT; i++)
     {
-        gBagMenu->frameQuantityIds[i] = CreateSprite(&sSpriteTemplate_FrameQuantity, 128 + i * 32, y, 3);
+        gBagMenu->frameQuantityIds[i] = CreateSprite(&sSpriteTemplate_FrameQuantity, 144 + i * 64, y, 3);
         StartSpriteAnim(&gSprites[gBagMenu->frameQuantityIds[i]], sFrameQuantityAnims[i]);
+        SetSpriteSheetFrameTileNum(&gSprites[gBagMenu->frameQuantityIds[i]]);
     }
+    FillSpriteRectColor(
+        gBagMenu->frameQuantityIds[1], 0, QUANTITY_COUNT_TOP, QUANTITY_TOTAL_RIGHT,
+        GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
+    gBagMenu->swapCursorSpriteId = CreateSprite(&sSpriteTemplate_SwapCursor, QUANTITY_FRAME_CURSOR_X, y, 0);
 }
 
 static void DestroyQuantityFrameSprites(void)
@@ -4509,6 +4554,11 @@ static void DestroyQuantityFrameSprites(void)
             DestroySprite(&gSprites[gBagMenu->frameQuantityIds[i]]);
             gBagMenu->frameQuantityIds[i] = SPRITE_NONE;
         }
+    }
+    if (gBagMenu->swapCursorSpriteId != SPRITE_NONE)
+    {
+        DestroySprite(&gSprites[gBagMenu->swapCursorSpriteId]);
+        gBagMenu->swapCursorSpriteId = SPRITE_NONE;
     }
 }
 
@@ -4597,27 +4647,37 @@ static void UpdateSellPrice(u16 itemId)
     PrintSellPrice(itemId);
 }
 
-#define QUANTITY_COUNT_RIGHT 32 // right edge (px) item count is aligned to
-
-static void PrintQuantity(u8 windowId, s16 quantity)
+static const union TextColor sQuantityTextColor =
 {
+    .background = 0,
+    .foreground = 12,
+    .shadow = 14,
+};
+
+static void PrintQuantity(s16 quantity)
+{
+    u8 spriteId = gBagMenu->frameQuantityIds[0];
+
     ConvertIntToDecimalStringN(gStringVar1, quantity, STR_CONV_MODE_LEADING_ZEROS, MAX_ITEM_DIGITS);
     StringExpandPlaceholders(gStringVar4, gText_xVar1);
-    FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
-    BagMenu_Print(windowId, FONT_NARROW, gStringVar4,
-        GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_COUNT_RIGHT), 0, 0, 0, TEXT_SKIP_DRAW, COLORID_POCKET_NAME);
-    CopyWindowToVram(windowId, COPYWIN_GFX);
+    FillSpriteRectColor(spriteId, QUANTITY_COUNT_LEFT, QUANTITY_COUNT_TOP,
+        QUANTITY_COUNT_RIGHT - QUANTITY_COUNT_LEFT, GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
+    AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
+        GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_COUNT_RIGHT), QUANTITY_COUNT_TOP,
+        0, 0, sQuantityTextColor, 0, gStringVar4);
 }
 
-static void PrintSellTotal(u8 windowId, u32 total)
+static void PrintSellTotal(u32 total)
 {
-    u8 windowWidthPx = sContextMenuWindowTemplates[ITEMWIN_QUANTITY].width * 8;
+    u8 spriteId = gBagMenu->frameQuantityIds[1];
 
     ConvertMoneyToCommaString(gStringVar1, total);
     StringExpandPlaceholders(gStringVar4, gText_PokedollarVar1);
-    BagMenu_Print(windowId, FONT_NARROW, gStringVar4,
-        GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, windowWidthPx), 0, 0, 0, TEXT_SKIP_DRAW, COLORID_POCKET_NAME);
-    CopyWindowToVram(windowId, COPYWIN_GFX);
+    FillSpriteRectColor(spriteId, 0, QUANTITY_COUNT_TOP,
+        QUANTITY_TOTAL_RIGHT, GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
+    AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
+        GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_TOTAL_RIGHT), QUANTITY_COUNT_TOP,
+        0, 0, sQuantityTextColor, 0, gStringVar4);
 }
 
 static void PrintMoney(u8 windowId)
@@ -4798,7 +4858,7 @@ static void SwitchMoveInfoMode(s32 itemIndex)
     {
         gBagMenu->moveInfoMode = 1;
 
-        LoadPalette(sMoveTypeIcons_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
+        LoadPalette(gMoveTypesSwSh_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
         {
             struct SpriteSheet sheet = { .data = gBagMenu->moveTypeIconsCache, .size = 0x100, .tag = TAG_MOVE_TYPE_ICON };
             LoadSpriteSheet(&sheet);
@@ -5886,16 +5946,34 @@ static void BagMenu_FreePartyIcons(void)
     FreeSpriteTilesByTag(TAG_STATUS_ICON);
 }
 
-static u8 BagMenu_GetMonAilment(u8 slot)
+static u32 BagMenu_GetMonStatusIcon(u8 slot)
 {
     struct Pokemon *mon = BagMenu_GetPanelMon(slot);
+
     if (GetMonData(mon, MON_DATA_SPECIES) == SPECIES_NONE)
-        return AILMENT_NONE;
+        return STATUS_ICON_NONE;
     if (GetMonData(mon, MON_DATA_IS_EGG))
-        return AILMENT_NONE;
+        return STATUS_ICON_NONE;
     if (GetMonData(mon, MON_DATA_HP) == 0)
-        return AILMENT_FNT;
-    return GetAilmentFromStatus(GetMonData(mon, MON_DATA_STATUS));
+        return STATUS_ICON_FNT;
+
+    u32 status = GetMonData(mon, MON_DATA_STATUS);
+    if (status & STATUS1_TOXIC_POISON)
+        return STATUS_ICON_TOX;
+    if (status & STATUS1_PSN_ANY)
+        return STATUS_ICON_PSN;
+    if (status & STATUS1_PARALYSIS)
+        return STATUS_ICON_PRZ;
+    if (status & STATUS1_SLEEP)
+        return STATUS_ICON_SLP;
+    if (status & STATUS1_FREEZE)
+        return STATUS_ICON_FRZ;
+    if (status & STATUS1_BURN)
+        return STATUS_ICON_BRN;
+    if (status & STATUS1_FROSTBITE)
+        return STATUS_ICON_FRB;
+
+    return STATUS_ICON_NONE;
 }
 
 static void BagMenu_UpdateStatusIcons(void)
@@ -5903,17 +5981,17 @@ static void BagMenu_UpdateStatusIcons(void)
     u8 i;
     for (i = 0; i < PARTY_SIZE; i++)
     {
-        u8 ailment;
+        u32 statusIcon;
         if (gBagMenu->statusIconSpriteIds[i] == SPRITE_NONE)
             continue;
-        ailment = BagMenu_GetMonAilment(i);
-        if (ailment == AILMENT_NONE)
+        statusIcon = BagMenu_GetMonStatusIcon(i);
+        if (statusIcon == STATUS_ICON_NONE)
         {
             gSprites[gBagMenu->statusIconSpriteIds[i]].invisible = TRUE;
         }
         else
         {
-            StartSpriteAnim(&gSprites[gBagMenu->statusIconSpriteIds[i]], ailment - 1);
+            StartSpriteAnim(&gSprites[gBagMenu->statusIconSpriteIds[i]], statusIcon);
             gSprites[gBagMenu->statusIconSpriteIds[i]].invisible = FALSE;
         }
     }
@@ -6381,7 +6459,7 @@ static void BagMenu_PartySnapCursor(u8 slot)
 #else
     struct Sprite *cursor = &gSprites[gBagMenu->cursorSpriteId];
 
-    cursor->callback = SpriteCallbackDummy;
+    cursor->callback = SpriteCB_CursorBob;
     cursor->invisible = FALSE;
     cursor->x = PARTY_CURSOR_X;
     cursor->y = PARTY_CURSOR_Y(slot);
@@ -8707,7 +8785,7 @@ static void BagMenu_TryMultiUse(u8 taskId)
 static void BagMenu_InitMultiUseInput(u8 taskId)
 {
     CreateQuantityFrameSprites(96);
-    PrintQuantity(BagMenu_AddWindowNoFrame(ITEMWIN_QUANTITY), 1);
+    PrintQuantity(1);
     gTasks[taskId].func = Task_BagMenu_MultiUseInput;
 }
 
@@ -8717,13 +8795,12 @@ static void Task_BagMenu_MultiUseInput(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tMultiUseMax) == TRUE)
     {
-        PrintQuantity(gBagMenu->windowIds[ITEMWIN_QUANTITY], tItemCount);
+        PrintQuantity(tItemCount);
     }
     else if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         BagMenu_UseItem(taskId);
     }
@@ -8731,7 +8808,6 @@ static void Task_BagMenu_MultiUseInput(u8 taskId)
     {
         PlaySE(SE_SELECT);
         DestroyQuantityFrameSprites();
-        BagMenu_RemoveWindow(ITEMWIN_QUANTITY);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         tItemCount = 1;
         gTasks[taskId].func = Task_BagMenu_PartyInput;
