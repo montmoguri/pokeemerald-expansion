@@ -84,6 +84,7 @@ enum BattlePocket
 #if SWSH_ITEM_MENU
 #define HOVER_SLOT_SPRITES_COUNT     5
 #define FRAME_QUANTITY_SPRITES_COUNT 2
+#define SPINNER_ARROW_SPRITES_COUNT  2
 #define PROMPT_WIDTH                 3
 #define PROMPT_HEIGHT                3
 #endif
@@ -145,7 +146,7 @@ struct BagMenu
 #if SWSH_ITEM_MENU
     u8 partyMonIconSpriteIds[PARTY_SIZE];
     u8 cursorSpriteId;
-    u8 swapCursorSpriteId;
+    u8 spinnerArrowSpriteIds[SPINNER_ARROW_SPRITES_COUNT];
     u8 hoverSlotSpriteIds[HOVER_SLOT_SPRITES_COUNT];
     u8 pocketScrollArrowSpriteIds[2];
     u8 frameQuantityIds[FRAME_QUANTITY_SPRITES_COUNT];

@@ -80,7 +80,7 @@
 #define TAG_BAG_SCROLL_THUMB     114
 #define TAG_MOVE_TYPE_ICON       115
 #define TAG_CATEGORY_ICON        116
-#define TAG_SWAP_CURSOR          117
+#define TAG_SPINNER_ARROW        117
 #define TAG_FRAME_QUANTITY       118
 #define TAG_PARTY_HELD_ITEM      120
 #define TAG_STATUS_ICON          121
@@ -103,6 +103,21 @@ enum {
     SWITCH_POCKET_LEFT,
     SWITCH_POCKET_RIGHT
 };
+
+enum {
+    SPINNER_ARROW_UP,
+    SPINNER_ARROW_DOWN,
+};
+
+enum {
+    SPINNER_ARROW_STATIC,
+    SPINNER_ARROW_ANIM,
+    SPINNER_ARROW_LOOP,
+};
+
+#define SPINNER_ARROW_Y_OFFSET      10
+#define SPINNER_ARROW_LOOP_FRAMES   8
+#define SPINNER_ARROW_ANIM_FRAMES   3
 
 enum {
     ACTION_USE,
@@ -282,6 +297,10 @@ static void HandleErrorMessage(u8);
 static void PrintItemCantBeHeld(u8);
 static u8 BagMenu_AddWindowNoFrame(u8 windowType);
 static void CreateQuantityFrameSprites(u8 y);
+static void SpriteCB_SpinnerArrow(struct Sprite *);
+static void CreateSpinnerArrowSprites(s16 x, s16 y, u8 mode);
+static void DestroySpinnerArrowSprites(void);
+static void AnimateQuantitySpinner(void);
 static void DestroyQuantityFrameSprites(void);
 static void SetupSellWindows(void);
 static void PrintSellPrice(u16 itemId);
@@ -706,7 +725,6 @@ static const u32 sBagScreen_BG3TileMap[]        = INCGFX_U32("graphics/bag/swsh/
 static const u32 sHoverSlot_Gfx[]               = INCGFX_U32("graphics/bag/swsh/hover_slot.png", ".4bpp.smol");
 static const u32 sScrollThumb_Gfx[]             = INCGFX_U32("graphics/bag/swsh/scroll_thumb.png", ".4bpp.smol");
 static const u32 sPocketScrollArrows_Gfx[]      = INCGFX_U32("graphics/bag/swsh/pocket_scroll_arrows.png", ".4bpp.smol");
-static const u32 sSwapCursor_Gfx[]              = INCGFX_U32("graphics/bag/swsh/swap_cursor.png", ".4bpp.smol");
 static const u8 sFrameMoney_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_money.bin");
 static const u8 sFramePrice_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_price.bin");
 static const u8 sBagMenuHMIcon_Gfx[]            = INCGFX_U8("graphics/bag/swsh/hm.png", ".4bpp");
@@ -741,43 +759,48 @@ static const struct SpriteTemplate sSpriteTemplate_Cursor =
 };
 
 
-static const struct CompressedSpriteSheet sSpriteSheet_SwapCursor =
+static const struct CompressedSpriteSheet sSpriteSheet_SpinnerArrow =
 {
-    .data = sSwapCursor_Gfx,
-    .size = (16 * 32 * 3) / 2,
-    .tag = TAG_SWAP_CURSOR,
+    .data = gSpinnerArrowSwSh_Gfx,
+    .size = (16 * 8) / 2,
+    .tag = TAG_SPINNER_ARROW,
 };
 
-static const struct OamData sOamData_SwapCursor =
+static const struct OamData sOamData_SpinnerArrow =
 {
     .affineMode = ST_OAM_AFFINE_OFF,
     .objMode = ST_OAM_OBJ_NORMAL,
     .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(16x32),
-    .size = SPRITE_SIZE(16x32),
+    .shape = SPRITE_SHAPE(16x8),
+    .size = SPRITE_SIZE(16x8),
     .priority = 1,
 };
 
-static const union AnimCmd sAnim_SwapCursor[] =
+static const union AnimCmd sAnim_SpinnerArrowUp[] =
 {
-    ANIMCMD_FRAME(0, 8),
-    ANIMCMD_FRAME(8, 8),
-    ANIMCMD_FRAME(16, 8),
-    ANIMCMD_FRAME(8, 8),
-    ANIMCMD_JUMP(0)
+    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
+    ANIMCMD_END
 };
 
-static const union AnimCmd *const sAnims_SwapCursor[] =
+static const union AnimCmd sAnim_SpinnerArrowDown[] =
 {
-    sAnim_SwapCursor,
+    ANIMCMD_FRAME(0, 0, FALSE, TRUE),
+    ANIMCMD_END
 };
 
-static const struct SpriteTemplate sSpriteTemplate_SwapCursor =
+static const union AnimCmd *const sAnims_SpinnerArrow[] =
 {
-    .tileTag = TAG_SWAP_CURSOR,
-    .paletteTag = TAG_BAG_UI_PAL,
-    .oam = &sOamData_SwapCursor,
-    .anims = sAnims_SwapCursor,
+    [SPINNER_ARROW_UP]   = sAnim_SpinnerArrowUp,
+    [SPINNER_ARROW_DOWN] = sAnim_SpinnerArrowDown,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_SpinnerArrow =
+{
+    .tileTag = TAG_SPINNER_ARROW,
+    .paletteTag = TAG_STATUS_ICON,
+    .oam = &sOamData_SpinnerArrow,
+    .anims = sAnims_SpinnerArrow,
+    .callback = SpriteCB_SpinnerArrow,
 };
 
 static const struct OamData sOamData_HoverSlot =
@@ -1554,7 +1577,7 @@ void GoToBagMenu(u8 location, u8 pocket, MainCallback exitCallback)
         gBagMenu->toSwapPos = NOT_SWAPPING;
         memset(gBagMenu->spriteIds, SPRITE_NONE, sizeof(gBagMenu->spriteIds));
         gBagMenu->cursorSpriteId = SPRITE_NONE;
-        gBagMenu->swapCursorSpriteId = SPRITE_NONE;
+        memset(gBagMenu->spinnerArrowSpriteIds, SPRITE_NONE, sizeof(gBagMenu->spinnerArrowSpriteIds));
         memset(gBagMenu->hoverSlotSpriteIds, SPRITE_NONE, sizeof(gBagMenu->hoverSlotSpriteIds));
         sScrollThumbSpriteId = SPRITE_NONE;
         memset(gBagMenu->pocketScrollArrowSpriteIds, SPRITE_NONE, sizeof(gBagMenu->pocketScrollArrowSpriteIds));
@@ -1948,7 +1971,7 @@ static bool8 LoadBagMenu_Graphics(void)
         gBagMenu->graphicsLoadState++;
         break;
     case 11:
-        LoadCompressedSpriteSheet(&sSpriteSheet_SwapCursor);
+        LoadCompressedSpriteSheet(&sSpriteSheet_SpinnerArrow);
         gBagMenu->graphicsLoadState++;
         break;
     case 12:
@@ -2403,8 +2426,10 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
         u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
         if (iconSpriteId != SPRITE_NONE)
             gSprites[iconSpriteId].y2 = y + 4;
-        if (gBagMenu->swapCursorSpriteId != SPRITE_NONE)
-            gSprites[gBagMenu->swapCursorSpriteId].y = y;
+        if (gBagMenu->spinnerArrowSpriteIds[SPINNER_ARROW_UP] != SPRITE_NONE)
+            gSprites[gBagMenu->spinnerArrowSpriteIds[SPINNER_ARROW_UP]].y = y - SPINNER_ARROW_Y_OFFSET;
+        if (gBagMenu->spinnerArrowSpriteIds[SPINNER_ARROW_DOWN] != SPRITE_NONE)
+            gSprites[gBagMenu->spinnerArrowSpriteIds[SPINNER_ARROW_DOWN]].y = y + SPINNER_ARROW_Y_OFFSET;
     }
 }
 
@@ -3442,7 +3467,7 @@ static void StartItemSwap(u8 taskId)
     tListPosition = gBagPosition.scrollPosition[gBagPosition.pocket] + gBagPosition.cursorPosition[gBagPosition.pocket];
     gBagMenu->toSwapPos = tListPosition;
     gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
-    gBagMenu->swapCursorSpriteId = CreateSprite(&sSpriteTemplate_SwapCursor, 84, cursorY, 1);
+    CreateSpinnerArrowSprites(98, cursorY, SPINNER_ARROW_LOOP);
     gTasks[taskId].func = Task_HandleSwappingItemsInput;
 }
 
@@ -3458,8 +3483,7 @@ static void Task_HandleSwappingItemsInput(u8 taskId)
         {
             PlaySE(SE_SELECT);
             gBagMenu->toSwapPos = NOT_SWAPPING;
-            DestroySprite(&gSprites[gBagMenu->swapCursorSpriteId]);
-            gBagMenu->swapCursorSpriteId = SPRITE_NONE;
+            DestroySpinnerArrowSprites();
             gSprites[gBagMenu->cursorSpriteId].invisible = FALSE;
             gTasks[taskId].func = Task_BagMenu_HandleInput;
         }
@@ -3847,6 +3871,7 @@ static void Task_ChooseHowManyToToss(u8 taskId)
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
         PrintQuantity(tItemCount);
+        AnimateQuantitySpinner();
     }
     else if (JOY_NEW(A_BUTTON))
     {
@@ -4153,6 +4178,7 @@ static void Task_ChooseHowManyToSell(u8 taskId)
     {
         PrintQuantity(tItemCount);
         PrintSellTotal(GetItemSellPrice(gSpecialVar_ItemId) * tItemCount);
+        AnimateQuantitySpinner();
     }
     else if (JOY_NEW(A_BUTTON))
     {
@@ -4230,6 +4256,7 @@ static void Task_ChooseHowManyToDeposit(u8 taskId)
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
         PrintQuantity(tItemCount);
+        AnimateQuantitySpinner();
     }
     else if (JOY_NEW(A_BUTTON))
     {
@@ -4522,8 +4549,91 @@ static void DrawFrameTilemap(const u8 *tilemap, u8 left, u8 top, u8 width, u8 he
     ScheduleBgCopyTilemapToVram(2);
 }
 
-#define QUANTITY_FRAME_CURSOR_X 152
+#define sDir    data[0]  // -1 = up, +1 = down
+#define sMode   data[1]
+#define sTimer  data[2]
+#define sStep   data[3]
 
+static const u8 sSpinnerArrowOffsets[] = {0, 1, 2, 1};
+
+static void SpriteCB_SpinnerArrow(struct Sprite *sprite)
+{
+    u8 stepFrames;
+
+    if (sprite->sMode == SPINNER_ARROW_STATIC)
+        return;
+
+    stepFrames = (sprite->sMode == SPINNER_ARROW_LOOP) ? SPINNER_ARROW_LOOP_FRAMES : SPINNER_ARROW_ANIM_FRAMES;
+    if (++sprite->sTimer < stepFrames)
+        return;
+
+    sprite->sTimer = 0;
+    if (++sprite->sStep >= (s16)ARRAY_COUNT(sSpinnerArrowOffsets))
+    {
+        sprite->sStep = 0;
+        if (sprite->sMode == SPINNER_ARROW_ANIM)
+            sprite->sMode = SPINNER_ARROW_STATIC;
+    }
+    sprite->y2 = sprite->sDir * sSpinnerArrowOffsets[sprite->sStep];
+}
+
+static void CreateSpinnerArrowSprites(s16 x, s16 y, u8 mode)
+{
+    u8 i;
+
+    for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
+    {
+        s8 dir = (i == SPINNER_ARROW_UP) ? -1 : 1;
+        u8 spriteId = CreateSprite(&sSpriteTemplate_SpinnerArrow, x, y + dir * SPINNER_ARROW_Y_OFFSET, 0);
+
+        StartSpriteAnim(&gSprites[spriteId], i);
+        gSprites[spriteId].sDir = dir;
+        gSprites[spriteId].sMode = mode;
+        gBagMenu->spinnerArrowSpriteIds[i] = spriteId;
+    }
+}
+
+static void DestroySpinnerArrowSprites(void)
+{
+    u8 i;
+
+    for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
+    {
+        if (gBagMenu->spinnerArrowSpriteIds[i] != SPRITE_NONE)
+        {
+            DestroySprite(&gSprites[gBagMenu->spinnerArrowSpriteIds[i]]);
+            gBagMenu->spinnerArrowSpriteIds[i] = SPRITE_NONE;
+        }
+    }
+}
+
+static void AnimateQuantitySpinner(void)
+{
+    u16 dpad = JOY_REPEAT(DPAD_ANY);
+    u8 arrowIdx, spriteId;
+
+    if (dpad == DPAD_UP || dpad == DPAD_RIGHT)
+        arrowIdx = SPINNER_ARROW_UP;
+    else if (dpad == DPAD_DOWN || dpad == DPAD_LEFT)
+        arrowIdx = SPINNER_ARROW_DOWN;
+    else
+        return;
+
+    spriteId = gBagMenu->spinnerArrowSpriteIds[arrowIdx];
+    if (spriteId == SPRITE_NONE || gSprites[spriteId].sMode != SPINNER_ARROW_STATIC)
+        return;
+
+    gSprites[spriteId].sMode = SPINNER_ARROW_ANIM;
+    gSprites[spriteId].sTimer = 0;
+    gSprites[spriteId].sStep = 0;
+}
+
+#undef sDir
+#undef sMode
+#undef sTimer
+#undef sStep
+
+#define QUANTITY_SPINNER_X      152
 #define QUANTITY_FILL_INDEX     13
 #define QUANTITY_COUNT_LEFT     16
 #define QUANTITY_COUNT_RIGHT    48
@@ -4542,7 +4652,7 @@ static void CreateQuantityFrameSprites(u8 y)
     FillSpriteRectColor(
         gBagMenu->frameQuantityIds[1], 0, QUANTITY_COUNT_TOP, QUANTITY_TOTAL_RIGHT,
         GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
-    gBagMenu->swapCursorSpriteId = CreateSprite(&sSpriteTemplate_SwapCursor, QUANTITY_FRAME_CURSOR_X, y, 0);
+    CreateSpinnerArrowSprites(QUANTITY_SPINNER_X, y, SPINNER_ARROW_STATIC);
 }
 
 static void DestroyQuantityFrameSprites(void)
@@ -4556,11 +4666,7 @@ static void DestroyQuantityFrameSprites(void)
             gBagMenu->frameQuantityIds[i] = SPRITE_NONE;
         }
     }
-    if (gBagMenu->swapCursorSpriteId != SPRITE_NONE)
-    {
-        DestroySprite(&gSprites[gBagMenu->swapCursorSpriteId]);
-        gBagMenu->swapCursorSpriteId = SPRITE_NONE;
-    }
+    DestroySpinnerArrowSprites();
 }
 
 static u8 BagMenu_AddWindowNoFrame(u8 windowType)
@@ -8802,6 +8908,7 @@ static void Task_BagMenu_MultiUseInput(u8 taskId)
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tMultiUseMax) == TRUE)
     {
         PrintQuantity(tItemCount);
+        AnimateQuantitySpinner();
     }
     else if (JOY_NEW(A_BUTTON))
     {
