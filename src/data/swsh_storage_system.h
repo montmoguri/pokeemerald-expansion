@@ -72,8 +72,6 @@ static const u32 sMarkingsMenu_Gfx[]          = INCGFX_U32("graphics/pokemon_sto
 static const u32 sMessageWindow_Gfx[]         = INCGFX_U32("graphics/pokemon_storage/swsh/message_window.png", ".4bpp.smol");
 static const u32 sShinyIcon_Gfx[]             = INCGFX_U32("graphics/pokemon_storage/swsh/shiny_icon.png", ".4bpp.smol");
 static const u32 sStatLabels_Gfx[]            = INCGFX_U32("graphics/pokemon_storage/swsh/stat_labels.png", ".4bpp.smol");
-static const ALIGNED(4) u8 sTypeIcons_Gfx[]   = INCGFX_U8("graphics/pokemon_storage/swsh/type_icons.png", ".4bpp");
-static const u16 sTypeIcons_Pal[]             = INCGFX_U16("graphics/pokemon_storage/swsh/type_icons.png", ".gbapal");
 
 // ============================================================================
 // Graphics - Wallpapers
@@ -1038,15 +1036,6 @@ static const struct OamData sOamData_TypeIcons =
     .priority = 0,
     .paletteNum = 0,
     .affineParam = 0,
-};
-
-// Type icons now use DMA copy instead of animations to save VRAM (only loads 2 slots instead of all 21 types)
-// Uncompressed sprite sheet (only 2 slots loaded to save VRAM)
-static const struct SpriteSheet sSpriteSheet_TypeIcons =
-{
-    .data = sTypeIcons_Gfx,
-    .size = 2 * 0x100, // Only load 2 type icon slots (saves 4.75 KB VRAM)
-    .tag = GFXTAG_TYPE_ICON,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_TypeIcons =

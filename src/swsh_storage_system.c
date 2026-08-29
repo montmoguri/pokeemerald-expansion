@@ -543,6 +543,7 @@ struct PokemonStorageSystemData
     struct Sprite *shinyIconSprite;
     struct Sprite *statLabelSprites[2];
     u16 *typeIconTilesPtr[2];
+    u8 *typeIconsGfx;
     u8 ALIGNED(4) tileBuffer[MON_PIC_SIZE * MAX_MON_PIC_FRAMES];
     u8 ALIGNED(4) itemIconBuffer[0x800];
     u8 wallpaperBgTilemapBuffer[0x800];
@@ -3686,6 +3687,7 @@ static void GiveChosenBagItem(void)
 static void FreePokeStorageData(void)
 {
     MultiMove_Free();
+    FREE_AND_SET_NULL(sStorage->typeIconsGfx);
     FREE_AND_SET_NULL(sStorage);
     FreeAllWindowBuffers();
 }
@@ -3746,6 +3748,8 @@ static bool8 InitPokeStorageWindows(void)
     }
 }
 
+#define TYPE_ICONS_GFX_SIZE (32 * 416 / 2)
+
 static bool8 InitPalettesAndSprites(void)
 {
     switch (sStorage->graphicsLoadState)
@@ -3759,13 +3763,24 @@ static bool8 InitPalettesAndSprites(void)
         sStorage->graphicsLoadState++;
         break;
     case 2:
-        LoadPalette(sTypeIcons_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
+        LoadPalette(gMoveTypesSwSh_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
         sStorage->graphicsLoadState++;
         break;
     case 3:
-        LoadSpriteSheet(&sSpriteSheet_TypeIcons);
+    {
+        sStorage->typeIconsGfx = Alloc(TYPE_ICONS_GFX_SIZE);
+        DecompressDataWithHeaderWram(gMoveTypesSwSh_Gfx, sStorage->typeIconsGfx);
+
+        struct SpriteSheet sheet = {
+            .data = sStorage->typeIconsGfx,
+            .size = 2 * 0x100,
+            .tag = GFXTAG_TYPE_ICON,
+        };
+
+        LoadSpriteSheet(&sheet);
         sStorage->graphicsLoadState++;
         break;
+    }
     case 4:
         LoadCompressedSpriteSheet(&sSpriteSheet_StatLabels);
         sStorage->graphicsLoadState++;
@@ -3932,8 +3947,8 @@ static void UpdateShinyIconSprite(void)
 
 static void UpdateTypeIconTiles(u8 typeId, void *dest)
 {
-    u32 offset = (typeId + 1) * 0x100; // +1 to skip placeholder tiles at start of graphics
-    RequestDma3Copy(&sTypeIcons_Gfx[offset], dest, 0x100, 0x10);
+    u32 offset = typeId * 0x100;
+    RequestDma3Copy(&sStorage->typeIconsGfx[offset], dest, 0x100, 0x10);
 }
 
 static void SpriteCB_TypeIcon(struct Sprite *sprite)
@@ -3977,7 +3992,7 @@ static void UpdateTypeIconsSprite(void)
 
     spriteX1 = 20 + (136 * sStorage->monInfoTilemapId);
     spriteX2 = 56 + (136 * sStorage->monInfoTilemapId);
-    spriteY = 48;
+    spriteY = 50;
 
     if (sStorage->typeIconSprites[0] == NULL)
     {
