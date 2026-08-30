@@ -1715,18 +1715,6 @@ const u16 gMoveTypes_Pal[] = INCBIN_U16("graphics/types/move_types.gbapal");
 const u32 gSummaryMoveSelect_Gfx[] = INCGFX_U32("graphics/summary_screen/move_select.png", ".4bpp.smol");
 const u16 gSummaryMoveSelect_Pal[] = INCGFX_U16("graphics/summary_screen/move_select.png", ".gbapal");
 
-// SwSh assets shared across branches
-const u32 gStatusIconsSwSh_Gfx[]    = INCGFX_U32("graphics/interface/swsh/status_icons.png", ".4bpp.smol");
-const u16 gStatusIconsSwSh_Pal[]    = INCGFX_U16("graphics/interface/swsh/status_icons.png", ".gbapal");
-const u32 gCategoryIconsSwSh_Gfx[]  = INCGFX_U32("graphics/interface/swsh/category_icons.png", ".4bpp.smol");
-const u32 gCursorSwSh_Gfx[]         = INCGFX_U32("graphics/interface/swsh/cursor.png", ".4bpp.smol");
-const u32 gQuantityFrameSwSh_Gfx[]  = INCGFX_U32("graphics/interface/swsh/quantity_frame.png", ".4bpp.smol");
-const u32 gSpinnerArrowSwSh_Gfx[]   = INCGFX_U32("graphics/interface/swsh/spinner_arrow.png", ".4bpp.smol");
-const u16 gMonShadowSwSh_Pal[]      = INCGFX_U16("graphics/interface/swsh/shadow.pal", ".gbapal");
-
-const u32 gMoveTypesSwSh_Gfx[]      = INCGFX_U32("graphics/types/swsh/move_types.png", ".4bpp.smol");
-const u16 gMoveTypesSwSh_Pal[]      = INCGFX_U16("graphics/types/swsh/move_types.png", ".gbapal");
-
 #if P_SUMMARY_SCREEN_IV_EV_TILESET
 const u32 gSummaryScreen_Gfx[]                = INCGFX_U32("graphics/summary_screen/iv_ev_tiles.png", ".4bpp.smol");
 #else
@@ -1761,6 +1749,17 @@ const u32 gShopMenu_Gfx[] = INCGFX_U32("graphics/shop/menu.png", ".4bpp.smol");
 const u16 gShopMenu_Pal[] = INCGFX_U16("graphics/shop/menu.png", ".gbapal");
 const u32 gShopMenu_Tilemap[] = INCGFX_U32("graphics/shop/menu.bin", ".smolTM");
 const u32 gShopMenuMoney_Gfx[] = INCGFX_U32("graphics/shop/money.png", ".4bpp.smol");
+
+// SwSh assets shared across branches
+const u32 gStatusIconsSwSh_Gfx[]    = INCGFX_U32("graphics/interface/swsh/status_icons.png", ".4bpp.smol");
+const u16 gStatusIconsSwSh_Pal[]    = INCGFX_U16("graphics/interface/swsh/status_icons.png", ".gbapal");
+const u32 gCategoryIconsSwSh_Gfx[]  = INCGFX_U32("graphics/interface/swsh/category_icons.png", ".4bpp.smol");
+const u32 gCursorSwSh_Gfx[]         = INCGFX_U32("graphics/interface/swsh/cursor.png", ".4bpp.smol");
+const u32 gQuantityFrameSwSh_Gfx[]  = INCGFX_U32("graphics/interface/swsh/quantity_frame.png", ".4bpp.smol");
+const u32 gSpinnerArrowSwSh_Gfx[]   = INCGFX_U32("graphics/interface/swsh/spinner_arrow.png", ".4bpp.smol");
+const u16 gMonShadowSwSh_Pal[]      = INCGFX_U16("graphics/interface/swsh/shadow.pal", ".gbapal");
+const u32 gMoveTypesSwSh_Gfx[]      = INCGFX_U32("graphics/types/swsh/move_types.png", ".4bpp.smol");
+const u16 gMoveTypesSwSh_Pal[]      = INCGFX_U16("graphics/types/swsh/move_types.png", ".gbapal");
 
 // Pokeblock
 
