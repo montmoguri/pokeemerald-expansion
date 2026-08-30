@@ -215,6 +215,11 @@ enum {
     CURSOR_ANIM_MAIN,
 };
 
+enum {
+    BOX_TITLE_PAL_MAIN,
+    BOX_TITLE_PAL_HOVER,
+};
+
 // Special box ids for the choose box menu
 #define BOXID_NONE_CHOSEN 200
 #define BOXID_CANCELED    201
@@ -442,9 +447,7 @@ struct PokemonStorageSystemData
     u16 scrollTimer;
     u8 wallpaperLoadBoxId;
     s8 wallpaperLoadDir;
-    u16 boxTitlePal[16];
-    u16 boxTitlePalOffset;
-    u16 boxTitleAltPalOffset;
+    u8 boxTitlePalNums[2];
     u8 boxTitleTextBuffer;
     struct Sprite *boxTitleFrameSprites[4];
     struct Sprite *arrowSprites[2];
@@ -1195,7 +1198,7 @@ static void ChooseBox_PrintInfo(void)
         xOffset = 0;
 
     spriteId = sChooseBoxMenu->hoverSprite - gSprites;
-    FillSpriteRectSpriteWithSprite(spriteId, 0, 0, 32, 32, (u32 *)sChooseBoxGrid_Hover_Gfx);
+    FillSpriteRectSprite(spriteId, 8, 14, 16, 10);
     AddSpriteTextPrinterParameterized6(spriteId, FONT_NORMAL, xOffset, 11, 0, 0, color, 0, numBoxMonsText);
 }
 
@@ -1253,7 +1256,6 @@ static void ChooseBoxGrid_UpdateHover(void)
         SetCursorPosition(CURSOR_AREA_IN_CHOOSE_BOX, sChooseBoxMenu->curBox);
     }
     UpdateBoxTitle(sChooseBoxMenu->curBox);
-    UpdateBoxTitlePalette();
 }
 
 static void ChooseBoxGrid_MoveCursor(s8 dcol, s8 drow)
@@ -1411,7 +1413,6 @@ static void ChooseBox_DestroySprites(void)
             sStorage->itemIcons[id].sprite->subpriority = 9;
     }
     UpdateBoxTitle(StorageGetCurrentBox());
-    UpdateBoxTitlePalette();
 }
 
 static u8 HandleChooseBoxInput(void)
@@ -5544,19 +5545,7 @@ static void SetUpScrollToBox(u8 boxId)
 
 static void UpdateBoxTitle(u8 boxId)
 {
-    u16 colors[2];
-
-    if (sCursorArea == CURSOR_AREA_BOX_TITLE)
-    {
-        colors[0] = BOX_TITLE_SHADOW_HOVER;
-        colors[1] = BOX_TITLE_TEXT_HOVER;
-    }
-    else
-    {
-        colors[0] = BOX_TITLE_SHADOW_MAIN;
-        colors[1] = BOX_TITLE_TEXT_MAIN;
-    }
-    LoadPalette(colors, sStorage->boxTitlePalOffset, PLTT_SIZEOF(2));
+    UpdateBoxTitlePalette();
     RenderBoxTitleCentered(GetBoxNamePtr(boxId));
 }
 
@@ -5731,6 +5720,7 @@ static bool32 WaitForWallpaperGfxLoad(void)
 //------------------------------------------------------------------------------
 
 #define BOX_TITLE_FRAME_SIZE ((8 * TILE_SIZE_4BPP) / sizeof(u32))
+#define BOX_TITLE_FRAME_COLOR 13
 
 static void CreateBoxTitleFrame(u8 boxId)
 {
@@ -5757,32 +5747,12 @@ static void CreateBoxTitleFrame(u8 boxId)
 
 static void InitBoxTitle(u8 boxId)
 {
-    u8 tagIndex;
+    sStorage->boxTitlePalNums[BOX_TITLE_PAL_MAIN] = IndexOfSpritePaletteTag(PALTAG_MISC_1);
+    sStorage->boxTitlePalNums[BOX_TITLE_PAL_HOVER] = IndexOfSpritePaletteTag(PALTAG_MISC_2);
 
-    CpuCopy16(sCursor_Pal, sStorage->boxTitlePal, sizeof(sStorage->boxTitlePal));
-
-    if (sCursorArea == CURSOR_AREA_BOX_TITLE)
-    {
-        sStorage->boxTitlePal[13] = BOX_TITLE_FRAME_HOVER;
-        sStorage->boxTitlePal[14] = BOX_TITLE_SHADOW_HOVER;
-        sStorage->boxTitlePal[15] = BOX_TITLE_TEXT_HOVER;
-    }
-    else
-    {
-        sStorage->boxTitlePal[13] = BOX_TITLE_FRAME_MAIN;
-        sStorage->boxTitlePal[14] = BOX_TITLE_SHADOW_MAIN;
-        sStorage->boxTitlePal[15] = BOX_TITLE_TEXT_MAIN;
-    }
-
-    tagIndex = IndexOfSpritePaletteTag(PALTAG_MISC_1);
-    LoadPalette(sStorage->boxTitlePal, OBJ_PLTT_ID(tagIndex), 32);
     sStorage->wallpaperPalBits = 0x3f0;
-
-    sStorage->boxTitlePalOffset = OBJ_PLTT_ID(tagIndex) + 14;
-    sStorage->wallpaperPalBits |= (1 << 16) << tagIndex;
-
-    sStorage->boxTitleAltPalOffset = OBJ_PLTT_ID(tagIndex) + 14;
-    sStorage->wallpaperPalBits |= (1 << 16) << tagIndex;
+    sStorage->wallpaperPalBits |= (1 << 16) << sStorage->boxTitlePalNums[BOX_TITLE_PAL_MAIN];
+    sStorage->wallpaperPalBits |= (1 << 16) << sStorage->boxTitlePalNums[BOX_TITLE_PAL_HOVER];
 
     CreateBoxTitleFrame(boxId);
     RenderBoxTitleCentered(GetBoxNamePtr(boxId));
@@ -5790,24 +5760,21 @@ static void InitBoxTitle(u8 boxId)
 
 static void UpdateBoxTitlePalette(void)
 {
-    u16 colors[3];
-    if (sCursorArea == CURSOR_AREA_BOX_TITLE)
+    u32 i;
+    u8 palNum = sStorage->boxTitlePalNums[sCursorArea == CURSOR_AREA_BOX_TITLE
+                                        ? BOX_TITLE_PAL_HOVER : BOX_TITLE_PAL_MAIN];
+
+    for (i = 0; i < ARRAY_COUNT(sStorage->boxTitleFrameSprites); i++)
     {
-        colors[0] = BOX_TITLE_FRAME_HOVER;
-        colors[1] = BOX_TITLE_SHADOW_HOVER;
-        colors[2] = BOX_TITLE_TEXT_HOVER;
-    }
-    else
-    {
-        colors[0] = BOX_TITLE_FRAME_MAIN;
-        colors[1] = BOX_TITLE_SHADOW_MAIN;
-        colors[2] = BOX_TITLE_TEXT_MAIN;
+        if (sStorage->boxTitleFrameSprites[i] != NULL)
+            sStorage->boxTitleFrameSprites[i]->oam.paletteNum = palNum;
     }
 
-    LoadPalette(&colors[0], sStorage->boxTitlePalOffset - 14 + 13, PLTT_SIZEOF(1));
-    LoadPalette(&colors[0], sStorage->boxTitleAltPalOffset - 14 + 13, PLTT_SIZEOF(1));
-    LoadPalette(&colors[1], sStorage->boxTitlePalOffset, PLTT_SIZEOF(2));
-    LoadPalette(&colors[1], sStorage->boxTitleAltPalOffset, PLTT_SIZEOF(2));
+    for (i = 0; i < ARRAY_COUNT(sStorage->arrowSprites); i++)
+    {
+        if (sStorage->arrowSprites[i] != NULL)
+            sStorage->arrowSprites[i]->oam.paletteNum = palNum;
+    }
 }
 
 static void RenderBoxTitleCentered(const u8 *boxName)
@@ -5835,7 +5802,7 @@ static void RenderBoxTitleCentered(const u8 *boxName)
     }
 
     spriteId = sStorage->boxTitleFrameSprites[1] - gSprites;
-    FillSpriteRectSpriteWithSprite(spriteId, 0, 0, 64, 16, (u32 *)&sBoxTitleFrame_Gfx[BOX_TITLE_FRAME_SIZE]);
+    FillSpriteRectColor(spriteId, 8, 1, 48, 14, BOX_TITLE_FRAME_COLOR);
     AddSpriteTextPrinterParameterized6(spriteId, FONT_NORMAL, xOffset, 0, 0, 0, color, 0, boxName);
 }
 
@@ -5866,6 +5833,7 @@ static void CreateBoxScrollArrows(void)
             sStorage->arrowSprites[i] = sprite;
         }
     }
+    UpdateBoxTitlePalette();
 }
 
 static void TriggerArrowAnimation(struct Sprite *sprite)

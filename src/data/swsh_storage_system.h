@@ -736,19 +736,6 @@ static const struct SpriteTemplate sSpriteTemplate_BoxTitleArrow =
 };
 
 // ============================================================================
-// Box Title Sprites
-// ============================================================================
-
-static const u16 sUnusedColor = RGB(26, 29, 8);
-
-#define BOX_TITLE_SHADOW_HOVER  RGB(12, 12, 12)
-#define BOX_TITLE_TEXT_HOVER    RGB_WHITE
-#define BOX_TITLE_FRAME_HOVER   RGB_BLACK
-#define BOX_TITLE_SHADOW_MAIN   RGB(26, 26, 25)
-#define BOX_TITLE_TEXT_MAIN     RGB_BLACK
-#define BOX_TITLE_FRAME_MAIN    RGB_WHITE
-
-// ============================================================================
 // Cursor Sprites
 // ============================================================================
 
