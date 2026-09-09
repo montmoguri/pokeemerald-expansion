@@ -83,7 +83,7 @@ void DisplayPartyMenuStdMessage(u32 stringId);
 bool8 FieldCallback_PrepareFadeInFromMenu(void);
 bool8 FieldCallback_PrepareFadeInForTeleport(void);
 void CB2_ReturnToPartyMenuFromFlyMap(void);
-#if SWSH_PARTY_MENU_PC_ACCESS
+#if SWSH_PARTY_PC_ACCESS
 void CB2_ReopenPartyMenuFromPC(void);
 #endif
 void LoadHeldItemIcons(void);
