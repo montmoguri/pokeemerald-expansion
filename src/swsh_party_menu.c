@@ -315,12 +315,14 @@ struct PartyMenuInternal
     u8 fusionFirstMonSlot;                                      // Fusion item: selected first mon slot (PARTY_SIZE = none)
     enum Species fusionFirstMonSpecies;                         // Fusion item: selected first mon species
 
+#if SWSH_PARTY_STATUS_ICONS_FADE
     // Status icon fade
     u16 statusFadeTimer;                                        // Frames into the phase
     u8 statusFadePhase;
     u8 statusFadeLevel;
     u8 statusFadeAppliedLevel;
     bool8 statusFadePinned;                                     // Held slot pins the icons opaque
+#endif
 };
 
 struct PartyMenuBox
@@ -351,7 +353,6 @@ static EWRAM_DATA u8 *sPartyBg3TilemapBuffer = NULL;
 EWRAM_DATA bool8 gPartyMenuUseExitCallback = 0;
 EWRAM_DATA u8 gSelectedMonPartyId = 0;
 EWRAM_DATA MainCallback gPostMenuFieldCallback = NULL;
-static EWRAM_DATA u16 *sSlot1TilemapBuffer = 0; // held party slot's art while lifted, for the lift-and-drag switch
 static EWRAM_DATA u16 *sAllSlotsTilemapBuffers[PARTY_SIZE]; // party-view slide animation (multi-battle)
 static EWRAM_DATA u16 *sMoveAbilityWindowBuffer;            // buffer for move/ability slide out (multi-battle)
 EWRAM_DATA u8 gSelectedOrderFromParty[MAX_FRONTIER_PARTY_SIZE] = {0};
@@ -418,12 +419,12 @@ static void DisplayPartyPokemonDataForWirelessMinigame(u8);
 static void DisplayPartyPokemonDataForBattlePyramidHeldItem(u8);
 static bool8 DisplayPartyPokemonDataForItemOrTutor(u8);
 static void DisplayPartyPokemonData(u8);
-static void DisplayPartyPokemonNickname(struct Pokemon *, struct PartyMenuBox *, u8);
+static void DisplayPartyPokemonNickname(struct Pokemon *, struct PartyMenuBox *);
 static void DisplayPartyPokemonLevelCheck(struct Pokemon *, struct PartyMenuBox *);
-static void DisplayPartyPokemonGenderNidoranCheck(struct Pokemon *, struct PartyMenuBox *, u8);
+static void DisplayPartyPokemonGenderNidoranCheck(struct Pokemon *, struct PartyMenuBox *);
 static void DisplayPartyPokemonHPCheck(struct Pokemon *, struct PartyMenuBox *, bool8);
 static void DisplayPartyPokemonHPBarCheck(struct Pokemon *, struct PartyMenuBox *);
-static void DisplayPartyPokemonDescriptionText(u8, struct PartyMenuBox *, u8);
+static void DisplayPartyPokemonDescriptionText(u8, struct PartyMenuBox *, bool8);
 static bool8 IsMonAllowedInMinigame(u8);
 static void DisplayPartyPokemonDataToTeachMove(u8, enum Move);
 static enum CanMoveBeLearned CanTeachMove(struct Pokemon *, enum Move);
@@ -647,7 +648,7 @@ static void CB2_ChooseMonForMoveRelearner(void);
 static void Task_BattlePyramidChooseMonHeldItems(u8);
 static void ShiftMoveSlot(struct BoxPokemon *, u8, u8);
 static void BlitBitmapToPartyWindow(u8, const u8 *, u8, u8, u8, u8, u8);
-static void BlitBitmapToPartyWindow_SwSh(u8, u8, u8, u8, u8, bool8);
+static void BlitBitmapToPartyWindow_SwSh(u8, u8, u8, u8, u8);
 static void CursorCb_Summary(u8);
 static void CursorCb_Switch(u8);
 static void CursorCb_Cancel1(u8);
@@ -779,11 +780,13 @@ static void InitPartyMenu(u8 menuType, u8 layout, u8 partyAction, bool8 keepCurs
         sPartyMenuInternal->fusionFirstMonSlot = PARTY_SIZE;
         sPartyMenuInternal->fusionFirstMonSpecies = SPECIES_NONE;
 
+#if SWSH_PARTY_STATUS_ICONS_FADE
         sPartyMenuInternal->statusFadePhase = STATUS_FADE_SHOW;
         sPartyMenuInternal->statusFadeTimer = 0;
         sPartyMenuInternal->statusFadeLevel = 0;
         sPartyMenuInternal->statusFadeAppliedLevel = 0;
         sPartyMenuInternal->statusFadePinned = FALSE;
+#endif
 
         sPartyMenuInternal->inItemMode = FALSE;
         for (i = 0; i < PARTY_ITEM_PAL_COUNT; i++)
@@ -1090,6 +1093,7 @@ static bool8 ReloadPartyMenu(void)
         gMain.state++;
         break;
     case 5:
+        SetHeldItemIconPalSwap(FALSE);
         FreeAllSpritePalettes();
         gMain.state++;
         break;
@@ -1453,18 +1457,15 @@ static void FreePartyPointers(void)
 {
     DestroyMonSprite();
     DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
-    DestroyMoveTypeSprites();
     // Clear alpha blending, used by mon shadow or status icon fade in/out
     SetGpuReg(REG_OFFSET_BLDCNT, 0);
     SetGpuReg(REG_OFFSET_BLDALPHA, 0);
 
     if (sPartyMenuInternal)
     {
+        DestroyMoveTypeSprites();
         SetHeldItemIconPalSwap(FALSE);
-        ReleaseComfyAnim(sPartyMenuInternal->comfyAnimX);
-        ReleaseComfyAnim(sPartyMenuInternal->comfyAnimY);
-        ReleaseComfyAnim(sPartyMenuInternal->comfyAnimBob);
-        ReleaseComfyAnim(sPartyMenuInternal->comfyAnimHeld);
+        ReleaseComfyAnims();
         Free(sPartyMenuInternal);
         sPartyMenuInternal = NULL;
     }
@@ -1568,15 +1569,15 @@ static void DisplayPartyPokemonData(u8 slot)
     struct Pokemon *mon = GetPartyMonFromPartyMenuId(slot);
     if (GetMonData(mon, MON_DATA_IS_EGG))
     {
-        BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0, TRUE);
-        DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot], 0);
+        BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0);
+        DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot]);
     }
     else
     {
-        BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0, FALSE);
-        DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot], 0);
+        BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0);
+        DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot]);
         DisplayPartyPokemonLevelCheck(mon, &sPartyMenuBoxes[slot]);
-        DisplayPartyPokemonGenderNidoranCheck(mon, &sPartyMenuBoxes[slot], 0);
+        DisplayPartyPokemonGenderNidoranCheck(mon, &sPartyMenuBoxes[slot]);
         DisplayPartyPokemonHPCheck(mon, &sPartyMenuBoxes[slot], FALSE);
         DisplayPartyPokemonHPBarCheck(mon, &sPartyMenuBoxes[slot]);
     }
@@ -1586,14 +1587,14 @@ static void DisplayPartyPokemonDescriptionData(u8 slot, u8 stringID)
 {
     struct Pokemon *mon = GetPartyMonFromPartyMenuId(slot);
 
-    BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0, TRUE);
-    DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot], 0);
+    BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0);
+    DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot]);
     if (!GetMonData(mon, MON_DATA_IS_EGG))
     {
         DisplayPartyPokemonLevelCheck(mon, &sPartyMenuBoxes[slot]);
-        DisplayPartyPokemonGenderNidoranCheck(mon, &sPartyMenuBoxes[slot], 0);
+        DisplayPartyPokemonGenderNidoranCheck(mon, &sPartyMenuBoxes[slot]);
     }
-    DisplayPartyPokemonDescriptionText(stringID, &sPartyMenuBoxes[slot], 0);
+    DisplayPartyPokemonDescriptionText(stringID, &sPartyMenuBoxes[slot], FALSE);
 }
 
 
@@ -1834,7 +1835,7 @@ static void DisplayPartyPokemonDataForMultiBattle(u8 slot)
     }
     else
     {
-        BlitBitmapToPartyWindow_SwSh(menuBox->windowId, 0, 0, 0, 0, FALSE);
+        BlitBitmapToPartyWindow_SwSh(menuBox->windowId, 0, 0, 0, 0);
         StringCopy(gStringVar1, gMultiPartnerParty[actualSlot].nickname);
         StringGet_Nickname(gStringVar1);
         ConvertInternationalPlayerName(gStringVar1);
@@ -2779,7 +2780,6 @@ static void Task_PartyMenuModifyHP(u8 taskId)
     tHPToAdd--;
     SetMonData(&gParties[B_TRAINER_PLAYER][tPartyId], MON_DATA_HP, &tHP);
     DisplayPartyPokemonHPCheck(&gParties[B_TRAINER_PLAYER][tPartyId], &sPartyMenuBoxes[tPartyId], TRUE);
-    DisplayPartyPokemonHPBarCheck(&gParties[B_TRAINER_PLAYER][tPartyId], &sPartyMenuBoxes[tPartyId]);
     if (tHPToAdd == 0 || tHP == 0 || tHP == tMaxHP)
     {
         // If HP was recovered, buffer the amount recovered
@@ -3250,7 +3250,7 @@ static void BlitBitmapToPartyWindow(u8 windowId, const u8 *b, u8 c, u8 x, u8 y, 
     }
 }
 
-static void BlitBitmapToPartyWindow_SwSh(u8 windowId, u8 x, u8 y, u8 width, u8 height, bool8 hideHP)
+static void BlitBitmapToPartyWindow_SwSh(u8 windowId, u8 x, u8 y, u8 width, u8 height)
 {
     if (width == 0 && height == 0)
     {
@@ -3260,15 +3260,14 @@ static void BlitBitmapToPartyWindow_SwSh(u8 windowId, u8 x, u8 y, u8 width, u8 h
     BlitBitmapToPartyWindow(windowId, sSlotTilemap_Main_SwSh, 14, x, y, width, height);
 }
 
-static void PartySlotClearRect(u8 windowId, const struct PartyBoxRect *rect, bool8 hideHP)
+static void PartySlotClearRect(u8 windowId, const struct PartyBoxRect *rect)
 {
     if (rect->width == 0 || rect->height == 0)
         return;
 
     BlitBitmapToPartyWindow_SwSh(windowId, rect->x >> 3, rect->y >> 3,
                                  ((rect->x % 8) + rect->width + 7) / 8,
-                                 ((rect->y % 8) + rect->height + 7) / 8,
-                                 hideHP);
+                                 ((rect->y % 8) + rect->height + 7) / 8);
 }
 
 static void DrawEmptySlot(u8 windowId)
@@ -3342,14 +3341,12 @@ static void DisplayPartyPokemonMoves(u8 windowId, int m, enum Move move, u8 pp, 
     PrintMovePPToWindow(windowId, FONT_SMALL, move, pp, ppBonuses, m, sPartyMoveBoxLayout.pp.x, sPartyMoveBoxLayout.pp.y, sPartyMoveBoxLayout.pp.width);
 }
 
-static void DisplayPartyPokemonNickname(struct Pokemon *mon, struct PartyMenuBox *menuBox, u8 c)
+static void DisplayPartyPokemonNickname(struct Pokemon *mon, struct PartyMenuBox *menuBox)
 {
     u8 nickname[POKEMON_NAME_LENGTH + 1];
 
     if (GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE)
     {
-        if (c == 1)
-            PartySlotClearRect(menuBox->windowId, &sPartySlotLayout.nickname, FALSE);
         GetMonNickname(mon, nickname);
         DisplayPartyPokemonBarDetailToFit(menuBox->windowId, nickname, 0, &sPartySlotLayout.nickname, 50);
     }
@@ -3369,12 +3366,10 @@ static void DisplayPartyPokemonLevel(u8 level, struct PartyMenuBox *menuBox)
     DisplayPartyPokemonBarDetail(menuBox->windowId, gStringVar1, 0, &sPartySlotLayout.level);
 }
 
-static void DisplayPartyPokemonGenderNidoranCheck(struct Pokemon *mon, struct PartyMenuBox *menuBox, u8 c)
+static void DisplayPartyPokemonGenderNidoranCheck(struct Pokemon *mon, struct PartyMenuBox *menuBox)
 {
     u8 nickname[POKEMON_NAME_LENGTH + 1];
 
-    if (c == 1)
-        PartySlotClearRect(menuBox->windowId, &sPartySlotLayout.gender, FALSE);
     GetMonNickname(mon, nickname);
     DisplayPartyPokemonGender(GetMonGender(mon), GetMonData(mon, MON_DATA_SPECIES), nickname, menuBox, menuBox->windowId == gPartyMenu.slotId);
 }
@@ -3424,47 +3419,58 @@ static void RefreshPartySlotGenderPalette(struct PartyMenuBox *menuBox, bool8 fo
     LoadGenderTextPalette(gender, menuBox, focused);
 }
 
-static void ExpandBoundingRect(int *left, int *top, int *right, int *bottom, const struct PartyBoxRect *rect)
-{
-    int l = rect->x;
-    int t = rect->y;
-    int r = l + rect->width;
-    int b = t + rect->height;
+#define PARTY_FIELD_HP      (1 << 0)
+#define PARTY_FIELD_LEVEL   (1 << 1)
+#define PARTY_FIELD_GENDER  (1 << 2)
 
-    if (l < *left) *left = l;
-    if (t < *top) *top = t;
-    if (r > *right) *right = r;
-    if (b > *bottom) *bottom = b;
-}
+static const struct PartyBoxRect *const sPartyFieldRects[] =
+{
+    &sPartySlotLayout.hp,
+    &sPartySlotLayout.level,
+    &sPartySlotLayout.gender,
+};
 
 // Mont note: because of how cramped together nickname and HP are in the party menu boxes,
 // we clear and redraw the whole HP area together to avoid visual glitches
-static void RedrawPartyMonInfo(struct Pokemon *mon, struct PartyMenuBox *menuBox, bool8 redrawHp, bool8 redrawLevel, bool8 redrawGender)
+static void RedrawPartyMonInfo(struct Pokemon *mon, struct PartyMenuBox *menuBox, u32 fields)
 {
-    int left    = sPartySlotLayout.hp.x;
-    int top     = sPartySlotLayout.hp.y;
-    int right   = left + sPartySlotLayout.hp.width;
-    int bottom  = top + sPartySlotLayout.hp.height;
+    struct PartyBoxRect bounds = {0};
+    u32 i;
 
-    if (redrawLevel)
-        ExpandBoundingRect(&left, &top, &right, &bottom, &sPartySlotLayout.level);
-    if (redrawGender)
-        ExpandBoundingRect(&left, &top, &right, &bottom, &sPartySlotLayout.gender);
-
-    if (left < right && top < bottom)
+    for (i = 0; i < ARRAY_COUNT(sPartyFieldRects); i++)
     {
-        struct PartyBoxRect bounds = { left, top, right - left, bottom - top };
-        PartySlotClearRect(menuBox->windowId, &bounds, FALSE);
+        if (fields & (1 << i))
+        {
+            const struct PartyBoxRect *rect = sPartyFieldRects[i];
+
+            if (bounds.width == 0)
+            {
+                bounds = *rect;
+            }
+            else
+            {
+                int right  = max(bounds.x + bounds.width,  rect->x + rect->width);
+                int bottom = max(bounds.y + bounds.height, rect->y + rect->height);
+
+                bounds.x = min(bounds.x, rect->x);
+                bounds.y = min(bounds.y, rect->y);
+                bounds.width  = right - bounds.x;
+                bounds.height = bottom - bounds.y;
+            }
+        }
     }
 
-    if (redrawHp)
-        DisplayPartyPokemonHP(GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP), menuBox);
-    if (redrawLevel)
-        DisplayPartyPokemonLevelCheck(mon, menuBox);
-    if (redrawGender)
-        DisplayPartyPokemonGenderNidoranCheck(mon, menuBox, 0);
+    PartySlotClearRect(menuBox->windowId, &bounds);
 
-    DisplayPartyPokemonNickname(mon, menuBox, 0);
+    if (fields & PARTY_FIELD_HP)
+        DisplayPartyPokemonHP(GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP), menuBox);
+    if (fields & PARTY_FIELD_LEVEL)
+        DisplayPartyPokemonLevelCheck(mon, menuBox);
+    if (fields & PARTY_FIELD_GENDER)
+        DisplayPartyPokemonGenderNidoranCheck(mon, menuBox);
+
+    DisplayPartyPokemonNickname(mon, menuBox);
+    DisplayPartyPokemonHPBarCheck(mon, menuBox);
 }
 
 static void DisplayPartyPokemonHPCheck(struct Pokemon *mon, struct PartyMenuBox *menuBox, bool8 clearFirst)
@@ -3472,8 +3478,9 @@ static void DisplayPartyPokemonHPCheck(struct Pokemon *mon, struct PartyMenuBox 
     if (GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE)
     {
         if (clearFirst)
-            RedrawPartyMonInfo(mon, menuBox, TRUE, FALSE, FALSE);
-        DisplayPartyPokemonHP(GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP), menuBox);
+            RedrawPartyMonInfo(mon, menuBox, PARTY_FIELD_HP);
+        else
+            DisplayPartyPokemonHP(GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP), menuBox);
     }
 }
 
@@ -3536,26 +3543,23 @@ static void RefreshPartySlotHPBarPalette(struct PartyMenuBox *menuBox)
     LoadHPBarPalette(menuBox, GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP));
 }
 
-static void DisplayPartyPokemonDescriptionText(u8 stringID, struct PartyMenuBox *menuBox, u8 c)
+static void DisplayPartyPokemonDescriptionText(u8 stringID, struct PartyMenuBox *menuBox, bool8 clearFirst)
 {
-    if (c)
+    if (clearFirst)
     {
-        PartySlotClearRect(menuBox->windowId, &sPartySlotLayout.descText, TRUE);
+        PartySlotClearRect(menuBox->windowId, &sPartySlotLayout.descText);
 
         // Redraw nickname, gender, and level after clearing area for description area (for SWSH layout where their windows overlap)
         u8 slot = menuBox->windowId;
         struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][slot];
         if (GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE)
         {
-            DisplayPartyPokemonNickname(mon, menuBox, 0);
-            DisplayPartyPokemonGenderNidoranCheck(mon, menuBox, 0);
+            DisplayPartyPokemonNickname(mon, menuBox);
+            DisplayPartyPokemonGenderNidoranCheck(mon, menuBox);
             DisplayPartyPokemonLevelCheck(mon, menuBox);
         }
     }
-    if (c != 2)
-    {
-        AddTextPrinterParameterized3(menuBox->windowId, FONT_SMALL, sPartySlotLayout.descText.x, sPartySlotLayout.descText.y, sFontColorTable[0], 0, sDescriptionStringTable[stringID]);
-    }
+    AddTextPrinterParameterized3(menuBox->windowId, FONT_SMALL, sPartySlotLayout.descText.x, sPartySlotLayout.descText.y, sFontColorTable[0], 0, sDescriptionStringTable[stringID]);
 }
 
 static void PartyMenuRemoveWindow(u8 *ptr)
@@ -3942,6 +3946,7 @@ static void SetPartySlotSpriteLifted(struct PartyMenuBox *menuBox, bool8 lifted)
 static void CursorCb_Switch(u8 taskId)
 {
     u8 windowId, left, top, width, height;
+    u16 *slotTilemap;
 
     // Reset follower steps when the party leader is changed
     if (gPartyMenu.slotId == 0)
@@ -3961,10 +3966,11 @@ static void CursorCb_Switch(u8 taskId)
     width = GetWindowAttribute(windowId, WINDOW_WIDTH);
     height = GetWindowAttribute(windowId, WINDOW_HEIGHT);
 
-    sSlot1TilemapBuffer = Alloc(width * (height << 1));
-    CopyToBufferFromBgTilemap(BG_PARTY_SLOTS, sSlot1TilemapBuffer, left, top, width, height);
+    slotTilemap = Alloc(width * (height << 1));
+    CopyToBufferFromBgTilemap(BG_PARTY_SLOTS, slotTilemap, left, top, width, height);
     ClearWindowTilemap(windowId);
-    CopyRectToBgTilemapBufferRect(BG_PARTY_HELD, sSlot1TilemapBuffer, 0, 0, width, height, left + 1, top - 1, width, height, 17, 0, 0);
+    CopyRectToBgTilemapBufferRect(BG_PARTY_HELD, slotTilemap, 0, 0, width, height, left + 1, top - 1, width, height, 17, 0, 0);
+    Free(slotTilemap);
     ScheduleBgCopyTilemapToVram(BG_PARTY_HELD);
     ScheduleBgCopyTilemapToVram(BG_PARTY_SLOTS);
     SetPartySlotSpriteLifted(&sPartyMenuBoxes[gPartyMenu.slotId], TRUE);
@@ -4090,7 +4096,6 @@ static void FinishPartySlotDrop(u8 taskId, bool8 confirm)
 
     FillBgTilemapBufferRect_Palette0(BG_PARTY_HELD, 0, left + 1, top - 1, width, height);
     CopyBgTilemapBufferToVram(BG_PARTY_HELD);
-    Free(sSlot1TilemapBuffer);
 
     if (confirm && gPartyMenu.slotId2 != gPartyMenu.slotId)
     {
@@ -4369,7 +4374,7 @@ static void FinishTwoMonAction(u8 taskId)
 
     if (action == PARTY_ACTION_FUSION)
     {
-        sPartyMenuInternal->fusionFirstMonSlot = 0;
+        sPartyMenuInternal->fusionFirstMonSlot = PARTY_SIZE;
         sPartyMenuInternal->fusionFirstMonSpecies = SPECIES_NONE;
     }
 
@@ -4662,9 +4667,9 @@ static void Task_UpdateHeldItemSprite(u8 taskId)
         if (gPartyMenu.menuType == PARTY_MENU_TYPE_STORE_PYRAMID_HELD_ITEMS)
         {
             if (GetMonData(mon, MON_DATA_HELD_ITEM) != ITEM_NONE)
-                DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_HAVE, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
+                DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_HAVE, &sPartyMenuBoxes[gPartyMenu.slotId], TRUE);
             else
-                DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_DONT_HAVE, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
+                DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_DONT_HAVE, &sPartyMenuBoxes[gPartyMenu.slotId], TRUE);
         }
 
         // After completing give item operation, reset cursor and icons
@@ -4773,7 +4778,7 @@ static void Task_TossHeldItem(u8 taskId)
 
         SetMonData(mon, MON_DATA_HELD_ITEM, &item);
         UpdatePartyMonHeldItemSprite(mon, &sPartyMenuBoxes[gPartyMenu.slotId]);
-        DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_DONT_HAVE, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
+        DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_DONT_HAVE, &sPartyMenuBoxes[gPartyMenu.slotId], TRUE);
         gTasks[taskId].func = Task_ReturnToChooseMonAfterText;
     }
 }
@@ -4947,7 +4952,7 @@ static void CursorCb_Enter(u8 taskId)
         {
             PlaySE(SE_SELECT);
             gSelectedOrderFromParty[i] = gPartyMenu.slotId + 1;
-            DisplayPartyPokemonDescriptionText(i + PARTYBOX_DESC_FIRST, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
+            DisplayPartyPokemonDescriptionText(i + PARTYBOX_DESC_FIRST, &sPartyMenuBoxes[gPartyMenu.slotId], TRUE);
             gTasks[taskId].func = Task_HandleChooseMonInput;
             return;
         }
@@ -4977,11 +4982,11 @@ static void CursorCb_NoEntry(u8 taskId)
             break;
         }
     }
-    DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_ABLE_3, &sPartyMenuBoxes[gPartyMenu.slotId], 1);
+    DisplayPartyPokemonDescriptionText(PARTYBOX_DESC_ABLE_3, &sPartyMenuBoxes[gPartyMenu.slotId], TRUE);
     for (i = 0; i < (maxBattlers - 1); i++)
     {
         if (gSelectedOrderFromParty[i] != 0)
-            DisplayPartyPokemonDescriptionText(i + PARTYBOX_DESC_FIRST, &sPartyMenuBoxes[gSelectedOrderFromParty[i] - 1], 1);
+            DisplayPartyPokemonDescriptionText(i + PARTYBOX_DESC_FIRST, &sPartyMenuBoxes[gSelectedOrderFromParty[i] - 1], TRUE);
     }
     gTasks[taskId].func = Task_HandleChooseMonInput;
 }
@@ -5902,10 +5907,12 @@ static void SpriteCB_ItemSwap(struct Sprite *sprite)
 
     if (sprite->data[1] == INVALID_COMFY_ANIM)
     {
+        u8 destSlot = sprite->data[0];
+
         FreeSpriteTilesByTag(sprite->data[6]);
         FreeSpritePaletteByTag(sprite->data[6]);
         DestroySprite(sprite);
-        UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][sprite->data[0]], &sPartyMenuBoxes[sprite->data[0]]);
+        UpdatePartyMonHeldItemSprite(&gParties[B_TRAINER_PLAYER][destSlot], &sPartyMenuBoxes[destSlot]);
         return;
     }
 
@@ -6009,6 +6016,7 @@ static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
     if (sPartyMenuBoxes[fromSlot].itemSpriteId != MAX_SPRITES)
     {
         u16 tag = TAG_HELD_ITEM_ICON_BASE + fromSlot;
+        FreeSpriteOamMatrix(&gSprites[sPartyMenuBoxes[fromSlot].itemSpriteId]);
         DestroySprite(&gSprites[sPartyMenuBoxes[fromSlot].itemSpriteId]);
         FreeSpriteTilesByTag(tag);
         sPartyMenuBoxes[fromSlot].itemSpriteId = MAX_SPRITES;
@@ -6016,6 +6024,7 @@ static void CreateItemMoveSprite(u8 fromSlot, u8 toSlot, enum Item item)
     if (sPartyMenuBoxes[toSlot].itemSpriteId != MAX_SPRITES)
     {
         u16 tag = TAG_HELD_ITEM_ICON_BASE + toSlot;
+        FreeSpriteOamMatrix(&gSprites[sPartyMenuBoxes[toSlot].itemSpriteId]);
         DestroySprite(&gSprites[sPartyMenuBoxes[toSlot].itemSpriteId]);
         FreeSpriteTilesByTag(tag);
         sPartyMenuBoxes[toSlot].itemSpriteId = MAX_SPRITES;
@@ -6447,12 +6456,17 @@ static u8 CreateMonSprite(struct Pokemon *mon, bool32 isShadow)
         if (isShadow)
         {
             FreeSpritePaletteByTag(TAG_MON_SHADOW);
-            shadowPalette = LoadSpritePalette(&sSpritePal_PartyMonShadow);
-            gSprites[spriteId].oam.paletteNum = shadowPalette;
             if (SWSH_PARTY_STATUS_ICONS_FADE)
+            {
+                shadowPalette = AllocSpritePalette(TAG_MON_SHADOW);
                 FillPalette(MON_SHADOW_COLOR, OBJ_PLTT_ID(shadowPalette), PLTT_SIZE_4BPP);
+            }
             else
+            {
+                shadowPalette = LoadSpritePalette(&sSpritePal_PartyMonShadow);
                 gSprites[spriteId].oam.objMode = ST_OAM_OBJ_BLEND;
+            }
+            gSprites[spriteId].oam.paletteNum = shadowPalette;
             gSprites[spriteId].x += 5;
             gSprites[spriteId].y += 2;
         }
@@ -6557,6 +6571,8 @@ static void UpdatePartyMonAilmentGfx(u32 statusIcon, struct PartyMenuBox *menuBo
 
 static void UpdateStatusIconFade(void)
 {
+    sPartyMenuInternal->statusFadeTimer++;
+
     if (sPartyMenuInternal->statusFadePinned && sPartyMenuInternal->statusFadePhase != STATUS_FADE_IN)
     {
         if (sPartyMenuInternal->statusFadeLevel == 0)
@@ -6572,7 +6588,6 @@ static void UpdateStatusIconFade(void)
         }
     }
 
-    sPartyMenuInternal->statusFadeTimer++;
     switch (sPartyMenuInternal->statusFadePhase)
     {
     case STATUS_FADE_SHOW:
@@ -7860,8 +7875,7 @@ void ItemUseCB_RareCandy(u8 taskId, TaskFunc task)
 static void UpdateMonDisplayInfoAfterRareCandy(u8 slot, struct Pokemon *mon)
 {
     SetPartyMonAilmentGfx(mon, &sPartyMenuBoxes[slot]);
-    RedrawPartyMonInfo(mon, &sPartyMenuBoxes[slot], TRUE, TRUE, TRUE);
-    DisplayPartyPokemonHPBarCheck(mon, &sPartyMenuBoxes[slot]);
+    RedrawPartyMonInfo(mon, &sPartyMenuBoxes[slot], PARTY_FIELD_HP | PARTY_FIELD_LEVEL | PARTY_FIELD_GENDER);
     UpdatePartyMonHPBar(sPartyMenuBoxes[slot].monSpriteId, mon);
     AnimatePartySlot(slot, 1);
     ScheduleBgCopyTilemapToVram(1);
@@ -8751,7 +8765,7 @@ void ItemUseCB_Fusion(u8 taskId, TaskFunc taskFunc)
                 task->tExtraMoveHandling = itemFusion[i].extraMoveHandling;
                 task->forgetMove = itemFusion[i].fusionMove;
 
-                sPartyMenuInternal->fusionFirstMonSlot = 0;
+                sPartyMenuInternal->fusionFirstMonSlot = PARTY_SIZE;
                 sPartyMenuInternal->fusionFirstMonSpecies = SPECIES_NONE;
                 TryItemUseFusionChange(taskId, taskFunc);
                 return;
@@ -8817,7 +8831,7 @@ void ItemUseCB_Fusion(u8 taskId, TaskFunc taskFunc)
                 task->moveToLearn = itemFusion[i].fusionMove;
                 task->tExtraMoveHandling = itemFusion[i].extraMoveHandling;
 
-                sPartyMenuInternal->fusionFirstMonSlot = 0;
+                sPartyMenuInternal->fusionFirstMonSlot = PARTY_SIZE;
                 sPartyMenuInternal->fusionFirstMonSpecies = SPECIES_NONE;
                 // Start Fusion
                 TryItemUseFusionChange(taskId, taskFunc);
@@ -8832,7 +8846,7 @@ void ItemUseCB_Fusion(u8 taskId, TaskFunc taskFunc)
     ScheduleBgCopyTilemapToVram(0);
     if (task->fusionType != FUSE_MON)
     {
-        sPartyMenuInternal->fusionFirstMonSlot = 0;
+        sPartyMenuInternal->fusionFirstMonSlot = PARTY_SIZE;
         sPartyMenuInternal->fusionFirstMonSpecies = SPECIES_NONE;
     }
     task->func = Task_ReturnToChooseMonAfterText;
