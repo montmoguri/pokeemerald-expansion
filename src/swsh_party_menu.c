@@ -325,6 +325,19 @@ struct PartyMenuInternal
 #endif
 };
 
+struct PartySlotInfo
+{
+    u8 nickname[POKEMON_NAME_LENGTH + 1];
+    const u8 *genderName;
+    enum Species species;
+    u16 hp;
+    u16 maxHp;
+    u8 level;
+    u8 gender;
+    bool8 isEgg;
+    bool8 focused;
+};
+
 struct PartyMenuBox
 {
     const u8 *spriteCoords;
@@ -422,7 +435,7 @@ static void DisplayPartyPokemonData(u8);
 static void DisplayPartyPokemonNickname(struct Pokemon *, struct PartyMenuBox *);
 static void DisplayPartyPokemonLevelCheck(struct Pokemon *, struct PartyMenuBox *);
 static void DisplayPartyPokemonGenderNidoranCheck(struct Pokemon *, struct PartyMenuBox *);
-static void DisplayPartyPokemonHPCheck(struct Pokemon *, struct PartyMenuBox *, bool8);
+static void DisplayPartyPokemonHPCheck(struct Pokemon *, struct PartyMenuBox *);
 static void DisplayPartyPokemonHPBarCheck(struct Pokemon *, struct PartyMenuBox *);
 static void DisplayPartyPokemonDescriptionText(u8, struct PartyMenuBox *, bool8);
 static bool8 IsMonAllowedInMinigame(u8);
@@ -431,7 +444,7 @@ static enum CanMoveBeLearned CanTeachMove(struct Pokemon *, enum Move);
 static void DisplayPartyPokemonBarDetail(u8, const u8 *, u8, const struct PartyBoxRect *);
 static void DisplayPartyPokemonBarDetailToFit(u8 windowId, const u8 *str, u8 color, const struct PartyBoxRect *rect, u32 width);
 static void DisplayPartyPokemonLevel(u8, struct PartyMenuBox *);
-static void DisplayPartyPokemonGender(u8, enum Species, u8 *, struct PartyMenuBox *, bool8);
+static void DisplayPartyPokemonGender(u8, enum Species, const u8 *, struct PartyMenuBox *, bool8);
 static void RefreshPartySlotGenderPalette(struct PartyMenuBox *, bool8);
 static void RefreshPartySlotHPBarPalette(struct PartyMenuBox *);
 static void DisplayPartyPokemonHP(u16 hp, u16 maxHp, struct PartyMenuBox *menuBox);
@@ -1564,23 +1577,58 @@ static void RenderPartyMenuBox(u8 slot)
     }
 }
 
+static void GetPartySlotInfoFromMon(struct Pokemon *mon, struct PartyMenuBox *menuBox, struct PartySlotInfo *info)
+{
+    GetMonNickname(mon, info->nickname);
+    info->genderName = info->nickname;
+    info->species    = GetMonData(mon, MON_DATA_SPECIES);
+    info->hp         = GetMonData(mon, MON_DATA_HP);
+    info->maxHp      = GetMonData(mon, MON_DATA_MAX_HP);
+    info->level      = GetMonData(mon, MON_DATA_LEVEL);
+    info->gender     = GetMonGender(mon);
+    info->isEgg      = GetMonData(mon, MON_DATA_IS_EGG);
+    info->focused    = (menuBox->windowId == gPartyMenu.slotId);
+}
+
+static void GetPartySlotInfoFromMultiPartner(u8 actualSlot, struct PartySlotInfo *info)
+{
+    struct MultiPartnerMenuPokemon *partner = &gMultiPartnerParty[actualSlot];
+
+    StringCopy(info->nickname, partner->nickname);
+    StringGet_Nickname(info->nickname);
+    ConvertInternationalPlayerName(info->nickname);
+    info->genderName = partner->nickname;
+    info->species    = partner->species;
+    info->hp         = partner->hp;
+    info->maxHp      = partner->maxhp;
+    info->level      = partner->level;
+    info->gender     = partner->gender;
+    info->isEgg      = FALSE;
+    info->focused    = FALSE;
+}
+
+static void DrawPartySlot(const struct PartySlotInfo *info, struct PartyMenuBox *menuBox)
+{
+    BlitBitmapToPartyWindow_SwSh(menuBox->windowId, 0, 0, 0, 0);
+    if (info->species == SPECIES_NONE)
+        return;
+
+    DisplayPartyPokemonBarDetailToFit(menuBox->windowId, info->nickname, 0, &sPartySlotLayout.nickname, 50);
+    if (info->isEgg)
+        return;
+
+    DisplayPartyPokemonLevel(info->level, menuBox);
+    DisplayPartyPokemonGender(info->gender, info->species, info->genderName, menuBox, info->focused);
+    DisplayPartyPokemonHP(info->hp, info->maxHp, menuBox);
+    DisplayPartyPokemonHPBar(info->hp, info->maxHp, menuBox);
+}
+
 static void DisplayPartyPokemonData(u8 slot)
 {
-    struct Pokemon *mon = GetPartyMonFromPartyMenuId(slot);
-    if (GetMonData(mon, MON_DATA_IS_EGG))
-    {
-        BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0);
-        DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot]);
-    }
-    else
-    {
-        BlitBitmapToPartyWindow_SwSh(sPartyMenuBoxes[slot].windowId, 0, 0, 0, 0);
-        DisplayPartyPokemonNickname(mon, &sPartyMenuBoxes[slot]);
-        DisplayPartyPokemonLevelCheck(mon, &sPartyMenuBoxes[slot]);
-        DisplayPartyPokemonGenderNidoranCheck(mon, &sPartyMenuBoxes[slot]);
-        DisplayPartyPokemonHPCheck(mon, &sPartyMenuBoxes[slot], FALSE);
-        DisplayPartyPokemonHPBarCheck(mon, &sPartyMenuBoxes[slot]);
-    }
+    struct PartySlotInfo info = {0};
+
+    GetPartySlotInfoFromMon(GetPartyMonFromPartyMenuId(slot), &sPartyMenuBoxes[slot], &info);
+    DrawPartySlot(&info, &sPartyMenuBoxes[slot]);
 }
 
 static void DisplayPartyPokemonDescriptionData(u8 slot, u8 stringID)
@@ -1835,15 +1883,10 @@ static void DisplayPartyPokemonDataForMultiBattle(u8 slot)
     }
     else
     {
-        BlitBitmapToPartyWindow_SwSh(menuBox->windowId, 0, 0, 0, 0);
-        StringCopy(gStringVar1, gMultiPartnerParty[actualSlot].nickname);
-        StringGet_Nickname(gStringVar1);
-        ConvertInternationalPlayerName(gStringVar1);
-        DisplayPartyPokemonBarDetailToFit(menuBox->windowId, gStringVar1, 0, &sPartySlotLayout.nickname, 50);
-        DisplayPartyPokemonLevel(gMultiPartnerParty[actualSlot].level, menuBox);
-        DisplayPartyPokemonGender(gMultiPartnerParty[actualSlot].gender, gMultiPartnerParty[actualSlot].species, gMultiPartnerParty[actualSlot].nickname, menuBox, FALSE);
-        DisplayPartyPokemonHP(gMultiPartnerParty[actualSlot].hp, gMultiPartnerParty[actualSlot].maxhp, menuBox);
-        DisplayPartyPokemonHPBar(gMultiPartnerParty[actualSlot].hp, gMultiPartnerParty[actualSlot].maxhp, menuBox);
+        struct PartySlotInfo info = {0};
+
+        GetPartySlotInfoFromMultiPartner(actualSlot, &info);
+        DrawPartySlot(&info, menuBox);
     }
 }
 
@@ -2779,7 +2822,7 @@ static void Task_PartyMenuModifyHP(u8 taskId)
     tHP += tHPIncrement;
     tHPToAdd--;
     SetMonData(&gParties[B_TRAINER_PLAYER][tPartyId], MON_DATA_HP, &tHP);
-    DisplayPartyPokemonHPCheck(&gParties[B_TRAINER_PLAYER][tPartyId], &sPartyMenuBoxes[tPartyId], TRUE);
+    DisplayPartyPokemonHPCheck(&gParties[B_TRAINER_PLAYER][tPartyId], &sPartyMenuBoxes[tPartyId]);
     if (tHPToAdd == 0 || tHP == 0 || tHP == tMaxHP)
     {
         // If HP was recovered, buffer the amount recovered
@@ -3385,7 +3428,7 @@ static void LoadGenderTextPalette(u8 gender, struct PartyMenuBox *menuBox, bool8
     LoadPalette(GetPartyMenuPalBufferPtr(palIds[shadowIdx]), sGenderPalOffsets[1] + palOffset, PLTT_SIZEOF(1));
 }
 
-static void DisplayPartyPokemonGender(u8 gender, enum Species species, u8 *nickname, struct PartyMenuBox *menuBox, bool8 focused)
+static void DisplayPartyPokemonGender(u8 gender, enum Species species, const u8 *nickname, struct PartyMenuBox *menuBox, bool8 focused)
 {
     if (species == SPECIES_NONE)
         return;
@@ -3419,16 +3462,25 @@ static void RefreshPartySlotGenderPalette(struct PartyMenuBox *menuBox, bool8 fo
     LoadGenderTextPalette(gender, menuBox, focused);
 }
 
-#define PARTY_FIELD_HP      (1 << 0)
-#define PARTY_FIELD_LEVEL   (1 << 1)
-#define PARTY_FIELD_GENDER  (1 << 2)
+enum {
+    PARTY_FIELD_IDX_HP,
+    PARTY_FIELD_IDX_LEVEL,
+    PARTY_FIELD_IDX_GENDER,
+    PARTY_FIELD_IDX_COUNT,
+};
+
+#define PARTY_FIELD_HP      (1 << PARTY_FIELD_IDX_HP)
+#define PARTY_FIELD_LEVEL   (1 << PARTY_FIELD_IDX_LEVEL)
+#define PARTY_FIELD_GENDER  (1 << PARTY_FIELD_IDX_GENDER)
 
 static const struct PartyBoxRect *const sPartyFieldRects[] =
 {
-    &sPartySlotLayout.hp,
-    &sPartySlotLayout.level,
-    &sPartySlotLayout.gender,
+    [PARTY_FIELD_IDX_HP]     = &sPartySlotLayout.hp,
+    [PARTY_FIELD_IDX_LEVEL]  = &sPartySlotLayout.level,
+    [PARTY_FIELD_IDX_GENDER] = &sPartySlotLayout.gender,
 };
+
+STATIC_ASSERT(ARRAY_COUNT(sPartyFieldRects) == PARTY_FIELD_IDX_COUNT, PartyFieldRectCount);
 
 // Mont note: because of how cramped together nickname and HP are in the party menu boxes,
 // we clear and redraw the whole HP area together to avoid visual glitches
@@ -3473,15 +3525,10 @@ static void RedrawPartyMonInfo(struct Pokemon *mon, struct PartyMenuBox *menuBox
     DisplayPartyPokemonHPBarCheck(mon, menuBox);
 }
 
-static void DisplayPartyPokemonHPCheck(struct Pokemon *mon, struct PartyMenuBox *menuBox, bool8 clearFirst)
+static void DisplayPartyPokemonHPCheck(struct Pokemon *mon, struct PartyMenuBox *menuBox)
 {
     if (GetMonData(mon, MON_DATA_SPECIES) != SPECIES_NONE)
-    {
-        if (clearFirst)
-            RedrawPartyMonInfo(mon, menuBox, PARTY_FIELD_HP);
-        else
-            DisplayPartyPokemonHP(GetMonData(mon, MON_DATA_HP), GetMonData(mon, MON_DATA_MAX_HP), menuBox);
-    }
+        RedrawPartyMonInfo(mon, menuBox, PARTY_FIELD_HP);
 }
 
 static void DisplayPartyPokemonHP(u16 hp, u16 maxhp, struct PartyMenuBox *menuBox)
