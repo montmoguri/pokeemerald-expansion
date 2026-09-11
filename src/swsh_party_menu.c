@@ -711,6 +711,8 @@ static void Task_ReturnToUseOnWhichMonAfterText(u8 taskId);
 static void ItemUse_ApplyEvReduceBerry(u8 taskId);
 static void ItemUse_ApplyEvIncreaseItem(u8 taskId);
 static void ItemUse_ApplyExpCandy(u8 taskId);
+static u16 ApplyItemEffectRepeatedly(struct Pokemon *mon, enum Item item, u16 count);
+static void DisplayItemHadNoEffect(u8 taskId);
 
 static void Task_FirstBattleEnterParty_WaitFadeIn(u8 taskId);
 static void Task_FirstBattleEnterParty_DarkenScreen(u8 taskId);
@@ -7715,8 +7717,6 @@ static void CB2_ShowSummaryScreenToForgetMove(void)
 
 static void CB2_ReturnToPartyMenuWhileLearningMove(void)
 {
-    if (sFinalLevel != 0)
-        SetMonData(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], MON_DATA_LEVEL, &sFinalLevel); // to avoid displaying incorrect level
     if (GetItemFieldFunc(gSpecialVar_ItemId) == ItemUseOutOfBattle_RareCandy && gPartyMenu.menuType == PARTY_MENU_TYPE_FIELD && CheckBagHasItem(gSpecialVar_ItemId, 1))
         InitPartyMenu(PARTY_MENU_TYPE_FIELD, PARTY_LAYOUT_SINGLE, PARTY_ACTION_USE_ITEM, TRUE, PARTY_MSG_NONE, Task_ReturnToPartyMenuWhileLearningMove, gPartyMenu.exitCallback);
     else
@@ -7977,8 +7977,7 @@ static void Task_TryLearnNewMoves(u8 taskId)
         RemoveLevelUpStatsWindow();
         for (; sInitialLevel <= sFinalLevel; sInitialLevel++)
         {
-            SetMonData(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], MON_DATA_LEVEL, &sInitialLevel);
-            learnMove = MonTryLearningNewMove(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], TRUE);
+            learnMove = MonTryLearningNewMoveAtLevel(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], TRUE, sInitialLevel);
             gPartyMenu.learnMoveState = 1;
             switch (learnMove)
             {
@@ -8007,8 +8006,7 @@ static void Task_TryLearningNextMove(u8 taskId)
     u16 result;
     for (; sInitialLevel <= sFinalLevel; sInitialLevel++)
     {
-        SetMonData(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], MON_DATA_LEVEL, &sInitialLevel);
-        result = MonTryLearningNewMove(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], FALSE);
+        result = MonTryLearningNewMoveAtLevel(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], FALSE, sInitialLevel);
         switch (result)
         {
         case 0: // No moves to learn
@@ -10894,6 +10892,28 @@ static void Task_ReturnToUseOnWhichMonAfterText(u8 taskId)
     }
 }
 
+static u16 ApplyItemEffectRepeatedly(struct Pokemon *mon, enum Item item, u16 count)
+{
+    u16 used;
+
+    for (used = 0; used < count; used++)
+    {
+        if (ExecuteTableBasedItemEffect(mon, item, gPartyMenu.slotId, 0))
+            break;
+    }
+
+    return used;
+}
+
+static void DisplayItemHadNoEffect(u8 taskId)
+{
+    gPartyMenuUseExitCallback = FALSE;
+    PlaySE(SE_SELECT);
+    DisplayPartyMenuMessage(gText_WontHaveEffect, TRUE);
+    ScheduleBgCopyTilemapToVram(0);
+    gTasks[taskId].func = Task_ReturnToUseOnWhichMonAfterText;
+}
+
 static void ItemUse_ApplyEvReduceBerry(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
@@ -10903,15 +10923,20 @@ static void ItemUse_ApplyEvReduceBerry(u8 taskId)
     u16 friendship = GetMonData(mon, MON_DATA_FRIENDSHIP);
     u16 ev = ItemEffectToMonEv(mon, tItemEffect);
 
-    for (u16 i = 0; i < tItemCount; i++)
-        ExecuteTableBasedItemEffect(mon, item, gPartyMenu.slotId, 0);
+    u16 used = ApplyItemEffectRepeatedly(mon, item, tItemCount);
+    if (used == 0)
+    {
+        DisplayItemHadNoEffect(taskId);
+        return;
+    }
+
     u16 newFriendship = GetMonData(mon, MON_DATA_FRIENDSHIP);
     u16 newEv = ItemEffectToMonEv(mon, tItemEffect);
     gPartyMenuUseExitCallback = TRUE;
     PlaySE(SE_USE_ITEM);
     if (tItemEffect == ITEM_EFFECT_HP_EV)
         UpdateMonDisplayInfoAfterRareCandy(gPartyMenu.slotId, mon);
-    RemoveBagItem(item, tItemCount);
+    RemoveBagItem(item, used);
     GetMonNickname(mon, gStringVar1);
     ItemEffectToStatString(tItemEffect, gStringVar2);
     if (friendship != newFriendship)
@@ -10940,13 +10965,18 @@ static void ItemUse_ApplyEvIncreaseItem(u8 taskId)
     struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][gPartyMenu.slotId];
     enum Item item = gSpecialVar_ItemId;
 
-    for (u16 i = 0; i < tItemCount; i++)
-        ExecuteTableBasedItemEffect(mon, item, gPartyMenu.slotId, 0);
+    u16 used = ApplyItemEffectRepeatedly(mon, item, tItemCount);
+    if (used == 0)
+    {
+        DisplayItemHadNoEffect(taskId);
+        return;
+    }
+
     gPartyMenuUseExitCallback = TRUE;
     PlaySE(SE_USE_ITEM);
     if (tItemEffect == ITEM_EFFECT_HP_EV)
         UpdateMonDisplayInfoAfterRareCandy(gPartyMenu.slotId, mon);
-    RemoveBagItem(item, tItemCount);
+    RemoveBagItem(item, used);
     GetMonNickname(mon, gStringVar1);
     GetMedicineItemEffectMessage(item, 0);
     DisplayPartyMenuMessage(gStringVar4, FALSE);
@@ -10966,14 +10996,19 @@ static void ItemUse_ApplyExpCandy(u8 taskId)
     s16 *arrayPtr = ptr->data;
 
     BufferMonStatsToTaskData(mon, arrayPtr);
-    for (u16 i = 0; i < tItemCount; i++)
-        ExecuteTableBasedItemEffect(mon, gSpecialVar_ItemId, gPartyMenu.slotId, 0);
+    u16 used = ApplyItemEffectRepeatedly(mon, gSpecialVar_ItemId, tItemCount);
+    if (used == 0)
+    {
+        DisplayItemHadNoEffect(taskId);
+        return;
+    }
+
     BufferMonStatsToTaskData(mon, &ptr->data[NUM_STATS]);
 
     sFinalLevel = GetMonData(mon, MON_DATA_LEVEL, NULL);
     gPartyMenuUseExitCallback = TRUE;
     UpdateMonDisplayInfoAfterRareCandy(gPartyMenu.slotId, mon);
-    RemoveBagItem(gSpecialVar_ItemId, tItemCount);
+    RemoveBagItem(gSpecialVar_ItemId, used);
     GetMonNickname(mon, gStringVar1);
     if (sFinalLevel > sInitialLevel)
     {
@@ -10985,7 +11020,7 @@ static void ItemUse_ApplyExpCandy(u8 taskId)
         }
         else // Exp Candies
         {
-            ConvertIntToDecimalStringN(gStringVar2, sExpCandyExperienceTable[tHoldEffectParam - 1] * tItemCount, STR_CONV_MODE_LEFT_ALIGN, 7);
+            ConvertIntToDecimalStringN(gStringVar2, sExpCandyExperienceTable[tHoldEffectParam - 1] * used, STR_CONV_MODE_LEFT_ALIGN, 7);
             ConvertIntToDecimalStringN(gStringVar3, sFinalLevel, STR_CONV_MODE_LEFT_ALIGN, 3);
             StringExpandPlaceholders(gStringVar4, gText_PkmnGainedExpAndElevatedToLvVar3);
         }
@@ -10998,7 +11033,7 @@ static void ItemUse_ApplyExpCandy(u8 taskId)
     {
         PlaySE(SE_USE_ITEM);
         gPartyMenuUseExitCallback = FALSE;
-        ConvertIntToDecimalStringN(gStringVar2, sExpCandyExperienceTable[tHoldEffectParam - 1] * tItemCount, STR_CONV_MODE_LEFT_ALIGN, 7);
+        ConvertIntToDecimalStringN(gStringVar2, sExpCandyExperienceTable[tHoldEffectParam - 1] * used, STR_CONV_MODE_LEFT_ALIGN, 7);
         StringExpandPlaceholders(gStringVar4, gText_PkmnGainedExp);
         DisplayPartyMenuMessage(gStringVar4, FALSE);
         ScheduleBgCopyTilemapToVram(0);
