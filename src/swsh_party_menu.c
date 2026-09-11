@@ -371,8 +371,6 @@ static EWRAM_DATA u16 *sMoveAbilityWindowBuffer;            // buffer for move/a
 EWRAM_DATA u8 gSelectedOrderFromParty[MAX_FRONTIER_PARTY_SIZE] = {0};
 static EWRAM_DATA enum Item sPartyMenuItemId = 0;
 EWRAM_DATA u8 gBattlePartyCurrentOrder[PARTY_SIZE / 2] = {0}; // bits 0-3 are the current pos of Slot 1, 4-7 are Slot 2, and so on
-static EWRAM_DATA u8 sInitialLevel = 0;
-static EWRAM_DATA u8 sFinalLevel = 0;
 static EWRAM_DATA u8 sCursorSpriteId = 0;
 static EWRAM_DATA u8 sItemIconSpriteId = 0;
 static EWRAM_DATA u8 sMonSpriteId = 0;
@@ -586,6 +584,7 @@ static void Task_SetSacredAshCB(u8);
 static void CB2_ReturnToBagMenu(void);
 static void Task_DisplayHPRestoredMessage(u8);
 static u16 ItemEffectToMonEv(struct Pokemon *, enum ItemEffectType);
+static u16 GetMaxUsableItemCount(struct Pokemon *, enum Item, enum ItemEffectType, u16);
 static void ItemEffectToStatString(enum ItemEffectType, u8 *);
 static void ReturnToUseOnWhichMon(u8);
 static void SetSelectedMoveForItem(u8);
@@ -6908,7 +6907,6 @@ void ItemUseCB_Medicine(u8 taskId, TaskFunc task)
     bool8 canHeal = FALSE, cannotUse;
     u32 oldStatus = GetMonData(mon, MON_DATA_STATUS);
     tItemEffect = GetItemEffectType(item);
-    u16 ev = ItemEffectToMonEv(mon, tItemEffect);
     tQuantityInBag = CountTotalItemQuantityInBag(gSpecialVar_ItemId);
     tItemCount = 1;
 
@@ -6918,19 +6916,12 @@ void ItemUseCB_Medicine(u8 taskId, TaskFunc task)
     }
     else if (DoesItemIncreaseEV(tItemEffect))
     {
-        u32 evIncrease = GetItemEffect(item)[6];
-        u32 evCount = GetMonEVCount(mon);
-        u32 maxAllowedEVs = B_EV_ITEMS_CAP ? GetCurrentEVCap() : MAX_TOTAL_EVS;
-        u32 remainingStatEVs  = MAX_PER_STAT_EVS - ev;
-        u32 remainingTotalEVs = maxAllowedEVs - evCount;
-        cannotUse = (remainingStatEVs == 0 || remainingTotalEVs == 0);
+        tMaxItemQuantity = GetMaxUsableItemCount(mon, item, tItemEffect, tQuantityInBag);
+        cannotUse = (tMaxItemQuantity == 0);
         if (!cannotUse && tQuantityInBag > 1)
         {
             PlaySE(SE_SELECT);
             DisplayGiveHowManyMessage();
-            u32 maxQuantityByStat  = (remainingStatEVs  + evIncrease - 1) / evIncrease;
-            u32 maxQuantityByTotal = (remainingTotalEVs + evIncrease - 1) / evIncrease;
-            tMaxItemQuantity = min(maxQuantityByStat, min(maxQuantityByTotal, tQuantityInBag));
             gTasks[taskId].func = Task_GiveHowManyItems;
             return;
         }
@@ -7355,8 +7346,7 @@ void ItemUseCB_ReduceEV(u8 taskId, TaskFunc task)
             PlaySE(SE_SELECT);
             DisplayGiveHowManyMessage();
 
-            tMaxItemQuantity = (I_BERRY_EV_JUMP == GEN_4 && ev > 100) ? 11 : (ev + 9) / 10; // Currently hardcoded to assume that EV-reducing items always reduce EV by 10
-            tMaxItemQuantity = min(tQuantityInBag, tMaxItemQuantity);
+            tMaxItemQuantity = GetMaxUsableItemCount(mon, gSpecialVar_ItemId, tItemEffect, tQuantityInBag);
 
             gTasks[taskId].func = Task_GiveHowManyItems;
         }
@@ -7364,6 +7354,57 @@ void ItemUseCB_ReduceEV(u8 taskId, TaskFunc task)
         {
             ItemUse_ApplyEvReduceBerry(taskId);
         }
+    }
+}
+
+static u16 GetMaxUsableItemCount(struct Pokemon *mon, enum Item item, enum ItemEffectType effectType, u16 inBag)
+{
+    switch (effectType)
+    {
+    case ITEM_EFFECT_RAISE_LEVEL:
+    {
+        u32 param = GetItemHoldEffectParam(item);
+
+        if (param == 0) // Rare Candy
+        {
+            u32 levelCeiling = B_RARE_CANDY_CAP ? GetCurrentLevelCap() : MAX_LEVEL;
+
+            return min(inBag, levelCeiling - GetMonData(mon, MON_DATA_LEVEL));
+        }
+        else // EXP Candies
+        {
+            u32 levelCeiling = (B_RARE_CANDY_CAP && B_EXP_CAP_TYPE == EXP_CAP_HARD)
+                             ? GetCurrentLevelCap() : MAX_LEVEL;
+            enum Species species = GetMonData(mon, MON_DATA_SPECIES);
+            u32 remainingExp = gExperienceTables[gSpeciesInfo[species].growthRate][levelCeiling]
+                             - GetMonData(mon, MON_DATA_EXP);
+            u32 candyExp = sExpCandyExperienceTable[param - 1];
+
+            return min(inBag, min((remainingExp + candyExp - 1) / candyExp, MAX_BAG_ITEM_CAPACITY));
+        }
+    }
+    case ITEM_EFFECT_HP_EV:
+    case ITEM_EFFECT_ATK_EV:
+    case ITEM_EFFECT_DEF_EV:
+    case ITEM_EFFECT_SPEED_EV:
+    case ITEM_EFFECT_SPATK_EV:
+    case ITEM_EFFECT_SPDEF_EV:
+    {
+        s32 evChange = (s8)GetItemEffect(item)[ITEM_EFFECT_ARG_START];
+        u32 ev = ItemEffectToMonEv(mon, effectType);
+
+        if (evChange < 0) // EV-lowering Berry; assumes they always lower by 10
+            return min(inBag, (I_BERRY_EV_JUMP == GEN_4 && ev > 100) ? 11 : (ev + 9) / 10);
+
+        u32 evCap = B_EV_ITEMS_CAP ? GetCurrentEVCap() : MAX_TOTAL_EVS;
+        u32 remainingStatEVs = MAX_PER_STAT_EVS - ev;
+        u32 remainingTotalEVs = evCap - GetMonEVCount(mon);
+
+        return min(inBag, min((remainingStatEVs + evChange - 1) / evChange,
+                              (remainingTotalEVs + evChange - 1) / evChange));
+    }
+    default:
+        return min(inBag, 1);
     }
 }
 
@@ -7842,14 +7883,14 @@ void ItemUseCB_RareCandy(u8 taskId, TaskFunc task)
     struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][gPartyMenu.slotId];
     bool8 cannotUseEffect;
     tHoldEffectParam = GetItemHoldEffectParam(gSpecialVar_ItemId);
-    sInitialLevel = GetMonData(mon, MON_DATA_LEVEL);
+    gPartyMenu.levelBefore = GetMonData(mon, MON_DATA_LEVEL);
     tItemEffect = GetItemEffectType(gSpecialVar_ItemId);
     tItemCount = 1;
 
-    if (B_RARE_CANDY_CAP && sInitialLevel >= GetCurrentLevelCap())
+    if (B_RARE_CANDY_CAP && gPartyMenu.levelBefore >= GetCurrentLevelCap())
         cannotUseEffect = TRUE;
     else
-        cannotUseEffect = (sInitialLevel >= MAX_LEVEL);
+        cannotUseEffect = (gPartyMenu.levelBefore >= MAX_LEVEL);
     PlaySE(SE_SELECT);
     if (cannotUseEffect)
     {
@@ -7857,8 +7898,8 @@ void ItemUseCB_RareCandy(u8 taskId, TaskFunc task)
         bool32 canStopEvo = TRUE;
 
         // Resets values to 0 so other means of teaching moves doesn't overwrite levels
-        sInitialLevel = 0;
-        sFinalLevel = 0;
+        gPartyMenu.levelBefore = 0;
+        gPartyMenu.levelAfter = 0;
 
         if (tHoldEffectParam == 0) // Rare Candy
         {
@@ -7891,23 +7932,7 @@ void ItemUseCB_RareCandy(u8 taskId, TaskFunc task)
 
         if (tQuantityInBag > 1)
         {
-            u32 currentLevelCap = GetCurrentLevelCap();
-
-            if (tHoldEffectParam == 0) // Rare Candy
-            {
-                tMaxItemQuantity = currentLevelCap - sInitialLevel;
-            }
-            else // Exp Candies
-            {
-                u32 species = GetMonData(mon, MON_DATA_SPECIES, NULL);
-                u32 totalExp = gExperienceTables[gSpeciesInfo[species].growthRate][currentLevelCap] - gExperienceTables[gSpeciesInfo[species].growthRate][sInitialLevel];
-                u16 candyExp = sExpCandyExperienceTable[tHoldEffectParam - 1];
-                u16 candyCount = (totalExp + candyExp - 1) / candyExp;
-
-                tMaxItemQuantity = min(candyCount, MAX_BAG_ITEM_CAPACITY);
-            }
-
-            tMaxItemQuantity = min(tQuantityInBag, tMaxItemQuantity);
+            tMaxItemQuantity = GetMaxUsableItemCount(mon, gSpecialVar_ItemId, tItemEffect, tQuantityInBag);
             DisplayGiveHowManyMessage();
 
             gTasks[taskId].func = Task_GiveHowManyItems;
@@ -7944,7 +7969,7 @@ static void Task_DisplayLevelUpStatsPg2(u8 taskId)
     {
         PlaySE(SE_SELECT);
         DisplayLevelUpStatsPg2(taskId);
-        sInitialLevel += 1; // so the Pokemon doesn't learn a move meant for its previous level
+        gPartyMenu.levelBefore += 1; // so the Pokemon doesn't learn a move meant for its previous level
         gTasks[taskId].func = Task_TryLearnNewMoves;
     }
 }
@@ -7975,14 +8000,14 @@ static void Task_TryLearnNewMoves(u8 taskId)
     if (WaitFanfare(FALSE) && ((JOY_NEW(A_BUTTON)) || (JOY_NEW(B_BUTTON))))
     {
         RemoveLevelUpStatsWindow();
-        for (; sInitialLevel <= sFinalLevel; sInitialLevel++)
+        for (; gPartyMenu.levelBefore <= gPartyMenu.levelAfter; gPartyMenu.levelBefore++)
         {
-            learnMove = MonTryLearningNewMoveAtLevel(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], TRUE, sInitialLevel);
+            learnMove = MonTryLearningNewMoveAtLevel(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], TRUE, gPartyMenu.levelBefore);
             gPartyMenu.learnMoveState = 1;
             switch (learnMove)
             {
             case 0: // No moves to learn
-                if (sInitialLevel >= sFinalLevel)
+                if (gPartyMenu.levelBefore >= gPartyMenu.levelAfter)
                     PartyMenuTryEvolution(taskId);
                 break;
             case MON_HAS_MAX_MOVES:
@@ -8004,13 +8029,13 @@ static void Task_TryLearnNewMoves(u8 taskId)
 static void Task_TryLearningNextMove(u8 taskId)
 {
     u16 result;
-    for (; sInitialLevel <= sFinalLevel; sInitialLevel++)
+    for (; gPartyMenu.levelBefore <= gPartyMenu.levelAfter; gPartyMenu.levelBefore++)
     {
-        result = MonTryLearningNewMoveAtLevel(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], FALSE, sInitialLevel);
+        result = MonTryLearningNewMoveAtLevel(&gParties[B_TRAINER_PLAYER][gPartyMenu.slotId], FALSE, gPartyMenu.levelBefore);
         switch (result)
         {
         case 0: // No moves to learn
-            if (sInitialLevel >= sFinalLevel)
+            if (gPartyMenu.levelBefore >= gPartyMenu.levelAfter)
                 PartyMenuTryEvolution(taskId);
             break;
         case MON_HAS_MAX_MOVES:
@@ -8041,8 +8066,8 @@ static void PartyMenuTryEvolution(u8 taskId)
     bool32 canStopEvo = TRUE;
 
     // Resets values to 0 so other means of teaching moves doesn't overwrite levels
-    sInitialLevel = 0;
-    sFinalLevel = 0;
+    gPartyMenu.levelBefore = 0;
+    gPartyMenu.levelAfter = 0;
 
     targetSpecies = GetEvolutionTargetSpecies(mon, EVO_MODE_NORMAL, ITEM_NONE, NULL, &canStopEvo, CHECK_EVO);
 
@@ -11005,23 +11030,23 @@ static void ItemUse_ApplyExpCandy(u8 taskId)
 
     BufferMonStatsToTaskData(mon, &ptr->data[NUM_STATS]);
 
-    sFinalLevel = GetMonData(mon, MON_DATA_LEVEL, NULL);
+    gPartyMenu.levelAfter = GetMonData(mon, MON_DATA_LEVEL, NULL);
     gPartyMenuUseExitCallback = TRUE;
     UpdateMonDisplayInfoAfterRareCandy(gPartyMenu.slotId, mon);
     RemoveBagItem(gSpecialVar_ItemId, used);
     GetMonNickname(mon, gStringVar1);
-    if (sFinalLevel > sInitialLevel)
+    if (gPartyMenu.levelAfter > gPartyMenu.levelBefore)
     {
         PlayFanfareByFanfareNum(FANFARE_LEVEL_UP);
         if (tHoldEffectParam == 0) // Rare Candy
         {
-            ConvertIntToDecimalStringN(gStringVar2, sFinalLevel, STR_CONV_MODE_LEFT_ALIGN, 3);
+            ConvertIntToDecimalStringN(gStringVar2, gPartyMenu.levelAfter, STR_CONV_MODE_LEFT_ALIGN, 3);
             StringExpandPlaceholders(gStringVar4, gText_PkmnElevatedToLvVar2);
         }
         else // Exp Candies
         {
             ConvertIntToDecimalStringN(gStringVar2, sExpCandyExperienceTable[tHoldEffectParam - 1] * used, STR_CONV_MODE_LEFT_ALIGN, 7);
-            ConvertIntToDecimalStringN(gStringVar3, sFinalLevel, STR_CONV_MODE_LEFT_ALIGN, 3);
+            ConvertIntToDecimalStringN(gStringVar3, gPartyMenu.levelAfter, STR_CONV_MODE_LEFT_ALIGN, 3);
             StringExpandPlaceholders(gStringVar4, gText_PkmnGainedExpAndElevatedToLvVar3);
         }
 
@@ -11037,6 +11062,8 @@ static void ItemUse_ApplyExpCandy(u8 taskId)
         StringExpandPlaceholders(gStringVar4, gText_PkmnGainedExp);
         DisplayPartyMenuMessage(gStringVar4, FALSE);
         ScheduleBgCopyTilemapToVram(0);
+        gPartyMenu.levelBefore = 0;
+        gPartyMenu.levelAfter = 0;
         if (CountTotalItemQuantityInBag(gSpecialVar_ItemId) == 0)
             gTasks[taskId].func = Task_ClosePartyMenuAfterText;
         else
