@@ -144,6 +144,9 @@ static const u8 sSummaryConditionToLineLength[MAX_CONDITION + 1] =
 #define PSS_DATA_WINDOW_MEMO_NOTE 0
 #define PSS_DATA_WINDOW_MEMO_EXP 1
 
+// Guard page data windows, which are indices into sMonSummaryScreen->windowIds
+#define PSS_DATA_WINDOW_COUNT 2
+
 #define MOVE_SLOT_COUNT 5
 #define MOVE_SLOT_SPRITES_COUNT 5
 #define MOVE_FRAME_SPRITES_COUNT 10
@@ -280,7 +283,7 @@ static EWRAM_DATA struct PokemonSummaryScreenData
     u8 secondMoveIndex;
     bool8 lockMovesFlag; // This is used to prevent the player from changing position of moves in a battle or when trading.
     u8 hasRelearnableMoves;
-    u8 windowIds[2];
+    u8 windowIds[PSS_DATA_WINDOW_COUNT];
     u8 spriteIds[SPRITE_ARR_ID_COUNT];
     s16 switchCounter; // Used for various switch statement cases that decompress/load graphics or Pokémon data
     u16 monAnimTimer; // tracks time between re-playing mon anims
@@ -674,139 +677,233 @@ static const struct BgTemplate sBgTemplates[] =
 };
 
 static const s8 sMultiBattleOrder[] = {0, 2, 3, 1, 4, 5};
+
+#define PSS_CHAR_BASE_TILES             1024
+#define PSS_WIN_BASE                    1
+
+#define WIN_PROMPT_CANCEL_W             9
+#define WIN_PROMPT_CANCEL_H             2
+#define WIN_PROMPT_CANCEL_TILES         (WIN_PROMPT_CANCEL_W * WIN_PROMPT_CANCEL_H)
+#define WIN_PROMPT_CANCEL_BASE          PSS_WIN_BASE
+
+#define WIN_PROMPT_SWITCH_W             8
+#define WIN_PROMPT_SWITCH_H             2
+#define WIN_PROMPT_SWITCH_TILES         (WIN_PROMPT_SWITCH_W * WIN_PROMPT_SWITCH_H)
+#define WIN_PROMPT_SWITCH_BASE          (WIN_PROMPT_CANCEL_BASE + WIN_PROMPT_CANCEL_TILES)
+
+#define WIN_MOVES_POWER_ACC_W           3
+#define WIN_MOVES_POWER_ACC_H           5
+#define WIN_MOVES_POWER_ACC_TILES       (WIN_MOVES_POWER_ACC_W * WIN_MOVES_POWER_ACC_H)
+#define WIN_MOVES_POWER_ACC_BASE        (WIN_PROMPT_SWITCH_BASE + WIN_PROMPT_SWITCH_TILES)
+
+#define WIN_PORTRAIT_INFO_W             13
+#define WIN_PORTRAIT_INFO_H             2
+#define WIN_PORTRAIT_INFO_TILES         (WIN_PORTRAIT_INFO_W * WIN_PORTRAIT_INFO_H)
+#define WIN_PORTRAIT_INFO_BASE          (WIN_MOVES_POWER_ACC_BASE + WIN_MOVES_POWER_ACC_TILES)
+
+#define WIN_PROMPT_IV_EV_STATS_W        10
+#define WIN_PROMPT_IV_EV_STATS_H        2
+#define WIN_PROMPT_IV_EV_STATS_TILES    (WIN_PROMPT_IV_EV_STATS_W * WIN_PROMPT_IV_EV_STATS_H)
+#define WIN_PROMPT_IV_EV_STATS_BASE     (WIN_PORTRAIT_INFO_BASE + WIN_PORTRAIT_INFO_TILES)
+
+#define WIN_PROMPT_MOVES_W              20
+#define WIN_PROMPT_MOVES_H              2
+#define WIN_PROMPT_MOVES_TILES          (WIN_PROMPT_MOVES_W * WIN_PROMPT_MOVES_H)
+#define WIN_PROMPT_MOVES_BASE           (WIN_PROMPT_IV_EV_STATS_BASE + WIN_PROMPT_IV_EV_STATS_TILES)
+
+#define PSS_PAGE_WIN_BASE               (WIN_PROMPT_MOVES_BASE + WIN_PROMPT_MOVES_TILES)
+
 static const struct WindowTemplate sSummaryTemplate[] =
 {
     [PSS_LABEL_WINDOW_PROMPT_CANCEL] = {
         .bg = 0,
         .tilemapLeft = 21,
         .tilemapTop = 18,
-        .width = 9,
-        .height = 2,
+        .width = WIN_PROMPT_CANCEL_W,
+        .height = WIN_PROMPT_CANCEL_H,
         .paletteNum = 2,
-        .baseBlock = 1,
+        .baseBlock = WIN_PROMPT_CANCEL_BASE,
     },
     [PSS_LABEL_WINDOW_PROMPT_SWITCH] = {
         .bg = 0,
         .tilemapLeft = 22,
         .tilemapTop = 13,
-        .width = 8,
-        .height = 2,
+        .width = WIN_PROMPT_SWITCH_W,
+        .height = WIN_PROMPT_SWITCH_H,
         .paletteNum = 2,
-        .baseBlock = 19,
+        .baseBlock = WIN_PROMPT_SWITCH_BASE,
     },
     [PSS_LABEL_WINDOW_MOVES_POWER_ACC] = {
         .bg = 0,
         .tilemapLeft = 4,
         .tilemapTop = 15,
-        .width = 6,
-        .height = 5,
+        .width = WIN_MOVES_POWER_ACC_W,
+        .height = WIN_MOVES_POWER_ACC_H,
         .paletteNum = 2,
-        .baseBlock = 35,
+        .baseBlock = WIN_MOVES_POWER_ACC_BASE,
     },
     [PSS_LABEL_WINDOW_PORTRAIT_INFO] = {
         .bg = 0,
         .tilemapLeft = 15,
         .tilemapTop = 1,
-        .width = 13,
-        .height = 2,
+        .width = WIN_PORTRAIT_INFO_W,
+        .height = WIN_PORTRAIT_INFO_H,
         .paletteNum = 2,
-        .baseBlock = 65,
+        .baseBlock = WIN_PORTRAIT_INFO_BASE,
     },
     [PSS_LABEL_WINDOW_PROMPT_IV_EV_STATS] = {
         .bg = 0,
         .tilemapLeft = 20,
         .tilemapTop = 18,
-        .width = 10,
-        .height = 2,
+        .width = WIN_PROMPT_IV_EV_STATS_W,
+        .height = WIN_PROMPT_IV_EV_STATS_H,
         .paletteNum = 2,
-        .baseBlock = 91,
+        .baseBlock = WIN_PROMPT_IV_EV_STATS_BASE,
     },
     [PSS_LABEL_WINDOW_PROMPT_MOVES] = {
         .bg = 0,
         .tilemapLeft = 10,
         .tilemapTop = 18,
-        .width = 20,
-        .height = 2,
+        .width = WIN_PROMPT_MOVES_W,
+        .height = WIN_PROMPT_MOVES_H,
         .paletteNum = 2,
-        .baseBlock = 111,
+        .baseBlock = WIN_PROMPT_MOVES_BASE,
     },
     [PSS_LABEL_WINDOW_END] = DUMMY_WIN_TEMPLATE
 };
+
+#define WIN_INFO_ITEM_W                 18
+#define WIN_INFO_ITEM_H                 7
+#define WIN_INFO_ITEM_TILES             (WIN_INFO_ITEM_W * WIN_INFO_ITEM_H)
+#define WIN_INFO_ITEM_BASE              PSS_PAGE_WIN_BASE
+
+#define WIN_INFO_SPECIES_W              12
+#define WIN_INFO_SPECIES_H              9
+#define WIN_INFO_SPECIES_TILES          (WIN_INFO_SPECIES_W * WIN_INFO_SPECIES_H)
+#define WIN_INFO_SPECIES_BASE           (WIN_INFO_ITEM_BASE + WIN_INFO_ITEM_TILES)
+
+#define PSS_PAGE_INFO_END               (WIN_INFO_SPECIES_BASE + WIN_INFO_SPECIES_TILES)
+
 static const struct WindowTemplate sPageInfoTemplate[] =
 {
     [PSS_DATA_WINDOW_INFO_ITEM] = {
         .bg = 0,
         .tilemapLeft = 1,
         .tilemapTop = 12,
-        .width = 18,
-        .height = 7,
+        .width = WIN_INFO_ITEM_W,
+        .height = WIN_INFO_ITEM_H,
         .paletteNum = 2,
-        .baseBlock = 151,
+        .baseBlock = WIN_INFO_ITEM_BASE,
     },
     [PSS_DATA_WINDOW_INFO_SPECIES] = {
         .bg = 0,
         .tilemapLeft = 7,
         .tilemapTop = 3,
-        .width = 12,
-        .height = 9,
+        .width = WIN_INFO_SPECIES_W,
+        .height = WIN_INFO_SPECIES_H,
         .paletteNum = 2,
-        .baseBlock = 277,
+        .baseBlock = WIN_INFO_SPECIES_BASE,
     },
 };
+
+#define WIN_SKILLS_STATS_W              18
+#define WIN_SKILLS_STATS_H              7
+#define WIN_SKILLS_STATS_TILES          (WIN_SKILLS_STATS_W * WIN_SKILLS_STATS_H)
+#define WIN_SKILLS_STATS_BASE           PSS_PAGE_WIN_BASE
+
+#define WIN_SKILLS_ABILITY_W            18
+#define WIN_SKILLS_ABILITY_H            5
+#define WIN_SKILLS_ABILITY_TILES        (WIN_SKILLS_ABILITY_W * WIN_SKILLS_ABILITY_H)
+#define WIN_SKILLS_ABILITY_BASE         (WIN_SKILLS_STATS_BASE + WIN_SKILLS_STATS_TILES)
+
+#define PSS_PAGE_SKILLS_END             (WIN_SKILLS_ABILITY_BASE + WIN_SKILLS_ABILITY_TILES)
+
 static const struct WindowTemplate sPageSkillsTemplate[] =
 {
     [PSS_DATA_WINDOW_SKILLS_STATS] = {
         .bg = 0,
         .tilemapLeft = 1,
         .tilemapTop = 4,
-        .width = 18,
-        .height = 7,
+        .width = WIN_SKILLS_STATS_W,
+        .height = WIN_SKILLS_STATS_H,
         .paletteNum = 2,
-        .baseBlock = 151,
+        .baseBlock = WIN_SKILLS_STATS_BASE,
     },
     [PSS_DATA_WINDOW_SKILLS_ABILITY] = {
         .bg = 0,
         .tilemapLeft = 1,
         .tilemapTop = SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL ? 13 : 11,
-        .width = 18,
-        .height = 5,
+        .width = WIN_SKILLS_ABILITY_W,
+        .height = WIN_SKILLS_ABILITY_H,
         .paletteNum = 2,
-        .baseBlock = 277,
+        .baseBlock = WIN_SKILLS_ABILITY_BASE,
     },
 };
-static const struct WindowTemplate sPageMovesTemplate[] = // This is used for both battle moves
+
+#define WIN_MOVE_DESCRIPTION_W          18
+#define WIN_MOVE_DESCRIPTION_H          5
+#define WIN_MOVE_DESCRIPTION_TILES      (WIN_MOVE_DESCRIPTION_W * WIN_MOVE_DESCRIPTION_H)
+#define WIN_MOVE_DESCRIPTION_BASE       PSS_PAGE_WIN_BASE
+
+#define PSS_PAGE_MOVES_END              (WIN_MOVE_DESCRIPTION_BASE + WIN_MOVE_DESCRIPTION_TILES)
+
+static const struct WindowTemplate sPageMovesTemplate[] = // This is used for both battle and contest moves
 {
     [PSS_DATA_WINDOW_MOVE_DESCRIPTION] = {
         .bg = 0,
         .tilemapLeft = 12,
         .tilemapTop = 15,
-        .width = 18,
-        .height = 5,
+        .width = WIN_MOVE_DESCRIPTION_W,
+        .height = WIN_MOVE_DESCRIPTION_H,
         .paletteNum = 2,
-        .baseBlock = 151,
+        .baseBlock = WIN_MOVE_DESCRIPTION_BASE,
     },
 };
+
+#define WIN_MEMO_NOTE_W                 18
+#define WIN_MEMO_NOTE_H                 10
+#define WIN_MEMO_NOTE_TILES             (WIN_MEMO_NOTE_W * WIN_MEMO_NOTE_H)
+#define WIN_MEMO_NOTE_BASE              PSS_PAGE_WIN_BASE
+
+#define WIN_MEMO_EXP_W                  14
+#define WIN_MEMO_EXP_H                  4
+#define WIN_MEMO_EXP_TILES              (WIN_MEMO_EXP_W * WIN_MEMO_EXP_H)
+#define WIN_MEMO_EXP_BASE               (WIN_MEMO_NOTE_BASE + WIN_MEMO_NOTE_TILES)
+
+#define PSS_PAGE_MEMO_END               (WIN_MEMO_EXP_BASE + WIN_MEMO_EXP_TILES)
+
 static const struct WindowTemplate sPageMemoTemplate[] =
 {
     [PSS_DATA_WINDOW_MEMO_NOTE] = {
         .bg = 0,
         .tilemapLeft = 1,
         .tilemapTop = 4,
-        .width = 18,
-        .height = 10,
+        .width = WIN_MEMO_NOTE_W,
+        .height = WIN_MEMO_NOTE_H,
         .paletteNum = 2,
-        .baseBlock = 151,
+        .baseBlock = WIN_MEMO_NOTE_BASE,
     },
     [PSS_DATA_WINDOW_MEMO_EXP] = {
         .bg = 0,
         .tilemapLeft = 6,
         .tilemapTop = 13,
-        .width = 14,
-        .height = 4,
+        .width = WIN_MEMO_EXP_W,
+        .height = WIN_MEMO_EXP_H,
         .paletteNum = 2,
-        .baseBlock = 331,
+        .baseBlock = WIN_MEMO_EXP_BASE,
     },
 };
+
+STATIC_ASSERT(ARRAY_COUNT(sPageInfoTemplate) <= PSS_DATA_WINDOW_COUNT, PssPageInfoWindowSlots);
+STATIC_ASSERT(ARRAY_COUNT(sPageSkillsTemplate) <= PSS_DATA_WINDOW_COUNT, PssPageSkillsWindowSlots);
+STATIC_ASSERT(ARRAY_COUNT(sPageMovesTemplate) <= PSS_DATA_WINDOW_COUNT, PssPageMovesWindowSlots);
+STATIC_ASSERT(ARRAY_COUNT(sPageMemoTemplate) <= PSS_DATA_WINDOW_COUNT, PssPageMemoWindowSlots);
+
+STATIC_ASSERT(PSS_PAGE_INFO_END <= PSS_CHAR_BASE_TILES, PssPageInfoTilesOverflow);
+STATIC_ASSERT(PSS_PAGE_SKILLS_END <= PSS_CHAR_BASE_TILES, PssPageSkillsTilesOverflow);
+STATIC_ASSERT(PSS_PAGE_MOVES_END <= PSS_CHAR_BASE_TILES, PssPageMovesTilesOverflow);
+STATIC_ASSERT(PSS_PAGE_MEMO_END <= PSS_CHAR_BASE_TILES, PssPageMemoTilesOverflow);
+
 // {bg, fg, shadow} entries indexing into BG palette 2
 static const u8 sTextColors[][3] =
 {
