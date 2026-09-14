@@ -209,6 +209,28 @@ enum StatusIcon
     STATUS_ICON_NONE = STATUS_ICON_COUNT,
 };
 
+#define STATUS_ICON_X               205
+#define STATUS_ICON_Y               16
+#define STATUS_ICON_FADE_Y_OFFSET   1   // 1px offset to fully cover mon level text
+
+#define STATUS_ICON_FADE_LEVELS     16  // 0 = opaque, STATUS_ICON_FADE_LEVELS = fully transparent
+#define STATUS_ICON_FADE_FRAMES     48
+#define STATUS_ICON_SHOW_FRAMES     120
+#define STATUS_ICON_HIDE_FRAMES     120
+
+STATIC_ASSERT(STATUS_ICON_SHOW_FRAMES <= 0xFFFF
+            && STATUS_ICON_HIDE_FRAMES <= 0xFFFF, StatusFadeHoldFitsTimer);
+STATIC_ASSERT(STATUS_ICON_FADE_FRAMES > 0
+            && STATUS_ICON_FADE_FRAMES <= 0xFFFF, StatusFadeLengthNonZero);
+
+enum StatusFadePhase
+{
+    STATUS_FADE_SHOW,
+    STATUS_FADE_OUT,
+    STATUS_FADE_HIDE,
+    STATUS_FADE_IN,
+};
+
 static EWRAM_DATA struct PokemonSummaryScreenData
 {
     /*0x00*/ union {
@@ -292,6 +314,13 @@ static EWRAM_DATA struct PokemonSummaryScreenData
     u32 heldMoveSlotAnimId; // comfy anim driving the lifted slot, INVALID_COMFY_ANIM when none
     u32 cursorAnimId; // comfy anim driving the move cursor's slot-to-slot slide, INVALID_COMFY_ANIM when unallocated
     u32 cursorBobAnimId; // comfy anim driving the move cursor's idle bob, INVALID_COMFY_ANIM when unallocated
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+    u16 statusFadeTimer;        // frames into the current phase
+    u8 statusFadePhase;
+    u8 statusFadeLevel;
+    u8 statusFadeAppliedLevel;
+    bool8 statusFadeSuspended;  // conditions page drives BLDALPHA itself
+#endif
 #if SWSH_SUMMARY_SHOW_CONTEST_PAGES
     struct ConditionGraph conditionGraph;
     struct Sprite *conditionSparkles[MAX_CONDITION_SPARKLES];
@@ -444,6 +473,15 @@ static void SetShinySprite(void);
 static void SetPokerusCuredSprite(void);
 static void HandleStatusSprite(struct Pokemon *);
 static u32 GetStatusIcon(struct Pokemon *);
+static void SetSummaryBlendRegs(void);
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+static void UpdateStatusIconFade(void);
+static void ApplyStatusIconFadeLevel(void);
+static void ResetStatusIconFade(void);
+#endif
+#if SWSH_SUMMARY_STATUS_ICON_FADE && SWSH_SUMMARY_SHOW_CONTEST_PAGES
+static void SetStatusIconFadeSuspended(bool32);
+#endif
 static u8 AddWindowFromTemplateList(const struct WindowTemplate*, u8);
 static void ClearCancelText(void);
 static bool32 ShouldRemoveHyphen(const u8*, const u8*, const u8*);
@@ -2021,6 +2059,9 @@ void ShowSelectMovePokemonSummaryScreen_SwSh(struct Pokemon *mons, u8 monIndex, 
 
 static void MainCB2(void)
 {
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+    UpdateStatusIconFade();
+#endif
     AdvanceComfyAnimations();
     RunTasks();
     AnimateSprites();
@@ -2257,6 +2298,26 @@ static bool8 LoadGraphics(void)
     return FALSE;
 }
 
+// status icon fade takes over alpha blend reg when enabled,
+// otherwise the mon shadow and/or the semi-transparent UI has it
+static void SetSummaryBlendRegs(void)
+{
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG0 | BLDCNT_TGT2_BG1 | BLDCNT_TGT2_BG2
+                               | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD | BLDCNT_EFFECT_BLEND);
+    ResetStatusIconFade();
+#elif SWSH_SUMMARY_BG_BLEND
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1);
+    SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
+#elif SWSH_SUMMARY_MON_SHADOWS
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND);
+    SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
+#else
+    SetGpuReg(REG_OFFSET_BLDCNT, 0);
+    SetGpuReg(REG_OFFSET_BLDALPHA, 0);
+#endif
+}
+
 static void InitBGs(void)
 {
     ResetBgsAndClearDma3BusyFlags(0);
@@ -2269,15 +2330,7 @@ static void InitBGs(void)
     ScheduleBgCopyTilemapToVram(2);
     ScheduleBgCopyTilemapToVram(1);
     SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP);
-    if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
-    {
-        if (SWSH_SUMMARY_BG_BLEND)
-            SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1);
-        else
-            SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND);
-
-        SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
-    }
+    SetSummaryBlendRegs();
     ShowBg(3);
     ShowBg(2);
     ShowBg(0);
@@ -2631,11 +2684,8 @@ static void CloseSummaryScreen(u8 taskId)
 {
     if (MenuHelpers_ShouldWaitForLinkRecv() != TRUE && !gPaletteFade.active)
     {
-        if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
-        {
-            SetGpuReg(REG_OFFSET_BLDCNT, 0);
-            SetGpuReg(REG_OFFSET_BLDALPHA, 0);
-        }
+        SetGpuReg(REG_OFFSET_BLDCNT, 0);
+        SetGpuReg(REG_OFFSET_BLDALPHA, 0);
         if (sMonSummaryScreen->callback == gInitialSummaryScreenCallback)
             gInitialSummaryScreenCallback = NULL;
         SetMainCallback2(sMonSummaryScreen->callback);
@@ -3897,8 +3947,15 @@ static void PrintNotEggInfo(void)
     // See CreateGenderSprite function, not using gender symbols (text)
     // PrintGenderSymbol(mon, summary->species2);
 
+    if (SWSH_SUMMARY_STATUS_ICON_FADE)
+    {
+        u8 *txtPtr = StringCopy(gStringVar2, gText_LevelSymbol);
+
+        ConvertIntToDecimalStringN(txtPtr, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PORTRAIT_INFO, gStringVar2, 74, 1, 0, 1, FONT_SMALL_NARROW);
+    }
     // print level only if no status condition
-    if (statusIcon == STATUS_ICON_NONE)
+    else if (statusIcon == STATUS_ICON_NONE)
     {
         // Convert level number to string
         ConvertIntToDecimalStringN(gStringVar2, summary->level, STR_CONV_MODE_LEFT_ALIGN, 3);
@@ -4114,24 +4171,15 @@ static void ClearPageWindowTilemaps(u8 page)
         ScanlineEffect_Clear();
         HideBg(1);
         ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON | DISPCNT_WIN1_ON);
-        if (SWSH_SUMMARY_MON_SHADOWS)
+        if (SWSH_SUMMARY_MON_SHADOWS && !SWSH_SUMMARY_STATUS_ICON_FADE)
         {
             u8 shadowId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW];
             LoadPalette(gMonShadowSwSh_Pal, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
         }
-        if (SWSH_SUMMARY_BG_BLEND || SWSH_SUMMARY_MON_SHADOWS)
-        {
-            if (SWSH_SUMMARY_BG_BLEND)
-                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT1_BG2 | BLDCNT_TGT1_BG1);
-            else
-                SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BG2 | BLDCNT_EFFECT_BLEND);
-            SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(14, 6));
-        }
-        else
-        {
-            SetGpuReg(REG_OFFSET_BLDCNT, 0);
-            SetGpuReg(REG_OFFSET_BLDALPHA, 0);
-        }
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+        SetStatusIconFadeSuspended(FALSE);
+#endif
+        SetSummaryBlendRegs();
         break;
 #endif
     case PSS_PAGE_CONTEST_MOVES:
@@ -5485,9 +5533,12 @@ static void Task_PrintConditionsPage(u8 taskId)
         }
         ConditionGraph_SetNewPositions(graph, center, graph->savedPositions[0]);
         ConditionGraph_InitResetScanline(graph);
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+        SetStatusIconFadeSuspended(TRUE);
+#endif
         SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3);
         SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(11, 6));
-        if (SWSH_SUMMARY_MON_SHADOWS)
+        if (SWSH_SUMMARY_MON_SHADOWS && !SWSH_SUMMARY_STATUS_ICON_FADE)
         {
             u8 shadowId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW];
             LoadPalette(sShadowPalConditions, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
@@ -5716,7 +5767,7 @@ static void PrintMoveDescription(enum Move move)
 
             PrintMovePowerAndAccuracy(move);
 
-            if (SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESCRIPTIONS)
+            if (SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESC)
             {
                 u8 descFontId;
                 if (gMovesInfo[move].effect != EFFECT_PLACEHOLDER)
@@ -5737,7 +5788,7 @@ static void PrintMoveDescription(enum Move move)
         else if (sMonSummaryScreen->currPageIndex == PSS_PAGE_CONTEST_MOVES)
         {
             HandleAppealJamTilemap(move);
-            if (SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESCRIPTIONS)
+            if (SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESC)
             {
                 u8 descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gContestEffects[GetMoveContestEffect(move)].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
                 PrintTextOnWindowWithFont(windowId, desc, 0, 4, 1, 0, descFontId);
@@ -6159,7 +6210,10 @@ static u8 CreateMonSprite(struct Pokemon *unused, bool32 isShadow)
         FreeSpritePaletteByTag(TAG_MON_SHADOW); // reload the palette entirely because some sprite anims modify it
         shadowPalette = LoadSpritePalette(&sSpritePal_MonShadow);
         gSprites[spriteId].oam.paletteNum = shadowPalette;
-        gSprites[spriteId].oam.objMode = ST_OAM_OBJ_BLEND;
+        if (SWSH_SUMMARY_STATUS_ICON_FADE)
+            FillPalette(SWSH_SUMMARY_MON_SHADOW_COLOR, OBJ_PLTT_ID(shadowPalette), PLTT_SIZE_4BPP);
+        else
+            gSprites[spriteId].oam.objMode = ST_OAM_OBJ_BLEND;
         gSprites[spriteId].subpriority = 6;
         gSprites[spriteId].x += 4;
         gSprites[spriteId].y += 2;
@@ -6444,7 +6498,20 @@ static void CreateStatusSprite(void)
     u8 *spriteId = &sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_STATUS];
 
     if (*spriteId == SPRITE_NONE)
-        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, 205, 16, 6); // moved from 213 to 179 to print status where level is.
+    {
+        u32 y = STATUS_ICON_Y;
+
+        if (SWSH_SUMMARY_STATUS_ICON_FADE)
+            y += STATUS_ICON_FADE_Y_OFFSET;
+
+        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, STATUS_ICON_X, y, 6);
+
+        if (SWSH_SUMMARY_STATUS_ICON_FADE)
+        {
+            gSprites[*spriteId].oam.priority = 0;
+            gSprites[*spriteId].oam.objMode = ST_OAM_OBJ_BLEND;
+        }
+    }
 
     HandleStatusSprite(&sMonSummaryScreen->currentMon);
 }
@@ -6452,6 +6519,10 @@ static void CreateStatusSprite(void)
 static void HandleStatusSprite(struct Pokemon *mon)
 {
     u32 statusIcon = GetStatusIcon(mon);
+
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+    ResetStatusIconFade();
+#endif
     if (statusIcon != STATUS_ICON_NONE)
     {
         StartSpriteAnim(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_STATUS]], statusIcon);
@@ -6462,6 +6533,100 @@ static void HandleStatusSprite(struct Pokemon *mon)
         SetSpriteInvisibility(SPRITE_ARR_ID_STATUS, TRUE);
     }
 }
+
+#if SWSH_SUMMARY_STATUS_ICON_FADE
+
+static void ApplyStatusIconFadeLevel(void)
+{
+    if (sMonSummaryScreen->statusFadeLevel == sMonSummaryScreen->statusFadeAppliedLevel)
+        return;
+
+    SetGpuReg(REG_OFFSET_BLDALPHA,
+              BLDALPHA_BLEND(STATUS_ICON_FADE_LEVELS - sMonSummaryScreen->statusFadeLevel,
+                             sMonSummaryScreen->statusFadeLevel));
+    sMonSummaryScreen->statusFadeAppliedLevel = sMonSummaryScreen->statusFadeLevel;
+}
+
+static void ResetStatusIconFade(void)
+{
+    sMonSummaryScreen->statusFadePhase = STATUS_FADE_SHOW;
+    sMonSummaryScreen->statusFadeTimer = 0;
+    sMonSummaryScreen->statusFadeLevel = 0;
+    sMonSummaryScreen->statusFadeAppliedLevel = STATUS_ICON_FADE_LEVELS + 1;
+
+    if (!sMonSummaryScreen->statusFadeSuspended)
+        ApplyStatusIconFadeLevel();
+}
+
+#if SWSH_SUMMARY_SHOW_CONTEST_PAGES
+
+static void SetStatusIconFadeSuspended(bool32 suspended)
+{
+    u8 spriteId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_STATUS];
+
+    sMonSummaryScreen->statusFadeSuspended = suspended;
+    ResetStatusIconFade();
+
+    if (spriteId != SPRITE_NONE)
+        gSprites[spriteId].oam.objMode = suspended ? ST_OAM_OBJ_NORMAL : ST_OAM_OBJ_BLEND;
+}
+#endif
+
+static void UpdateStatusIconFade(void)
+{
+    if (sMonSummaryScreen->statusFadeSuspended)
+        return;
+
+    sMonSummaryScreen->statusFadeTimer++;
+    switch (sMonSummaryScreen->statusFadePhase)
+    {
+    case STATUS_FADE_SHOW:
+        if (sMonSummaryScreen->statusFadeTimer >= STATUS_ICON_SHOW_FRAMES)
+        {
+            sMonSummaryScreen->statusFadeTimer = 0;
+            sMonSummaryScreen->statusFadePhase = STATUS_FADE_OUT;
+        }
+        break;
+    case STATUS_FADE_OUT:
+        if (sMonSummaryScreen->statusFadeTimer >= STATUS_ICON_FADE_FRAMES)
+        {
+            sMonSummaryScreen->statusFadeLevel = STATUS_ICON_FADE_LEVELS;
+            sMonSummaryScreen->statusFadeTimer = 0;
+            sMonSummaryScreen->statusFadePhase = STATUS_FADE_HIDE;
+        }
+        else
+        {
+            sMonSummaryScreen->statusFadeLevel = sMonSummaryScreen->statusFadeTimer
+                                               * STATUS_ICON_FADE_LEVELS / STATUS_ICON_FADE_FRAMES;
+        }
+        break;
+    case STATUS_FADE_HIDE:
+        if (sMonSummaryScreen->statusFadeTimer >= STATUS_ICON_HIDE_FRAMES)
+        {
+            sMonSummaryScreen->statusFadeTimer = 0;
+            sMonSummaryScreen->statusFadePhase = STATUS_FADE_IN;
+        }
+        break;
+    case STATUS_FADE_IN:
+        if (sMonSummaryScreen->statusFadeTimer >= STATUS_ICON_FADE_FRAMES)
+        {
+            sMonSummaryScreen->statusFadeLevel = 0;
+            sMonSummaryScreen->statusFadeTimer = 0;
+            sMonSummaryScreen->statusFadePhase = STATUS_FADE_SHOW;
+        }
+        else
+        {
+            sMonSummaryScreen->statusFadeLevel = STATUS_ICON_FADE_LEVELS
+                                               - sMonSummaryScreen->statusFadeTimer
+                                               * STATUS_ICON_FADE_LEVELS / STATUS_ICON_FADE_FRAMES;
+        }
+        break;
+    }
+
+    ApplyStatusIconFadeLevel();
+}
+
+#endif // SWSH_SUMMARY_STATUS_ICON_FADE
 
 #define CURSOR_BOB_RANGE 3
 #define CURSOR_BOB_FRAMES 20
