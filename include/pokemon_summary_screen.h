@@ -61,6 +61,5 @@ void ShowSelectMovePokemonSummaryScreen(struct Pokemon *mons, u8 monIndex, void 
 u8 GetMoveSlotToReplace(void);
 void SummaryScreen_SetAnimDelayTaskId(u8 taskId);
 void StopShadowAnimDelayTask(void);
-bool32 CheckRelearnerStateFlag(enum MoveRelearnerStates state);
 
 #endif // GUARD_POKEMON_SUMMARY_SCREEN_H

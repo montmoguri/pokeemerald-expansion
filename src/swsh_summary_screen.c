@@ -32,6 +32,7 @@
 #include "mon_markings.h"
 #include "move_relearner.h"
 #include "naming_screen.h"
+#include "ow_abilities.h"
 #include "party_menu.h"
 #include "palette.h"
 #include "pokeball.h"
@@ -386,7 +387,6 @@ static void PrintButtonIcon(u8, u8, u32, u32);
 static u8 GetButtonTextOffset(u8 buttonType);
 static void PrintTextOnWindowWithFont(u8, const u8 *, u8, u8, u8, u8, u32);
 static void PrintMovesPagePrompt(void);
-static void RefreshRelearnModePrompt(void);
 static void ClearMovesPagePrompt(void);
 static void PrintPagePrompts(void);
 static void PutPageWindowTilemaps(u8);
@@ -501,7 +501,7 @@ static bool32 ShouldShowRename(void);
 static void ShowCancelOrRenamePrompt(void);
 static void CB2_ReturnToSummaryScreenFromNamingScreen(void);
 static void CB2_PssChangePokemonNickname(void);
-static void UpdateMoveRelearnerState(bool32 goingDown);
+static void UpdateMoveRelearnerState(void);
 static void PrintRightAlignedPrompt(u8, u8, const u8*, int, u8);
 
 // const rom data
@@ -536,18 +536,8 @@ static const u8 sText_Nature[]                  = _("{DYNAMIC 0}{DYNAMIC 2}{DYNA
 static const u8 sText_MintNature[]              = _("{DYNAMIC 0}{DYNAMIC 2} {EMOJI_LEAF}{DYNAMIC 1}");
 
 // Relearn prompt texts
-static const u8 sText_RelearnModeLevel[]         = _("Level");
-static const u8 sText_RelearnModeTM[]            = _("TM");
-static const u8 sText_RelearnModeTutor[]         = _("Tutor");
-static const u8 sText_Relearn[]                  = _("Relearn ");
+static const u8 sText_Relearn[]                  = _("Relearn");
 static const u8 sText_Info[]                     = _("Info");
-
-static const u8 *const sRelearnModeNames[] = {
-    [MOVE_RELEARNER_LEVEL_UP_MOVES] = sText_RelearnModeLevel,
-    [MOVE_RELEARNER_EGG_MOVES]      = sText_Egg,
-    [MOVE_RELEARNER_TM_MOVES]       = sText_RelearnModeTM,
-    [MOVE_RELEARNER_TUTOR_MOVES]    = sText_RelearnModeTutor,
-};
 
 // Trainer Memo page texts
 static const u8 sText_MemoNature[]              = _("{DYNAMIC 0}{DYNAMIC 2}{DYNAMIC 1}{DYNAMIC 5} by nature");
@@ -744,7 +734,7 @@ static const s8 sMultiBattleOrder[] = {0, 2, 3, 1, 4, 5};
 #define WIN_PROMPT_IV_EV_STATS_TILES    (WIN_PROMPT_IV_EV_STATS_W * WIN_PROMPT_IV_EV_STATS_H)
 #define WIN_PROMPT_IV_EV_STATS_BASE     (WIN_PORTRAIT_INFO_BASE + WIN_PORTRAIT_INFO_TILES)
 
-#define WIN_PROMPT_MOVES_W              20
+#define WIN_PROMPT_MOVES_W              14
 #define WIN_PROMPT_MOVES_H              2
 #define WIN_PROMPT_MOVES_TILES          (WIN_PROMPT_MOVES_W * WIN_PROMPT_MOVES_H)
 #define WIN_PROMPT_MOVES_BASE           (WIN_PROMPT_IV_EV_STATS_BASE + WIN_PROMPT_IV_EV_STATS_TILES)
@@ -800,7 +790,7 @@ static const struct WindowTemplate sSummaryTemplate[] =
     },
     [PSS_LABEL_WINDOW_PROMPT_MOVES] = {
         .bg = 0,
-        .tilemapLeft = 10,
+        .tilemapLeft = 16,
         .tilemapTop = 18,
         .width = WIN_PROMPT_MOVES_W,
         .height = WIN_PROMPT_MOVES_H,
@@ -1000,13 +990,6 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
 #define TAG_MOVE_CURSOR         30029
 
 
-enum SwShCategoryIcon
-{
-    CATEGORY_ICON_PHYSICAL,
-    CATEGORY_ICON_SPECIAL,
-    CATEGORY_ICON_STATUS,
-};
-
 // ===============================================
 // SWSH Custom Category Icons (local to summary screen only)
 // ===============================================
@@ -1045,9 +1028,9 @@ static const union AnimCmd sSpriteAnim_CategoryStatus_SwSh[] =
 
 static const union AnimCmd *const sSpriteAnimTable_CategoryIcons_SwSh[] =
 {
-    [CATEGORY_ICON_PHYSICAL] = sSpriteAnim_CategoryPhysical_SwSh,
-    [CATEGORY_ICON_SPECIAL]  = sSpriteAnim_CategorySpecial_SwSh,
-    [CATEGORY_ICON_STATUS]   = sSpriteAnim_CategoryStatus_SwSh,
+    [DAMAGE_CATEGORY_PHYSICAL] = sSpriteAnim_CategoryPhysical_SwSh,
+    [DAMAGE_CATEGORY_SPECIAL]  = sSpriteAnim_CategorySpecial_SwSh,
+    [DAMAGE_CATEGORY_STATUS]   = sSpriteAnim_CategoryStatus_SwSh,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_CategoryIcons =
@@ -2859,26 +2842,6 @@ static void Task_HandleInput(u8 taskId)
             PlaySE(SE_SELECT);
             CloseSummaryScreen(taskId);
         }
-        else if (JOY_NEW(R_BUTTON)) // R means increase. Level -> Egg -> TM -> Tutor
-        {
-            if (P_SUMMARY_SCREEN_MOVE_RELEARNER && IS_MOVE_PAGE(sMonSummaryScreen->currPageIndex) && !gMain.inBattle)
-            {
-                gMoveRelearnerState++;
-                UpdateMoveRelearnerState(FALSE);
-                RefreshRelearnModePrompt();
-                PlaySE(SE_SELECT);
-            }
-        }
-        else if (JOY_NEW(L_BUTTON)) // L means decrease. Level <- Egg <- TM <- Tutor
-        {
-            if (P_SUMMARY_SCREEN_MOVE_RELEARNER && IS_MOVE_PAGE(sMonSummaryScreen->currPageIndex) && !gMain.inBattle)
-            {
-                gMoveRelearnerState--;
-                UpdateMoveRelearnerState(TRUE);
-                RefreshRelearnModePrompt();
-                PlaySE(SE_SELECT);
-            }
-        }
     }
 }
 
@@ -2898,14 +2861,14 @@ static bool32 HasAnyRelearnableMoves(enum MoveRelearnerStates state)
     return CanBoxMonRelearnMoves(GetCurrentBoxmon(), state);
 }
 
-static void UpdateMoveRelearnerState(bool32 goingDown)
+static void UpdateMoveRelearnerState(void)
 {
-    s32 state;
+    u32 state;
 
     sMonSummaryScreen->hasRelearnableMoves = FALSE;
     for (u32 i = 0; i < MOVE_RELEARNER_COUNT; i++)
     {
-        state = (gMoveRelearnerState + i * (goingDown ? -1 : 1)) % MOVE_RELEARNER_COUNT;
+        state = (gMoveRelearnerState + i) % MOVE_RELEARNER_COUNT;
         if (HasAnyRelearnableMoves(state))
         {
             sMonSummaryScreen->hasRelearnableMoves = TRUE;
@@ -2996,7 +2959,7 @@ static void Task_ChangeSummaryMon(u8 taskId)
                 if (P_SUMMARY_SCREEN_MOVE_RELEARNER)
                 {
                     gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
-                    UpdateMoveRelearnerState(FALSE);
+                    UpdateMoveRelearnerState();
                 }
                 PrintMovesPagePrompt();
             }
@@ -3215,7 +3178,7 @@ static void ChangePage(u8 taskId, s8 delta)
     if (currPageIndex == PSS_PAGE_SKILLS)
     {
         gMoveRelearnerState = MOVE_RELEARNER_LEVEL_UP_MOVES;
-        UpdateMoveRelearnerState(FALSE);
+        UpdateMoveRelearnerState();
     }
 }
 
@@ -3918,12 +3881,6 @@ static void PrintTextOnWindow(u8 windowId, const u8 *string, u8 x, u8 y, u8 line
     PrintTextOnWindowWithFont(windowId, string, x, y, lineSpacing, colorId, PSS_DEFAULT_FONT);
 }
 
-static UNUSED void PrintTextOnWindowToFitPx_WithFont(u8 windowId, const u8 *string, u8 x, u8 y, u8 lineSpacing, u8 colorId, u32 fontId, u32 width)
-{
-    u32 font = GetFontIdToFit(string, fontId, 0, width);
-    PrintTextOnWindowWithFont(windowId, string, x, y, lineSpacing, colorId, font);
-}
-
 static void PrintMonPortraitInfo(void)
 {
     FillWindowPixelBuffer(PSS_LABEL_WINDOW_PORTRAIT_INFO, PIXEL_FILL(0));
@@ -3972,7 +3929,9 @@ static void PrintNotEggInfo(void)
 static void PrintEggStepsRemaining(void)
 {
     u32 eggCycles = GetMonData(&sMonSummaryScreen->currentMon, MON_DATA_FRIENDSHIP);
-    u32 stepsInCurrentCycle = gSaveBlock1Ptr->daycare.stepCounter;
+    bool32 isPartyEgg = (!sMonSummaryScreen->isBoxMon
+                        && sMonSummaryScreen->mode != SUMMARY_MODE_BOX_CURSOR);
+    u32 stepsInCurrentCycle = isPartyEgg ? gSaveBlock1Ptr->daycare.stepCounter : 0;
 
     #if P_EGG_CYCLE_LENGTH >= GEN_8
         u32 stepsPerCycle = 128;
@@ -3985,7 +3944,7 @@ static void PrintEggStepsRemaining(void)
     #endif
 
     // Handle fast-hatching abilities like Flame Body, etc.
-    u8 cyclesToSubtract = GetEggCyclesToSubtract();
+    u8 cyclesToSubtract = (isPartyEgg && DoesPartyHaveIncubatorMon()) ? 2 : 1;
     u32 stepsRemaining;
 
     // Calculate how many actual step cycles are needed
@@ -4092,7 +4051,7 @@ static void PrintPagePrompts(void)
     if (IS_MOVE_PAGE(sMonSummaryScreen->currPageIndex)
         && sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
     {
-        UpdateMoveRelearnerState(FALSE);
+        UpdateMoveRelearnerState();
         PrintMovesPagePrompt();
     }
 }
@@ -4117,7 +4076,7 @@ static void PutPageWindowTilemaps(u8 page)
         }
         else
         {
-            UpdateMoveRelearnerState(FALSE);
+            UpdateMoveRelearnerState();
             PrintMovesPagePrompt();
         }
         break;
@@ -4128,7 +4087,7 @@ static void PutPageWindowTilemaps(u8 page)
     case PSS_PAGE_CONTEST_MOVES:
         if (sMonSummaryScreen->mode != SUMMARY_MODE_SELECT_MOVE)
         {
-            UpdateMoveRelearnerState(FALSE);
+            UpdateMoveRelearnerState();
             PrintMovesPagePrompt();
         }
         break;
@@ -4376,8 +4335,9 @@ static void PrintMonAbilityDescription(void)
 {
     enum Ability ability = GetAbilityBySpecies(sMonSummaryScreen->summary.species, sMonSummaryScreen->summary.abilityNum);
     u8 y = SWSH_SUMMARY_SHOW_DYNAMAX_LEVEL ? 22 : 20;
+    u32 fontId = GetFontIdToFit(gAbilitiesInfo[ability].description, PSS_DEFAULT_FONT, 0, WIN_SKILLS_ABILITY_W * TILE_WIDTH);
 
-    PrintTextOnWindow(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 0, y, 0, 0);
+    PrintTextOnWindowWithFont(AddWindowFromTemplateList(sPageSkillsTemplate, PSS_DATA_WINDOW_SKILLS_ABILITY), gAbilitiesInfo[ability].description, 0, y, 0, 0, fontId);
 }
 
 static const u8 *GetCharacteristicString(void)
@@ -5664,7 +5624,7 @@ static void PrintMoveNameAndPP(u8 slotIndex)
     if (move != MOVE_NONE)
     {
         u8 pp = CalculatePPWithBonus(move, summary->ppBonuses, slotIndex);
-        u8 ppState = GetCurrentPpToMaxPpState(summary->pp[slotIndex], pp);
+        u8 ppState = GetCurrentPPToMaxPPState(summary->pp[slotIndex], pp);
         ConvertIntToDecimalStringN(gStringVar1, summary->pp[slotIndex], STR_CONV_MODE_RIGHT_ALIGN, 2);
         ConvertIntToDecimalStringN(gStringVar2, pp, STR_CONV_MODE_RIGHT_ALIGN, 2);
         DynamicPlaceholderTextUtil_Reset();
@@ -7063,32 +7023,16 @@ static inline bool32 ShouldShowMoveRelearner(void)
          && !InSlateportBattleTent());
 }
 
-static void RefreshRelearnModePrompt(void)
-{
-    FillWindowPixelRect(PSS_LABEL_WINDOW_PROMPT_MOVES, PIXEL_FILL(0), 0, 0, 120, 16);
-    if (ShouldShowMoveRelearner())
-    {
-        PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_MOVES, BUTTON_LR, 8, 4);
-        PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_MOVES, BUTTON_START, 27, 4);
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_MOVES, sText_Relearn, 53, 0, 0, 1, FONT_SMALL);
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_MOVES, sRelearnModeNames[gMoveRelearnerState],
-                                  53 + GetStringWidth(FONT_SMALL, sText_Relearn, 0), 0, 0, 1, FONT_SMALL);
-    }
-    ScheduleBgCopyTilemapToVram(0);
-}
-
 static void PrintMovesPagePrompt(void)
 {
     FillWindowPixelBuffer(PSS_LABEL_WINDOW_PROMPT_MOVES, PIXEL_FILL(0));
     if (ShouldShowMoveRelearner())
     {
-        PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_MOVES, BUTTON_LR, 8, 4);
-        PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_MOVES, BUTTON_START, 27, 4);
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_MOVES, sText_Relearn, 53, 0, 0, 1, FONT_SMALL);
-        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_MOVES, sRelearnModeNames[gMoveRelearnerState],
-                                  53 + GetStringWidth(FONT_SMALL, sText_Relearn, 0), 0, 0, 1, FONT_SMALL);
+        PrintButtonIcon(PSS_LABEL_WINDOW_PROMPT_MOVES, BUTTON_START, 10, 4);
+        PrintTextOnWindowWithFont(PSS_LABEL_WINDOW_PROMPT_MOVES, sText_Relearn,
+                                  10 + GetButtonTextOffset(BUTTON_START), 0, 0, 1, FONT_SMALL);
     }
-    PrintRightAlignedPrompt(PSS_LABEL_WINDOW_PROMPT_MOVES, BUTTON_A, sText_Info, 156, 1);
+    PrintRightAlignedPrompt(PSS_LABEL_WINDOW_PROMPT_MOVES, BUTTON_A, sText_Info, WIN_PROMPT_MOVES_W * TILE_WIDTH - 4, 1);
     PutWindowTilemap(PSS_LABEL_WINDOW_PROMPT_MOVES);
     ScheduleBgCopyTilemapToVram(0);
 }
