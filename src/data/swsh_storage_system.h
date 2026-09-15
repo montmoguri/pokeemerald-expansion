@@ -55,7 +55,6 @@ static const u32 sSwShStorage_BG1_Tilemap[]   = INCGFX_U32("graphics/pokemon_sto
 static const u32 sSwShStorage_BG2_Tilemap[]   = INCGFX_U32("graphics/pokemon_storage/swsh/bg2.bin", ".smolTM");
 static const u32 sMonInfo_Gfx[]               = INCGFX_U32("graphics/pokemon_storage/swsh/mon_info.png", ".4bpp.smol");
 static const u32 sMonInfo_Tilemap[]           = INCGFX_U32("graphics/pokemon_storage/swsh/mon_info.bin", ".smolTM");
-static const u16 sTextWindows_Pal[]           = INCGFX_U16("graphics/pokemon_storage/swsh/text_windows.pal", ".gbapal");
 
 static const u32 sBoxTitleFrame_Gfx[]         = INCGFX_U32("graphics/pokemon_storage/swsh/box_title_frame.png", ".4bpp");
 static const u32 sBoxTitleArrow_Gfx[]         = INCGFX_U32("graphics/pokemon_storage/swsh/box_title_arrow.png", ".4bpp.smol");
@@ -280,9 +279,15 @@ static const struct StorageMessage sMessages[] =
 // Window Templates
 // ============================================================================
 
+#define PAL_STORAGE_MAIN            0   // tiles.png bank 0 - BG1/BG2 art, and sMonInfo_Gfx
+#define PAL_STORAGE_TEXT            1   // tiles.png bank 1 - custom swsh text palette
+#define PAL_STORAGE_WALLPAPER       2   // wallpaper
+#define PAL_STORAGE_FRAME           14  // std window border
+#define PAL_STORAGE_STD_MENU        15  // gStandardMenuPalette - options menu, yes/no, jump list
+
 #define STORAGE_CHAR_BASE_TILES     1024
 
-#define STORAGE_TILES_MON_INFO_GFX  48  // mon_info.png
+#define STORAGE_TILES_MON_INFO_GFX  48  // sMonInfo_Gfx
 #define STORAGE_TILES_STD_BORDER    9
 
 #define STORAGE_BASE_MON_INFO_GFX   0
@@ -349,7 +354,7 @@ static const struct WindowTemplate sWindowTemplate_MainMenu =
         .tilemapTop  = (top),                           \
         .width       = WIN_MON_INFO_##name##_W,         \
         .height      = WIN_MON_INFO_##name##_H,         \
-        .paletteNum  = 15,                              \
+        .paletteNum  = PAL_STORAGE_TEXT,                \
         .baseBlock   = WIN_MON_INFO_##name##_BASE,      \
     }
 
@@ -361,7 +366,7 @@ static const struct WindowTemplate sWindowTemplates[] =
         .tilemapTop = 17,
         .width = WIN_MESSAGE_W,
         .height = WIN_MESSAGE_H,
-        .paletteNum = 15,
+        .paletteNum = PAL_STORAGE_TEXT,
         .baseBlock = WIN_MESSAGE_BASE,
     },
     [WIN_MON_INFO_NICKNAME_LEFT]     = MON_INFO_WIN(NICKNAME,   0, 23),
@@ -403,7 +408,7 @@ STATIC_ASSERT(STORAGE_MENU_JUMP_ROWS <= WIN_MENU_MAX_ROWS, StorageMenuJumpRows);
 static const struct WindowTemplate sWindowTemplate_Menu =
 {
     .bg = 0,
-    .paletteNum = 15,
+    .paletteNum = PAL_STORAGE_STD_MENU,
     .baseBlock = WIN_MENU_BASE,
 };
 
@@ -423,7 +428,7 @@ static const struct WindowTemplate sYesNoWindowTemplate =
     .tilemapTop = 11,
     .width = WIN_YESNO_W,
     .height = WIN_YESNO_H,
-    .paletteNum = 15,
+    .paletteNum = PAL_STORAGE_STD_MENU,
     .baseBlock = WIN_YESNO_BASE,
 };
 
@@ -453,12 +458,21 @@ static const struct WindowTemplate sWindowTemplate_MultiMove =
     .baseBlock = WIN_MULTI_MOVE_BASE,
 };
 
-static const u8 sTextColors[][3] =
-{
-    {1, 2, 3}, // Standard menus, mon info (stats, ability, item)
-    {4, 2, 5}, // Mon info (nickname and level) (grey BG)
-    {0, 4, 7}, // Choose box menu - actually uses PALTAG_MISC_3 and not bg pal 15
-    {0, 1, 6}, // Main message window
+enum {
+    COLORID_PC_MAIN_MENU,   // overworld PC main menu
+    COLORID_MON_INFO_NAME,  // nickname and level, on the grey panel
+    COLORID_MON_INFO,       // stats, ability, held item
+    COLORID_CHOOSE_BOX,     // uses PALTAG_MISC_3
+    COLORID_MESSAGE,
+};
+
+static const u8 sFontColorTable[][3] = {
+                              // bgColor, textColor, shadowColor
+    [COLORID_PC_MAIN_MENU]  = {1, 2, 3},
+    [COLORID_MON_INFO_NAME] = {4, 2, 5},
+    [COLORID_MON_INFO]      = {1, 2, 3},
+    [COLORID_CHOOSE_BOX]    = {0, 4, 7},
+    [COLORID_MESSAGE]       = {0, 1, 6},
 };
 
 

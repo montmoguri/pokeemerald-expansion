@@ -949,7 +949,7 @@ static void Task_PCMainMenu(u8 taskId)
         LoadMessageBoxAndBorderGfx();
         DrawDialogueFrame(0, FALSE);
         FillWindowPixelBuffer(0, PIXEL_FILL(1));
-        AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sTextColors[0], TEXT_SKIP_DRAW, sMainMenuTexts[task->tSelectedOption].desc);
+        AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_PC_MAIN_MENU], TEXT_SKIP_DRAW, sMainMenuTexts[task->tSelectedOption].desc);
         CopyWindowToVram(0, COPYWIN_FULL);
         CopyWindowToVram(task->tWindowId, COPYWIN_FULL);
         task->tState++;
@@ -973,7 +973,7 @@ static void Task_PCMainMenu(u8 taskId)
             {
                 task->tSelectedOption = task->tNextOption;
                 FillWindowPixelBuffer(0, PIXEL_FILL(1));
-                AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sTextColors[0], 0, sMainMenuTexts[task->tSelectedOption].desc);
+                AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_PC_MAIN_MENU], 0, sMainMenuTexts[task->tSelectedOption].desc);
             }
             break;
         case MENU_B_PRESSED:
@@ -989,14 +989,14 @@ static void Task_PCMainMenu(u8 taskId)
             {
                 // Can't withdraw
                 FillWindowPixelBuffer(0, PIXEL_FILL(1));
-                AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sTextColors[0], 0, gText_PartyFull);
+                AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_PC_MAIN_MENU], 0, gText_PartyFull);
                 task->tState = STATE_ERROR_MSG;
             }
             else if (task->tInput == OPTION_DEPOSIT && CountPartyMons() == 1)
             {
                 // Can't deposit
                 FillWindowPixelBuffer(0, PIXEL_FILL(1));
-                AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sTextColors[0], 0, gText_JustOnePkmn);
+                AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_PC_MAIN_MENU], 0, gText_JustOnePkmn);
                 task->tState = STATE_ERROR_MSG;
             }
             else
@@ -1014,7 +1014,7 @@ static void Task_PCMainMenu(u8 taskId)
         if (JOY_NEW(A_BUTTON | B_BUTTON))
         {
             FillWindowPixelBuffer(0, PIXEL_FILL(1));
-            AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sTextColors[0], 0, sMainMenuTexts[task->tSelectedOption].desc);
+            AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_PC_MAIN_MENU], 0, sMainMenuTexts[task->tSelectedOption].desc);
             task->tState = STATE_HANDLE_INPUT;
         }
         else if (JOY_NEW(DPAD_UP))
@@ -1024,7 +1024,7 @@ static void Task_PCMainMenu(u8 taskId)
             Menu_MoveCursor(-1);
             task->tSelectedOption = Menu_GetCursorPos();
             FillWindowPixelBuffer(0, PIXEL_FILL(1));
-            AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sTextColors[0], 0, sMainMenuTexts[task->tSelectedOption].desc);
+            AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_PC_MAIN_MENU], 0, sMainMenuTexts[task->tSelectedOption].desc);
             task->tState = STATE_HANDLE_INPUT;
         }
         else if (JOY_NEW(DPAD_DOWN))
@@ -1034,7 +1034,7 @@ static void Task_PCMainMenu(u8 taskId)
             Menu_MoveCursor(1);
             task->tSelectedOption = Menu_GetCursorPos();
             FillWindowPixelBuffer(0, PIXEL_FILL(1));
-            AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sTextColors[0], 0, sMainMenuTexts[task->tSelectedOption].desc);
+            AddTextPrinterParameterized4(0, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_PC_MAIN_MENU], 0, sMainMenuTexts[task->tSelectedOption].desc);
             task->tState = STATE_HANDLE_INPUT;
         }
         break;
@@ -1184,9 +1184,9 @@ static void ChooseBox_PrintInfo(void)
     u32 spriteId;
     s16 xOffset;
     union TextColor color = {
-        .background = sTextColors[2][0],
-        .foreground = sTextColors[2][1],
-        .shadow = sTextColors[2][2],
+        .background = sFontColorTable[COLORID_CHOOSE_BOX][0],
+        .foreground = sFontColorTable[COLORID_CHOOSE_BOX][1],
+        .shadow = sFontColorTable[COLORID_CHOOSE_BOX][2],
     };
 
     if (sChooseBoxMenu->hoverSprite == NULL)
@@ -1501,7 +1501,7 @@ static void ChooseBox_PrintInfo(void)
     windowId = AddWindow(&template);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
     center = GetStringCenterAlignXOffset(FONT_NORMAL, boxName, 64);
-    AddTextPrinterParameterized3(windowId, FONT_NORMAL, center, 1, sTextColors[2], TEXT_SKIP_DRAW, boxName);
+    AddTextPrinterParameterized3(windowId, FONT_NORMAL, center, 1, sFontColorTable[COLORID_CHOOSE_BOX], TEXT_SKIP_DRAW, boxName);
     tileData1 = (u8 *)GetWindowAttribute(windowId, WINDOW_TILE_DATA);
     tileData2 = tileData1 + template.width * TILE_SIZE_4BPP;
     for (i = 0; i < 2; i++)
@@ -1532,7 +1532,7 @@ static void ChooseBox_PrintInfo(void)
     ConvertIntToDecimalStringN(numBoxMonsText, numInBox, STR_CONV_MODE_RIGHT_ALIGN, 2);
     StringAppend(numBoxMonsText, sText_OutOf30);
     center = GetStringCenterAlignXOffset(FONT_NORMAL, numBoxMonsText, 32);
-    AddTextPrinterParameterized3(windowId, FONT_NORMAL, center, 1, sTextColors[2], TEXT_SKIP_DRAW, numBoxMonsText);
+    AddTextPrinterParameterized3(windowId, FONT_NORMAL, center, 1, sFontColorTable[COLORID_CHOOSE_BOX], TEXT_SKIP_DRAW, numBoxMonsText);
     CpuCopy32((void *)GetWindowAttribute(windowId, WINDOW_TILE_DATA), sChooseBoxMenu->monCountTiles, 0x100);
     RemoveWindow(windowId);
 
@@ -3709,7 +3709,7 @@ static void SetScrollingBackground(void)
     SetGpuReg(REG_OFFSET_BG3CNT, BGCNT_PRIORITY(3) | BGCNT_CHARBASE(3) | BGCNT_16COLOR | BGCNT_SCREENBASE(31));
     DecompressAndLoadBgGfxUsingHeap(3, sSwShWallpapers[wallpaperId].tiles, 0, 0, 0);
     DecompressDataWithHeaderVram(sSwShWallpapers[wallpaperId].tilemap, (void *)BG_SCREEN_ADDR(31));
-    LoadPalette(sSwShWallpapers[wallpaperId].palettes, BG_PLTT_ID(1), PLTT_SIZE_4BPP);
+    LoadPalette(sSwShWallpapers[wallpaperId].palettes, BG_PLTT_ID(PAL_STORAGE_WALLPAPER), PLTT_SIZE_4BPP);
 }
 
 static void ScrollBackground(void)
@@ -3756,11 +3756,11 @@ static bool8 InitPalettesAndSprites(void)
     switch (sStorage->graphicsLoadState)
     {
     case 0:
-        LoadPalette(sSwShStorage_Pal, BG_PLTT_ID(0), sizeof(sSwShStorage_Pal));
+        LoadPalette(sSwShStorage_Pal, BG_PLTT_ID(PAL_STORAGE_MAIN), 2 * PLTT_SIZE_4BPP);
         sStorage->graphicsLoadState++;
         break;
     case 1:
-        LoadPalette(sTextWindows_Pal, BG_PLTT_ID(15), sizeof(sTextWindows_Pal));
+        LoadPalette(gStandardMenuPalette, BG_PLTT_ID(PAL_STORAGE_STD_MENU), PLTT_SIZE_4BPP);
         sStorage->graphicsLoadState++;
         break;
     case 2:
@@ -4180,7 +4180,7 @@ static void BufferAndPrintStat(u8 windowId, u8 font, u8 xOffset, u8 y, u16 statV
 
     ConvertIntToDecimalStringN(statStr, statValue, STR_CONV_MODE_LEFT_ALIGN, 3);
     statWidth = GetStringWidth(font, statStr, 0);
-    AddTextPrinterParameterized4(windowId, font, xOffset - statWidth, y, 0, 0, sTextColors[0], 0, statStr);
+    AddTextPrinterParameterized4(windowId, font, xOffset - statWidth, y, 0, 0, sFontColorTable[COLORID_MON_INFO], 0, statStr);
 }
 
 static void PrintDisplayMonAbility(u8 font)
@@ -4208,7 +4208,7 @@ static void PrintDisplayMonAbility(u8 font)
     abilityName = gAbilitiesInfo[sStorage->displayMon.ability].name;
     fontId = GetFontIdToFit(abilityName, font, 0, windowWidthPx - 2);
 
-    AddTextPrinterParameterized4(windowId, fontId, xPos, 0, 0, 0, sTextColors[0], 0, abilityName);
+    AddTextPrinterParameterized4(windowId, fontId, xPos, 0, 0, 0, sFontColorTable[COLORID_MON_INFO], 0, abilityName);
     PutWindowTilemap(windowId);
     CopyWindowToVram(windowId, COPYWIN_FULL);
 }
@@ -4241,7 +4241,7 @@ static void PrintDisplayMonHeldItem(u8 font)
         itemName = GetItemName(sStorage->displayMon.heldItem);
     fontId = GetFontIdToFit(itemName, font, 0, windowWidthPx - 2);
 
-    AddTextPrinterParameterized4(windowId, fontId, xPos, 0, 0, 0, sTextColors[0], 0, itemName);
+    AddTextPrinterParameterized4(windowId, fontId, xPos, 0, 0, 0, sFontColorTable[COLORID_MON_INFO], 0, itemName);
     PutWindowTilemap(windowId);
     CopyWindowToVram(windowId, COPYWIN_FULL);
 }
@@ -4302,7 +4302,7 @@ static void PrintDisplayMonNickname(u8 font)
         FillWindowPixelBuffer(windowId, PIXEL_FILL(4));
 
         u8 fontId = GetFontIdToFit(sStorage->displayMon.nickname, font, 0, 58);
-        AddTextPrinterParameterized4(windowId, fontId, 6, 1, 0, 0, sTextColors[1], 0, sStorage->displayMon.nickname);
+        AddTextPrinterParameterized4(windowId, fontId, 6, 1, 0, 0, sFontColorTable[COLORID_MON_INFO_NAME], 0, sStorage->displayMon.nickname);
         PutWindowTilemap(windowId);
         CopyWindowToVram(windowId, COPYWIN_FULL);
     }
@@ -4330,8 +4330,8 @@ static void PrintDisplayMonLevel(u8 font)
         u16 totalWidth = lvWidth + numWidth;
         u16 lvStartX = 28 - totalWidth;
 
-        AddTextPrinterParameterized4(windowId, FONT_SHORT_NARROWER, lvStartX, 1, 0, 0, sTextColors[1], 0, sText_Lv);
-        AddTextPrinterParameterized4(windowId, font, lvStartX + lvWidth, 1, 0, 0, sTextColors[1], 0, levelStr);
+        AddTextPrinterParameterized4(windowId, FONT_SHORT_NARROWER, lvStartX, 1, 0, 0, sFontColorTable[COLORID_MON_INFO_NAME], 0, sText_Lv);
+        AddTextPrinterParameterized4(windowId, font, lvStartX + lvWidth, 1, 0, 0, sFontColorTable[COLORID_MON_INFO_NAME], 0, levelStr);
         PutWindowTilemap(windowId);
         CopyWindowToVram(windowId, COPYWIN_FULL);
     }
@@ -4424,7 +4424,7 @@ static void InitPokeStorageBg0(void)
     SetGpuReg(REG_OFFSET_BG0CNT, BGCNT_PRIORITY(0) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(29) | BGCNT_TXT256x512);
     SetBgTilemapBuffer(0, sStorage->infoTilemapBuffer);
     DecompressAndLoadBgGfxUsingHeap(0, sMonInfo_Gfx, 0, STORAGE_BASE_MON_INFO_GFX, 0);
-    LoadUserWindowBorderGfx(WIN_MESSAGE, STORAGE_BASE_STD_BORDER, BG_PLTT_ID(14));
+    LoadUserWindowBorderGfx(WIN_MESSAGE, STORAGE_BASE_STD_BORDER, BG_PLTT_ID(PAL_STORAGE_FRAME));
     DecompressDataWithHeaderWram(sMonInfo_Tilemap, sStorage->infoTilemapBuffer);
     sStorage->bg0_Y = 0;
     UpdateMonInfoTilemap();
@@ -4569,7 +4569,7 @@ static void PrintMessage(u8 id)
     DynamicPlaceholderTextUtil_ExpandPlaceholders(sStorage->messageText, sMessages[id].text);
     CreateMessageWindowSprite();
     FillWindowPixelBuffer(WIN_MESSAGE, PIXEL_FILL(0));
-    AddTextPrinterParameterized4(WIN_MESSAGE, FONT_NORMAL, 0, 1, 0, 0, sTextColors[3], TEXT_SKIP_DRAW, sStorage->messageText);
+    AddTextPrinterParameterized4(WIN_MESSAGE, FONT_NORMAL, 0, 1, 0, 0, sFontColorTable[COLORID_MESSAGE], TEXT_SKIP_DRAW, sStorage->messageText);
     PutWindowTilemap(WIN_MESSAGE);
     CopyWindowToVram(WIN_MESSAGE, COPYWIN_GFX);
     ScheduleBgCopyTilemapToVram(0);
@@ -4578,7 +4578,7 @@ static void PrintMessage(u8 id)
 static void ShowYesNoWindow(s8 cursorPos)
 {
     ClearMonInfoTilemap();
-    CreateYesNoMenu(&sYesNoWindowTemplate, STORAGE_BASE_STD_BORDER, 14, 0);
+    CreateYesNoMenu(&sYesNoWindowTemplate, STORAGE_BASE_STD_BORDER, PAL_STORAGE_FRAME, 0);
     Menu_MoveCursorNoWrapAround(cursorPos);
 }
 
@@ -4664,7 +4664,7 @@ static void AddWallpaperMenu(void)
     sStorage->menuWindow.tilemapTop = 5;
     sStorage->menuWindowId = AddWindow(&sStorage->menuWindow);
     ClearMonInfoTilemap();
-    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, STORAGE_BASE_STD_BORDER, 14);
+    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, STORAGE_BASE_STD_BORDER, PAL_STORAGE_FRAME);
 
     sStorage->listMenuTemplate.items = (struct ListMenuItem *)sStorage->menuItems;
     sStorage->listMenuTemplate.moveCursorFunc = ListMenuDefaultCursorMoveFunc;
@@ -5705,7 +5705,7 @@ static void UpdateWallpaperGfx(u8 boxId, s8 direction)
     }
     DecompressDataWithHeaderWram(sSwShWallpapers[wallpaperId].tilemap, sStorage->wallpaperBgTilemapBuffer);
     RequestDma3Copy(sStorage->wallpaperBgTilemapBuffer, (void *)BG_SCREEN_ADDR(31), 0x800, 1);
-    LoadPalette(sSwShWallpapers[wallpaperId].palettes, BG_PLTT_ID(1), PLTT_SIZE_4BPP);
+    LoadPalette(sSwShWallpapers[wallpaperId].palettes, BG_PLTT_ID(PAL_STORAGE_WALLPAPER), PLTT_SIZE_4BPP);
 }
 
 static bool32 WaitForWallpaperGfxLoad(void)
@@ -8069,7 +8069,7 @@ static void AddMenu(void)
     sStorage->menuWindowId = AddWindow(&sStorage->menuWindow);
     ClearMonInfoTilemap();
     ClearWindowTilemap(sStorage->menuWindowId);
-    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, STORAGE_BASE_STD_BORDER, 14);
+    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, STORAGE_BASE_STD_BORDER, PAL_STORAGE_FRAME);
     PrintMenuTable(sStorage->menuWindowId, sStorage->menuItemsCount, (void *)sStorage->menuItems);
     InitMenuInUpperLeftCornerNormal(sStorage->menuWindowId, sStorage->menuItemsCount, 0);
     ScheduleBgCopyTilemapToVram(0);
