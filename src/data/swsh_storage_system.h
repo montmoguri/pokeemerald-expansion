@@ -280,6 +280,14 @@ static const struct StorageMessage sMessages[] =
 // Window Templates
 // ============================================================================
 
+#define STORAGE_CHAR_BASE_TILES     1024
+
+#define STORAGE_TILES_MON_INFO_GFX  48  // mon_info.png
+#define STORAGE_TILES_STD_BORDER    9
+
+#define STORAGE_BASE_MON_INFO_GFX   0
+#define STORAGE_BASE_STD_BORDER     (STORAGE_BASE_MON_INFO_GFX + STORAGE_TILES_MON_INFO_GFX)
+
 static const struct WindowTemplate sWindowTemplate_MainMenu =
 {
     .bg = 0,
@@ -291,27 +299,59 @@ static const struct WindowTemplate sWindowTemplate_MainMenu =
     .baseBlock = 0x1,
 };
 
-static const struct WindowTemplate sYesNoWindowTemplate =
-{
-    .bg = 0,
-    .tilemapLeft = 24,
-    .tilemapTop = 11,
-    .width = 5,
-    .height = 4,
-    .paletteNum = 15,
-    .baseBlock = 0x5C,
-};
+// ----------------------------------------------------------------------------
+// Message window and mon info panel - see sWindowTemplates
+// ----------------------------------------------------------------------------
 
-static const struct WindowTemplate sWindowTemplate_MultiMove =
-{
-    .bg = 0,
-    .tilemapLeft = 10,
-    .tilemapTop = 3,
-    .width = 19,
-    .height = 16,
-    .paletteNum = 9,
-    .baseBlock = 0x1,
-};
+#define WIN_MESSAGE_W                   20
+#define WIN_MESSAGE_H                   2
+#define WIN_MESSAGE_TILES               (WIN_MESSAGE_W * WIN_MESSAGE_H)
+#define WIN_MESSAGE_BASE                (STORAGE_BASE_STD_BORDER + STORAGE_TILES_STD_BORDER)
+
+#define WIN_PANEL_BASE                  (WIN_MESSAGE_BASE + WIN_MESSAGE_TILES)
+
+#define WIN_MON_INFO_NICKNAME_W         8
+#define WIN_MON_INFO_NICKNAME_H         2
+#define WIN_MON_INFO_NICKNAME_TILES     (WIN_MON_INFO_NICKNAME_W * WIN_MON_INFO_NICKNAME_H)
+#define WIN_MON_INFO_NICKNAME_BASE      WIN_PANEL_BASE
+
+#define WIN_MON_INFO_LEVEL_W            4
+#define WIN_MON_INFO_LEVEL_H            2
+#define WIN_MON_INFO_LEVEL_TILES        (WIN_MON_INFO_LEVEL_W * WIN_MON_INFO_LEVEL_H)
+#define WIN_MON_INFO_LEVEL_BASE         (WIN_MON_INFO_NICKNAME_BASE + WIN_MON_INFO_NICKNAME_TILES)
+
+#define WIN_MON_INFO_STATS_COL1_W       3
+#define WIN_MON_INFO_STATS_COL1_H       6
+#define WIN_MON_INFO_STATS_COL1_TILES   (WIN_MON_INFO_STATS_COL1_W * WIN_MON_INFO_STATS_COL1_H)
+#define WIN_MON_INFO_STATS_COL1_BASE    (WIN_MON_INFO_LEVEL_BASE + WIN_MON_INFO_LEVEL_TILES)
+
+#define WIN_MON_INFO_STATS_COL2_W       3
+#define WIN_MON_INFO_STATS_COL2_H       6
+#define WIN_MON_INFO_STATS_COL2_TILES   (WIN_MON_INFO_STATS_COL2_W * WIN_MON_INFO_STATS_COL2_H)
+#define WIN_MON_INFO_STATS_COL2_BASE    (WIN_MON_INFO_STATS_COL1_BASE + WIN_MON_INFO_STATS_COL1_TILES)
+
+#define WIN_MON_INFO_ABILITY_W          9
+#define WIN_MON_INFO_ABILITY_H          2
+#define WIN_MON_INFO_ABILITY_TILES      (WIN_MON_INFO_ABILITY_W * WIN_MON_INFO_ABILITY_H)
+#define WIN_MON_INFO_ABILITY_BASE       (WIN_MON_INFO_STATS_COL2_BASE + WIN_MON_INFO_STATS_COL2_TILES)
+
+#define WIN_MON_INFO_ITEM_W             9
+#define WIN_MON_INFO_ITEM_H             2
+#define WIN_MON_INFO_ITEM_TILES         (WIN_MON_INFO_ITEM_W * WIN_MON_INFO_ITEM_H)
+#define WIN_MON_INFO_ITEM_BASE          (WIN_MON_INFO_ABILITY_BASE + WIN_MON_INFO_ABILITY_TILES)
+
+#define WIN_MON_INFO_TILES              (WIN_MON_INFO_ITEM_BASE + WIN_MON_INFO_ITEM_TILES - WIN_PANEL_BASE)
+
+#define MON_INFO_WIN(name, left, top)                   \
+    {                                                   \
+        .bg          = 0,                               \
+        .tilemapLeft = (left),                          \
+        .tilemapTop  = (top),                           \
+        .width       = WIN_MON_INFO_##name##_W,         \
+        .height      = WIN_MON_INFO_##name##_H,         \
+        .paletteNum  = 15,                              \
+        .baseBlock   = WIN_MON_INFO_##name##_BASE,      \
+    }
 
 static const struct WindowTemplate sWindowTemplates[] =
 {
@@ -319,129 +359,98 @@ static const struct WindowTemplate sWindowTemplates[] =
         .bg = 0,
         .tilemapLeft = 9,
         .tilemapTop = 17,
-        .width = 20,
-        .height = 2,
+        .width = WIN_MESSAGE_W,
+        .height = WIN_MESSAGE_H,
         .paletteNum = 15,
-        .baseBlock = 44,
+        .baseBlock = WIN_MESSAGE_BASE,
     },
-    [WIN_ITEM_DESC] = {
-        .bg = 0,
-        .tilemapLeft = 0,
-        .tilemapTop = 13,
-        .width = 21,
-        .height = 7,
-        .paletteNum = 15,
-        .baseBlock = 44,
-    },
-    [WIN_MON_INFO_NICKNAME_LEFT] = {
-        .bg = 0,
-        .tilemapLeft = 0,
-        .tilemapTop = 23,
-        .width = 8,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 202
-    },
-    [WIN_MON_INFO_LEVEL_LEFT] = {
-        .bg = 0,
-        .tilemapLeft = 9,
-        .tilemapTop = 23,
-        .width = 4,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 218
-    },
-    [WIN_MON_INFO_STATS_COL1_LEFT] = {
-        .bg = 0,
-        .tilemapLeft = 3,
-        .tilemapTop = 27,
-        .width = 3,
-        .height = 6,
-        .paletteNum = 15,
-        .baseBlock = 226
-    },
-    [WIN_MON_INFO_STATS_COL2_LEFT] = {
-        .bg = 0,
-        .tilemapLeft = 10,
-        .tilemapTop = 27,
-        .width = 3,
-        .height = 6,
-        .paletteNum = 15,
-        .baseBlock = 244
-    },
-    [WIN_MON_INFO_ABILITY_LEFT] = {
-        .bg = 0,
-        .tilemapLeft = 4,
-        .tilemapTop = 34,
-        .width = 9,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 262
-    },
-    [WIN_MON_INFO_ITEM_LEFT] = {
-        .bg = 0,
-        .tilemapLeft = 4,
-        .tilemapTop = 36,
-        .width = 9,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 280
-    },
-    [WIN_MON_INFO_NICKNAME_RIGHT] = {
-        .bg = 0,
-        .tilemapLeft = 17,
-        .tilemapTop = 43,
-        .width = 8,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 202
-    },
-    [WIN_MON_INFO_LEVEL_RIGHT] = {
-        .bg = 0,
-        .tilemapLeft = 26,
-        .tilemapTop = 43,
-        .width = 4,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 218
-    },
-    [WIN_MON_INFO_STATS_COL1_RIGHT] = {
-        .bg = 0,
-        .tilemapLeft = 20,
-        .tilemapTop = 47,
-        .width = 3,
-        .height = 6,
-        .paletteNum = 15,
-        .baseBlock = 226
-    },
-    [WIN_MON_INFO_STATS_COL2_RIGHT] = {
-        .bg = 0,
-        .tilemapLeft = 27,
-        .tilemapTop = 47,
-        .width = 3,
-        .height = 6,
-        .paletteNum = 15,
-        .baseBlock = 244
-    },
-    [WIN_MON_INFO_ABILITY_RIGHT] = {
-        .bg = 0,
-        .tilemapLeft = 21,
-        .tilemapTop = 54,
-        .width = 9,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 262
-    },
-    [WIN_MON_INFO_ITEM_RIGHT] = {
-        .bg = 0,
-        .tilemapLeft = 21,
-        .tilemapTop = 56,
-        .width = 9,
-        .height = 2,
-        .paletteNum = 15,
-        .baseBlock = 280
-    },
+    [WIN_MON_INFO_NICKNAME_LEFT]     = MON_INFO_WIN(NICKNAME,   0, 23),
+    [WIN_MON_INFO_LEVEL_LEFT]        = MON_INFO_WIN(LEVEL,      9, 23),
+    [WIN_MON_INFO_STATS_COL1_LEFT]   = MON_INFO_WIN(STATS_COL1, 3, 27),
+    [WIN_MON_INFO_STATS_COL2_LEFT]   = MON_INFO_WIN(STATS_COL2, 10, 27),
+    [WIN_MON_INFO_ABILITY_LEFT]      = MON_INFO_WIN(ABILITY,    4, 34),
+    [WIN_MON_INFO_ITEM_LEFT]         = MON_INFO_WIN(ITEM,       4, 36),
+    [WIN_MON_INFO_NICKNAME_RIGHT]    = MON_INFO_WIN(NICKNAME,   17, 43),
+    [WIN_MON_INFO_LEVEL_RIGHT]       = MON_INFO_WIN(LEVEL,      26, 43),
+    [WIN_MON_INFO_STATS_COL1_RIGHT]  = MON_INFO_WIN(STATS_COL1, 20, 47),
+    [WIN_MON_INFO_STATS_COL2_RIGHT]  = MON_INFO_WIN(STATS_COL2, 27, 47),
+    [WIN_MON_INFO_ABILITY_RIGHT]     = MON_INFO_WIN(ABILITY,    21, 54),
+    [WIN_MON_INFO_ITEM_RIGHT]        = MON_INFO_WIN(ITEM,       21, 56),
     DUMMY_WIN_TEMPLATE
+};
+
+STATIC_ASSERT(ARRAY_COUNT(sWindowTemplates) == WIN_COUNT + 1, StorageWindowTemplateCount);
+
+// ----------------------------------------------------------------------------
+// Options menu - shares the panel block and AddMenu clears before opening
+// ----------------------------------------------------------------------------
+
+#define STORAGE_MENU_ROW_H          2
+#define STORAGE_MENU_TOP_MIN        2
+#define STORAGE_MENU_BOTTOM_MAX     19
+#define STORAGE_MENU_JUMP_ROWS      5
+
+#define WIN_MENU_W                  28
+#define WIN_MENU_MAX_ROWS           ((STORAGE_MENU_BOTTOM_MAX - STORAGE_MENU_TOP_MIN) / STORAGE_MENU_ROW_H)
+#define WIN_MENU_H                  (WIN_MENU_MAX_ROWS * STORAGE_MENU_ROW_H)
+#define WIN_MENU_TILES              (WIN_MENU_W * WIN_MENU_H)
+#define WIN_MENU_BASE               WIN_PANEL_BASE
+
+#define WIN_PANEL_TILES             max(WIN_MON_INFO_TILES, WIN_MENU_TILES)
+
+STATIC_ASSERT(STORAGE_MENU_JUMP_ROWS <= WIN_MENU_MAX_ROWS, StorageMenuJumpRows);
+
+static const struct WindowTemplate sWindowTemplate_Menu =
+{
+    .bg = 0,
+    .paletteNum = 15,
+    .baseBlock = WIN_MENU_BASE,
+};
+
+// ----------------------------------------------------------------------------
+// Yes/No
+// ----------------------------------------------------------------------------
+
+#define WIN_YESNO_W                 5
+#define WIN_YESNO_H                 4
+#define WIN_YESNO_TILES             (WIN_YESNO_W * WIN_YESNO_H)
+#define WIN_YESNO_BASE              (WIN_PANEL_BASE + WIN_PANEL_TILES)
+
+static const struct WindowTemplate sYesNoWindowTemplate =
+{
+    .bg = 0,
+    .tilemapLeft = 24,
+    .tilemapTop = 11,
+    .width = WIN_YESNO_W,
+    .height = WIN_YESNO_H,
+    .paletteNum = 15,
+    .baseBlock = WIN_YESNO_BASE,
+};
+
+#define STORAGE_TILES_END           (WIN_YESNO_BASE + WIN_YESNO_TILES)
+
+STATIC_ASSERT(STORAGE_TILES_END <= STORAGE_CHAR_BASE_TILES, StorageCharBaseOverflow);
+
+// ----------------------------------------------------------------------------
+// Multi-move
+// ----------------------------------------------------------------------------
+
+#define WIN_MULTI_MOVE_W            19
+#define WIN_MULTI_MOVE_H            16
+#define WIN_MULTI_MOVE_BASE         1
+#define WIN_MULTI_MOVE_END          ((WIN_MULTI_MOVE_BASE + WIN_MULTI_MOVE_W * WIN_MULTI_MOVE_H) * 2)
+
+STATIC_ASSERT(WIN_MULTI_MOVE_END <= STORAGE_CHAR_BASE_TILES, StorageMultiMoveOverflow);
+
+static const struct WindowTemplate sWindowTemplate_MultiMove =
+{
+    .bg = 0,
+    .tilemapLeft = 10,
+    .tilemapTop = 3,
+    .width = WIN_MULTI_MOVE_W,
+    .height = WIN_MULTI_MOVE_H,
+    .paletteNum = 9,
+    .baseBlock = WIN_MULTI_MOVE_BASE,
 };
 
 static const u8 sTextColors[][3] =

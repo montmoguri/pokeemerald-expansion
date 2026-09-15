@@ -347,7 +347,6 @@ enum {
 // Window IDs for sWindowTemplates
 enum {
     WIN_MESSAGE,
-    WIN_ITEM_DESC,
     WIN_MON_INFO_NICKNAME_LEFT,
     WIN_MON_INFO_LEVEL_LEFT,
     WIN_MON_INFO_STATS_COL1_LEFT,
@@ -360,6 +359,7 @@ enum {
     WIN_MON_INFO_STATS_COL2_RIGHT,
     WIN_MON_INFO_ABILITY_RIGHT,
     WIN_MON_INFO_ITEM_RIGHT,
+    WIN_COUNT,
 };
 
 struct StorageMenu
@@ -4423,8 +4423,8 @@ static void InitPokeStorageBg0(void)
 {
     SetGpuReg(REG_OFFSET_BG0CNT, BGCNT_PRIORITY(0) | BGCNT_CHARBASE(0) | BGCNT_SCREENBASE(29) | BGCNT_TXT256x512);
     SetBgTilemapBuffer(0, sStorage->infoTilemapBuffer);
-    DecompressAndLoadBgGfxUsingHeap(0, sMonInfo_Gfx, 0, 0, 0);
-    LoadUserWindowBorderGfx(WIN_MESSAGE, 192, BG_PLTT_ID(14));
+    DecompressAndLoadBgGfxUsingHeap(0, sMonInfo_Gfx, 0, STORAGE_BASE_MON_INFO_GFX, 0);
+    LoadUserWindowBorderGfx(WIN_MESSAGE, STORAGE_BASE_STD_BORDER, BG_PLTT_ID(14));
     DecompressDataWithHeaderWram(sMonInfo_Tilemap, sStorage->infoTilemapBuffer);
     sStorage->bg0_Y = 0;
     UpdateMonInfoTilemap();
@@ -4578,7 +4578,7 @@ static void PrintMessage(u8 id)
 static void ShowYesNoWindow(s8 cursorPos)
 {
     ClearMonInfoTilemap();
-    CreateYesNoMenu(&sYesNoWindowTemplate, 192, 14, 0);
+    CreateYesNoMenu(&sYesNoWindowTemplate, STORAGE_BASE_STD_BORDER, 14, 0);
     Menu_MoveCursorNoWrapAround(cursorPos);
 }
 
@@ -4630,7 +4630,7 @@ static void AddWallpaperMenu(void)
 {
     u16 i;
     u8 currentPage = sStorage->listMenuScrollRow;
-    u8 itemsPerPage = 5;
+    u8 itemsPerPage = STORAGE_MENU_JUMP_ROWS;
     u8 maxPage = (MENU_COUNT - MENU_BASE - 1) / itemsPerPage;
     u8 startIdx = MENU_BASE + (currentPage * itemsPerPage);
     u8 endIdx = startIdx + itemsPerPage;
@@ -4656,15 +4656,15 @@ static void AddWallpaperMenu(void)
     sStorage->menuItems[sStorage->menuItemsCount].textId = 0;
 
     sStorage->menuWindow.width = (8 + maxWidth + 8 + 7) / 8;
-    if (sStorage->menuWindow.width > 28)
-        sStorage->menuWindow.width = 28;
+    if (sStorage->menuWindow.width > WIN_MENU_W)
+        sStorage->menuWindow.width = WIN_MENU_W;
 
-    sStorage->menuWindow.height = 10;
+    sStorage->menuWindow.height = STORAGE_MENU_JUMP_ROWS * STORAGE_MENU_ROW_H;
     sStorage->menuWindow.tilemapLeft = 29 - sStorage->menuWindow.width;
     sStorage->menuWindow.tilemapTop = 5;
     sStorage->menuWindowId = AddWindow(&sStorage->menuWindow);
     ClearMonInfoTilemap();
-    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, 192, 14);
+    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, STORAGE_BASE_STD_BORDER, 14);
 
     sStorage->listMenuTemplate.items = (struct ListMenuItem *)sStorage->menuItems;
     sStorage->listMenuTemplate.moveCursorFunc = ListMenuDefaultCursorMoveFunc;
@@ -7978,9 +7978,7 @@ static void InitMenu(void)
 {
     sStorage->menuItemsCount = 0;
     sStorage->menuWidth = 0;
-    sStorage->menuWindow.bg = 0;
-    sStorage->menuWindow.paletteNum = 15;
-    sStorage->menuWindow.baseBlock = 202;
+    sStorage->menuWindow = sWindowTemplate_Menu;
 }
 
 static void SetMenuText(u8 textId)
@@ -8012,7 +8010,7 @@ static void GetMenuPosition(u8 cursorArea, u8 cursorPos, u8 *outLeft, u8 *outTop
 {
     static const u8 validTopPositions[] = {2, 5, 8, 11, 14, 17};
     u8 slotRow = 0;
-    u8 menuHeight = 2 * sStorage->menuItemsCount;
+    u8 menuHeight = STORAGE_MENU_ROW_H * sStorage->menuItemsCount;
     
     *outLeft = 9;
     *outTop = 2;
@@ -8040,7 +8038,7 @@ static void GetMenuPosition(u8 cursorArea, u8 cursorPos, u8 *outLeft, u8 *outTop
     
     u8 preferredTop = validTopPositions[min(slotRow, ARRAY_COUNT(validTopPositions) - 1)];
     
-    if (preferredTop + menuHeight <= 19)
+    if (preferredTop + menuHeight <= STORAGE_MENU_BOTTOM_MAX)
     {
         *outTop = preferredTop;
     }
@@ -8048,7 +8046,7 @@ static void GetMenuPosition(u8 cursorArea, u8 cursorPos, u8 *outLeft, u8 *outTop
     {
         for (s8 i = ARRAY_COUNT(validTopPositions) - 1; i >= 0; i--)
         {
-            if (validTopPositions[i] + menuHeight <= 19)
+            if (validTopPositions[i] + menuHeight <= STORAGE_MENU_BOTTOM_MAX)
             {
                 *outTop = validTopPositions[i];
                 break;
@@ -8062,16 +8060,16 @@ static void AddMenu(void)
     u8 tilemapLeft, tilemapTop;
     
     sStorage->menuWindow.width = (sStorage->menuWidth + 7) / 8 + 2;
-    if (sStorage->menuWindow.width > 28)
-        sStorage->menuWindow.width = 28;
-    sStorage->menuWindow.height = 2 * sStorage->menuItemsCount;
+    if (sStorage->menuWindow.width > WIN_MENU_W)
+        sStorage->menuWindow.width = WIN_MENU_W;
+    sStorage->menuWindow.height = STORAGE_MENU_ROW_H * sStorage->menuItemsCount;
     GetMenuPosition(sCursorArea, sCursorPosition, &tilemapLeft, &tilemapTop);    
     sStorage->menuWindow.tilemapLeft = tilemapLeft;
     sStorage->menuWindow.tilemapTop = tilemapTop;
     sStorage->menuWindowId = AddWindow(&sStorage->menuWindow);
     ClearMonInfoTilemap();
     ClearWindowTilemap(sStorage->menuWindowId);
-    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, 192, 14);
+    DrawStdFrameWithCustomTileAndPalette(sStorage->menuWindowId, FALSE, STORAGE_BASE_STD_BORDER, 14);
     PrintMenuTable(sStorage->menuWindowId, sStorage->menuItemsCount, (void *)sStorage->menuItems);
     InitMenuInUpperLeftCornerNormal(sStorage->menuWindowId, sStorage->menuItemsCount, 0);
     ScheduleBgCopyTilemapToVram(0);
