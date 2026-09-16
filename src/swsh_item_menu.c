@@ -866,15 +866,15 @@ static const struct OamData sOamData_ScrollThumb =
     .affineMode = ST_OAM_AFFINE_OFF,
     .objMode = ST_OAM_OBJ_NORMAL,
     .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(8x8),
-    .size = SPRITE_SIZE(8x8),
+    .shape = SPRITE_SHAPE(8x32),
+    .size = SPRITE_SIZE(8x32),
     .priority = 2,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_ScrollThumb =
 {
     .data = sScrollThumb_Gfx,
-    .size = (8 * 8) / 2,
+    .size = (8 * 32) / 2,
     .tag = TAG_BAG_SCROLL_THUMB
 };
 
@@ -1154,7 +1154,6 @@ static const struct SpriteTemplate sSpriteTemplate_FrameQuantity = {
     .anims = sSpriteAnimTable_FrameQuantity,
 };
 
-static u8 sScrollThumbSpriteId;
 
 enum {
     COLORID_NORMAL,
@@ -1725,7 +1724,7 @@ void GoToBagMenu(u8 location, u8 pocket, MainCallback exitCallback)
         gBagMenu->cursorSpriteId = SPRITE_NONE;
         memset(gBagMenu->spinnerArrowSpriteIds, SPRITE_NONE, sizeof(gBagMenu->spinnerArrowSpriteIds));
         memset(gBagMenu->hoverSlotSpriteIds, SPRITE_NONE, sizeof(gBagMenu->hoverSlotSpriteIds));
-        sScrollThumbSpriteId = SPRITE_NONE;
+        memset(gBagMenu->scrollThumbSpriteIds, SPRITE_NONE, sizeof(gBagMenu->scrollThumbSpriteIds));
         memset(gBagMenu->pocketScrollArrowSpriteIds, SPRITE_NONE, sizeof(gBagMenu->pocketScrollArrowSpriteIds));
         memset(gBagMenu->frameQuantityIds, SPRITE_NONE, sizeof(gBagMenu->frameQuantityIds));
         gBagMenu->pocketScrollArrowAnimIds[0] = INVALID_COMFY_ANIM;
@@ -2470,12 +2469,76 @@ static void CreateCursorSprite(void)
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
 }
 
+#define SCROLL_THUMB_X          236
+#define SCROLL_TRACK_LEN        (WIN_ITEM_LIST_H * 8)
+#define SCROLL_THUMB_MIN_LEN    8
+
+static u8 ScrollThumb_Length(u8 total)
+{
+    if (total <= MAX_ITEMS_SHOWN)
+        return 0;
+    return max(SCROLL_TRACK_LEN * MAX_ITEMS_SHOWN / total, SCROLL_THUMB_MIN_LEN);
+}
+
+static s16 ScrollThumb_Offset(u8 total, u16 absIdx)
+{
+    u8 len = ScrollThumb_Length(total);
+
+    if (len == 0)
+        return 0;
+    return absIdx * (SCROLL_TRACK_LEN - len) / (total - 1);
+}
+
+static u8 ScrollThumb_SegmentSize(u8 len)
+{
+    if (len >= 32)
+        return 32;
+    if (len >= 16)
+        return 16;
+    return 8;
+}
+
+static u8 ScrollThumb_SegmentCount(u8 len)
+{
+    u8 size = ScrollThumb_SegmentSize(len);
+
+    return (len + size - 1) / size;
+}
+
+static u8 ScrollThumb_SegmentOffset(u8 len, u8 index)
+{
+    u8 size = ScrollThumb_SegmentSize(len);
+
+    return (index == ScrollThumb_SegmentCount(len) - 1) ? len - size : index * size;
+}
+
+static void ScrollThumb_SetSegmentOam(struct Sprite *sprite, u8 size)
+{
+    switch (size)
+    {
+    case 32:
+        sprite->oam.shape = SPRITE_SHAPE(8x32);
+        sprite->oam.size = SPRITE_SIZE(8x32);
+        break;
+    case 16:
+        sprite->oam.shape = SPRITE_SHAPE(8x16);
+        sprite->oam.size = SPRITE_SIZE(8x16);
+        break;
+    default:
+        sprite->oam.shape = SPRITE_SHAPE(8x8);
+        sprite->oam.size = SPRITE_SIZE(8x8);
+        break;
+    }
+    CalcCenterToCornerVec(sprite, sprite->oam.shape, sprite->oam.size, sprite->oam.affineMode);
+}
+
 static void CreateScrollThumbSprite(void)
 {
     u8 pocket = gBagPosition.pocket;
     u8 total = gBagMenu->numItemStacks[pocket];
     u16 absIdx = gBagPosition.scrollPosition[pocket] + gBagPosition.cursorPosition[pocket];
-    s16 initialY2 = (total > MAX_ITEMS_SHOWN) ? absIdx * 88 / (total - 1) : 0;
+    s16 initialY2 = ScrollThumb_Offset(total, absIdx);
+    u8 i;
 
     gBagMenu->scrollThumbAnimId = CreateComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
         .from = Q_24_8(initialY2),
@@ -2484,7 +2547,14 @@ static void CreateScrollThumbSprite(void)
         .easingFunc = ComfyAnimEasing_EaseOutCubic,
     });
 
-    sScrollThumbSpriteId = CreateSprite(&sSpriteTemplate_ScrollThumb, 236, 28, 1);
+    for (i = 0; i < SCROLL_THUMB_SPRITES_COUNT; i++)
+    {
+        u8 spriteId = CreateSprite(&sSpriteTemplate_ScrollThumb, SCROLL_THUMB_X, 0, 1);
+
+        gBagMenu->scrollThumbSpriteIds[i] = spriteId;
+        gSprites[spriteId].data[0] = i;
+        gSprites[spriteId].invisible = TRUE;
+    }
 }
 
 static void CreateHoverSlotSprites(void)
@@ -2581,14 +2651,21 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 
 static void SpriteCB_BagScrollThumb(struct Sprite *sprite)
 {
-    u8 pocket = gBagPosition.pocket;
-    u8 total = gBagMenu->numItemStacks[pocket];
+    u8 total = gBagMenu->numItemStacks[gBagPosition.pocket];
+    u8 len = ScrollThumb_Length(total);
+    u8 index = sprite->data[0];
+    u8 size;
 
-    if (total <= MAX_ITEMS_SHOWN)
+    if (len == 0 || index >= ScrollThumb_SegmentCount(len))
     {
         sprite->invisible = TRUE;
         return;
     }
+
+    size = ScrollThumb_SegmentSize(len);
+    ScrollThumb_SetSegmentOam(sprite, size);
+    sprite->y = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8 + size / 2
+                + ScrollThumb_SegmentOffset(len, index);
     sprite->invisible = FALSE;
     if (gBagMenu->scrollThumbAnimId != INVALID_COMFY_ANIM)
         sprite->y2 = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->scrollThumbAnimId]);
@@ -2812,10 +2889,13 @@ static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit)
     if (total > MAX_ITEMS_SHOWN && gBagMenu->scrollThumbAnimId != INVALID_COMFY_ANIM)
     {
         struct ComfyAnim *thumbAnim = &gComfyAnims[gBagMenu->scrollThumbAnimId];
+        u16 absIdx = gBagPosition.scrollPosition[gBagPosition.pocket]
+                   + gBagPosition.cursorPosition[gBagPosition.pocket];
+        s32 maxOffset = Q_24_8(SCROLL_TRACK_LEN - ScrollThumb_Length(total));
 
         InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
-            .from = thumbAnim->position,
-            .to = Q_24_8(itemIndex * 88 / (total - 1)),
+            .from = min(thumbAnim->position, maxOffset),
+            .to = Q_24_8(ScrollThumb_Offset(total, absIdx)),
             .durationFrames = durationFrames,
             .easingFunc = ComfyAnimEasing_EaseOutCubic,
         }, thumbAnim);
