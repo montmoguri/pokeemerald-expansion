@@ -540,7 +540,7 @@ struct PokemonStorageSystemData
     u8 inBoxMovingMode;
     u16 multiMoveWindowId;
     struct ItemIcon itemIcons[MAX_ITEM_ICONS];
-    u16 movingItemId;
+    enum Item movingItemId;
     struct Sprite *genderIconSprite;
     struct Sprite *typeIconSprites[2];
     struct Sprite *shinyIconSprite;
@@ -573,7 +573,7 @@ EWRAM_DATA static struct PokemonStorageSystemData *sStorage = NULL;
 EWRAM_DATA static u8 sCurrentBoxOption = 0;
 EWRAM_DATA static u8 sWhichToReshow = 0;
 EWRAM_DATA static u8 sLastUsedBox = 0;
-EWRAM_DATA static u16 sMovingItemId = 0;
+EWRAM_DATA static enum Item sMovingItemId = ITEM_NONE;
 EWRAM_DATA static struct Pokemon sSavedMovingMon = {0};
 EWRAM_DATA static s8 sCursorArea = 0;
 EWRAM_DATA static s8 sCursorPosition = 0;
@@ -730,7 +730,7 @@ static void MoveHeldItemWithPartyMenu(void);
 static bool8 IsItemIconAnimActive(void);
 static bool8 IsMovingItem(void);
 static const u8 *GetMovingItemName(void);
-static u16 GetMovingItemId(void);
+static enum Item GetMovingItemId(void);
 static void SetItemIconCallback(u8, u8, u8, u8);
 static void SpriteCB_ItemIcon_SetPosToCursor(struct Sprite *);
 static void SpriteCB_ItemIcon_WaitAnim(struct Sprite *);
@@ -1316,7 +1316,7 @@ static void ChooseBox_CreateSprites(u8 curBox)
 
     col = curBox % 5;
     row = curBox / 5;
-    spriteId = CreateSprite(&sSpriteTemplate_ChooseBoxGrid_Hover, 88 + col * 32, 64 + row * 32, 3);
+    spriteId = CreateSpriteUnchecked(&sSpriteTemplate_ChooseBoxGrid_Hover, 88 + col * 32, 64 + row * 32, 3);
     if (spriteId != MAX_SPRITES)
     {
         const u32 *hoverSrc = sChooseBoxGrid_Hover_Gfx;
@@ -1516,7 +1516,7 @@ static void ChooseBox_PrintInfo(void)
     LoadSpriteSheet(&spriteSheet);
     for (i = 0; i < 2; i++)
     {
-        spriteId = CreateSprite(&sSpriteTemplate_ChooseBoxMenu_BoxName, 132 + i * 32, 98, 0);
+        spriteId = CreateSpriteUnchecked(&sSpriteTemplate_ChooseBoxMenu_BoxName, 132 + i * 32, 98, 0);
         if (spriteId != MAX_SPRITES)
         {
             sChooseBoxMenu->boxNameSprites[i] = &gSprites[spriteId];
@@ -1539,13 +1539,13 @@ static void ChooseBox_PrintInfo(void)
     FreeSpriteTilesByTag(GFXTAG_CHOOSE_BOX_MON_COUNT);
     spriteSheet = (struct SpriteSheet){sChooseBoxMenu->monCountTiles, 0x100, GFXTAG_CHOOSE_BOX_MON_COUNT};
     LoadSpriteSheet(&spriteSheet);
-    spriteId = CreateSprite(&sSpriteTemplate_ChooseBoxMenu_MonCount, 148, 72, 0);
+    spriteId = CreateSpriteUnchecked(&sSpriteTemplate_ChooseBoxMenu_MonCount, 148, 72, 0);
     sChooseBoxMenu->monCountSprite = (spriteId != MAX_SPRITES) ? &gSprites[spriteId] : NULL;
 }
 
 static struct Sprite *CreateChooseBoxArrows(u16 x, u16 y, u8 animId, u8 priority, u8 subpriority)
 {
-    u8 spriteId = CreateSprite(&sSpriteTemplate_BoxTitleArrow, x, y, subpriority);
+    u8 spriteId = CreateSpriteUnchecked(&sSpriteTemplate_BoxTitleArrow, x, y, subpriority);
     if (spriteId == MAX_SPRITES)
         return NULL;
 
@@ -2908,7 +2908,7 @@ static void OpenMonMarkingsMenu_SwSh(u8 markings, s16 x, s16 y)
 
     for (i = 0; i < 3; i++)
     {
-        spriteId = CreateSprite(&sSpriteTemplate_MarkingsMenu_Window, x + i * 32, y, 3);
+        spriteId = CreateSpriteUnchecked(&sSpriteTemplate_MarkingsMenu_Window, x + i * 32, y, 3);
         if (spriteId != MAX_SPRITES)
         {
             sMarkMenu->windowSprites[i] = &gSprites[spriteId];
@@ -2922,7 +2922,7 @@ static void OpenMonMarkingsMenu_SwSh(u8 markings, s16 x, s16 y)
 
     for (i = 0; i < NUM_MON_MARKINGS; i++)
     {
-        spriteId = CreateSprite(&sSpriteTemplate_MarkingsMenu_Marks, 108 + i * 24, 80, 2);
+        spriteId = CreateSpriteUnchecked(&sSpriteTemplate_MarkingsMenu_Marks, 108 + i * 24, 80, 2);
         if (spriteId != MAX_SPRITES)
         {
             sMarkMenu->markingSprites[i] = &gSprites[spriteId];
@@ -2934,7 +2934,7 @@ static void OpenMonMarkingsMenu_SwSh(u8 markings, s16 x, s16 y)
         }
     }
 
-    spriteId = CreateSprite(&sSpriteTemplate_MarkingsMenu_Cursor, 96, 80, 1);
+    spriteId = CreateSpriteUnchecked(&sSpriteTemplate_MarkingsMenu_Cursor, 96, 80, 1);
     if (spriteId != MAX_SPRITES)
     {
         sMarkMenu->cursorSprite = &gSprites[spriteId];
@@ -4600,7 +4600,7 @@ static void CreateMessageWindowSprite(void)
     LoadCompressedSpriteSheet(&sSpriteSheet_MessageWindow);
     for (i = 0; i < ARRAY_COUNT(sStorage->messageWindowSpriteIds); i++)
     {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_MessageWindow, 72 + i * 32, 144, 0);
+        u8 spriteId = CreateSpriteUnchecked(&sSpriteTemplate_MessageWindow, 72 + i * 32, 144, 0);
         if (spriteId != MAX_SPRITES)
         {
             StartSpriteAnim(&gSprites[spriteId], sMessageWindowAnims[i]);
@@ -5438,7 +5438,7 @@ static struct Sprite *CreateMonIconSprite(enum Species species, u32 personality,
     if (tileNum == 0xFFFF)
         return NULL;
 
-    spriteId = CreateSprite(&template, x, y, subpriority);
+    spriteId = CreateSpriteUnchecked(&template, x, y, subpriority);
     if (spriteId == MAX_SPRITES)
     {
         RemoveSpeciesFromIconList(species, iconType);
@@ -5823,7 +5823,7 @@ static void CreateBoxScrollArrows(void)
 
     for (i = 0; i < 2; i++)
     {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_BoxTitleArrow, 98 + i * 100, 21, 24);
+        u8 spriteId = CreateSpriteUnchecked(&sSpriteTemplate_BoxTitleArrow, 98 + i * 100, 21, 24);
         if (spriteId != MAX_SPRITES)
         {
             struct Sprite *sprite = &gSprites[spriteId];
@@ -7874,7 +7874,7 @@ static void CreateCursorSprites(void)
     sStorage->cursorPalNums[CURSOR_MODE_MULTI_MOVE]  = IndexOfSpritePaletteTag(PALTAG_MISC_3); // Green cursor
 
     GetCursorCoordsByPos(sCursorArea, sCursorPosition, &x, &y);
-    spriteId = CreateSprite(&sSpriteTemplate_Cursor, x, y, 2);
+    spriteId = CreateSpriteUnchecked(&sSpriteTemplate_Cursor, x, y, 2);
     if (spriteId != MAX_SPRITES)
     {
         sStorage->cursorSprite = &gSprites[spriteId];
@@ -7941,11 +7941,6 @@ static void GetCursorBoxColumnAndRow(u8 *column, u8 *row)
 static void StartCursorAnim(u8 animNum)
 {
     StartSpriteAnim(sStorage->cursorSprite, animNum);
-}
-
-static u8 UNUSED GetMovingMonOriginalBoxId(void)
-{
-    return sMovingMonOrigBoxId;
 }
 
 static void SetCursorPriorityTo1(void)
@@ -8979,7 +8974,7 @@ static const u8 *GetMovingItemName(void)
     return GetItemName(sStorage->movingItemId);
 }
 
-static u16 GetMovingItemId(void)
+static enum Item GetMovingItemId(void)
 {
     return sStorage->movingItemId;
 }
@@ -9320,19 +9315,6 @@ static void SpriteCB_ItemIcon_HideParty(struct Sprite *sprite)
 //------------------------------------------------------------------------------
 //  SECTION: General utility
 //------------------------------------------------------------------------------
-
-
-// Leftover from FRLG
-static void UNUSED BackupPokemonStorage(void/*struct PokemonStorage * dest*/)
-{
-    //*dest = *gPokemonStoragePtr;
-}
-
-// Leftover from FRLG
-static void UNUSED RestorePokemonStorage(void/*struct PokemonStorage * src*/)
-{
-    //*gPokemonStoragePtr = *src;
-}
 
 // Functions here are general utility functions.
 static void SetCurrentBox(u8 boxId)
