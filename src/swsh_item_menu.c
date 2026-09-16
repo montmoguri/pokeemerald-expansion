@@ -3293,7 +3293,7 @@ static void Task_BagMenu_HandleInput(u8 taskId)
     if (MenuHelpers_ShouldWaitForLinkRecv() != TRUE && !gPaletteFade.active)
     {
 #if SWSH_ITEM_MENU_IN_BATTLE_USE
-        if (BagMenu_IsMultiFull() && GetLRKeysPressed())
+        if (BagMenu_IsMultiFull() && JOY_NEW(R_BUTTON))
         {
             BagMenu_StartMultiFullSwap(taskId);
             return;
@@ -3434,16 +3434,14 @@ static void ReturnToItemList(u8 taskId)
 
 static u8 GetSwitchBagPocketDirection(void)
 {
-    u8 LRKeys;
     if (gBagMenu->pocketSwitchDisabled)
         return SWITCH_POCKET_NONE;
-    LRKeys = GetLRKeysPressed();
-    if (JOY_NEW(DPAD_LEFT) || LRKeys == MENU_L_PRESSED)
+    if (JOY_NEW(DPAD_LEFT))
     {
         PlaySE(SE_SELECT);
         return SWITCH_POCKET_LEFT;
     }
-    if (JOY_NEW(DPAD_RIGHT) || LRKeys == MENU_R_PRESSED)
+    if (JOY_NEW(DPAD_RIGHT))
     {
         PlaySE(SE_SELECT);
         return SWITCH_POCKET_RIGHT;
@@ -3866,7 +3864,7 @@ static void Task_ItemContext_MultipleRows(u8 taskId)
                 ChangeMenuGridCursorPosition(MENU_CURSOR_DELTA_NONE, MENU_CURSOR_DELTA_DOWN);
             }
         }
-        else if (JOY_NEW(DPAD_LEFT) || GetLRKeysPressed() == MENU_L_PRESSED)
+        else if (JOY_NEW(DPAD_LEFT))
         {
             if ((cursorPos & 1) && IsValidContextMenuPos(cursorPos - 1))
             {
@@ -3874,7 +3872,7 @@ static void Task_ItemContext_MultipleRows(u8 taskId)
                 ChangeMenuGridCursorPosition(MENU_CURSOR_DELTA_LEFT, MENU_CURSOR_DELTA_NONE);
             }
         }
-        else if (JOY_NEW(DPAD_RIGHT) || GetLRKeysPressed() == MENU_R_PRESSED)
+        else if (JOY_NEW(DPAD_RIGHT))
         {
             if (!(cursorPos & 1) && IsValidContextMenuPos(cursorPos + 1))
             {
@@ -6773,7 +6771,7 @@ static void Task_BagMenu_PartyInput(u8 taskId)
     u8 slotLimit = BagMenu_PanelSlotLimit();
 
 #if SWSH_ITEM_MENU_IN_BATTLE_USE
-    if (BagMenu_IsMultiFull() && GetLRKeysPressed())
+    if (BagMenu_IsMultiFull() && JOY_NEW(R_BUTTON))
     {
         BagMenu_ClosePartySelect(taskId);
         BagMenu_StartMultiFullSwap(taskId);
