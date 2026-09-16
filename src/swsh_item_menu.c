@@ -161,6 +161,7 @@ enum {
     WIN_PARTY_INFO_0,
     WIN_PARTY_INFO_5 = WIN_PARTY_INFO_0 + PARTY_SIZE - 1,
 #endif
+    WIN_COUNT,
 };
 
 // Item list ID for toSwapPos to indicate an item is not currently being swapped
@@ -1179,6 +1180,79 @@ static const u8 sFontColorTable[][3] = {
     [COLORID_PARTY_GENDER_F]        = {0, 14, 15},
 };
 
+#define BAG_CHAR_BASE_TILES         1024
+
+#define BAG_TILES_STD_BORDER        9
+#define BAG_TILES_MSGBOX            14
+
+#define BAG_BASE_STD_BORDER         1
+#define BAG_BASE_MSGBOX             (BAG_BASE_STD_BORDER + BAG_TILES_STD_BORDER)
+
+// ----------------------------------------------------------------------------
+// bg1 - see sDefaultBagWindows
+// ----------------------------------------------------------------------------
+
+#define WIN_ITEM_LIST_W             15
+#define WIN_ITEM_LIST_H             12
+#define WIN_ITEM_LIST_TILES         (WIN_ITEM_LIST_W * WIN_ITEM_LIST_H)
+#define WIN_ITEM_LIST_BASE          (BAG_BASE_MSGBOX + BAG_TILES_MSGBOX)
+
+#define WIN_DESCRIPTION_W           18
+#define WIN_DESCRIPTION_H           4
+#define WIN_DESCRIPTION_TILES       (WIN_DESCRIPTION_W * WIN_DESCRIPTION_H)
+#define WIN_DESCRIPTION_BASE        (WIN_ITEM_LIST_BASE + WIN_ITEM_LIST_TILES)
+
+#define WIN_POCKET_NAME_W           11
+#define WIN_POCKET_NAME_H           2
+#define WIN_POCKET_NAME_TILES       (WIN_POCKET_NAME_W * WIN_POCKET_NAME_H)
+#define WIN_POCKET_NAME_BASE        (WIN_DESCRIPTION_BASE + WIN_DESCRIPTION_TILES)
+
+#define WIN_PP_LABEL_W              2
+#define WIN_PP_LABEL_H              2
+#define WIN_PP_LABEL_TILES          (WIN_PP_LABEL_W * WIN_PP_LABEL_H)
+#define WIN_PP_LABEL_BASE           (WIN_POCKET_NAME_BASE + WIN_POCKET_NAME_TILES)
+
+#define WIN_POW_ACC_LABEL_W         5
+#define WIN_POW_ACC_LABEL_H         4
+#define WIN_POW_ACC_LABEL_TILES     (WIN_POW_ACC_LABEL_W * WIN_POW_ACC_LABEL_H)
+#define WIN_POW_ACC_LABEL_BASE      (WIN_PP_LABEL_BASE + WIN_PP_LABEL_TILES)
+
+#define WIN_PP_INFO_W               2
+#define WIN_PP_INFO_H               2
+#define WIN_PP_INFO_TILES           (WIN_PP_INFO_W * WIN_PP_INFO_H)
+#define WIN_PP_INFO_BASE            (WIN_POW_ACC_LABEL_BASE + WIN_POW_ACC_LABEL_TILES)
+
+#define WIN_POW_ACC_INFO_W          2
+#define WIN_POW_ACC_INFO_H          4
+#define WIN_POW_ACC_INFO_TILES      (WIN_POW_ACC_INFO_W * WIN_POW_ACC_INFO_H)
+#define WIN_POW_ACC_INFO_BASE       (WIN_PP_INFO_BASE + WIN_PP_INFO_TILES)
+
+#define WIN_APP_JAM_LABEL_W         4
+#define WIN_APP_JAM_LABEL_H         4
+#define WIN_APP_JAM_LABEL_TILES     (WIN_APP_JAM_LABEL_W * WIN_APP_JAM_LABEL_H)
+#define WIN_APP_JAM_LABEL_BASE      (WIN_POW_ACC_INFO_BASE + WIN_POW_ACC_INFO_TILES)
+
+#define WIN_BERRY_INFO_W            11
+#define WIN_BERRY_INFO_H            2
+#define WIN_BERRY_INFO_TILES        (WIN_BERRY_INFO_W * WIN_BERRY_INFO_H)
+#define WIN_BERRY_INFO_BASE         (WIN_APP_JAM_LABEL_BASE + WIN_APP_JAM_LABEL_TILES)
+
+#define WIN_BERRY_FLAVORS_W         18
+#define WIN_BERRY_FLAVORS_H         2
+#define WIN_BERRY_FLAVORS_TILES     (WIN_BERRY_FLAVORS_W * WIN_BERRY_FLAVORS_H)
+#define WIN_BERRY_FLAVORS_BASE      (WIN_BERRY_INFO_BASE + WIN_BERRY_INFO_TILES)
+
+#define WIN_PARTY_HP_BAR_W          8
+#define WIN_PARTY_HP_BAR_H          3
+#define WIN_PARTY_HP_BAR_TILES      (WIN_PARTY_HP_BAR_W * WIN_PARTY_HP_BAR_H)
+#define WIN_PARTY_HP_BAR_BASE       (WIN_BERRY_FLAVORS_BASE + WIN_BERRY_FLAVORS_TILES)
+
+#define WIN_PARTY_INFO_W            3
+#define WIN_PARTY_INFO_H            3
+#define WIN_PARTY_INFO_TILES        (WIN_PARTY_INFO_W * WIN_PARTY_INFO_H)
+#define WIN_PARTY_INFO_BASE         (WIN_PARTY_HP_BAR_BASE + WIN_PARTY_HP_BAR_TILES)
+#define WIN_PARTY_INFO(slot)        (WIN_PARTY_INFO_BASE + (slot) * WIN_PARTY_INFO_TILES)
+
 #if SWSH_ITEM_MENU_IN_BAG_USE
 #define PARTY_PANEL_START_COL       1
 #define PARTY_PANEL_START_ROW       1
@@ -1192,11 +1266,7 @@ static const u8 sFontColorTable[][3] = {
 
 // gender + level panel
 #define PARTY_INFO_COL              4 // relative to each slot's left edge
-#define PARTY_INFO_WIDTH            3
-#define PARTY_INFO_HEIGHT           3
-#define PARTY_INFO_TILES            (PARTY_INFO_WIDTH * PARTY_INFO_HEIGHT)
-#define PARTY_INFO_BASE_BLOCK       711
-#define PARTY_INFO_RIGHT            (PARTY_INFO_WIDTH * 8)
+#define PARTY_INFO_RIGHT            (WIN_PARTY_INFO_W * 8)
 #define PARTY_INFO_GENDER_Y         0
 #define PARTY_INFO_LEVEL_Y          10
 #define PARTY_INFO_PAL_NORMAL       3
@@ -1207,10 +1277,10 @@ static const u8 sFontColorTable[][3] = {
         .bg          = 1,                                                                        \
         .tilemapLeft = PARTY_PANEL_START_COL + PARTY_INFO_COL,                                   \
         .tilemapTop  = PARTY_PANEL_START_ROW + (slot) * PARTY_PANEL_SLOT_HEIGHT,                 \
-        .width       = PARTY_INFO_WIDTH,                                                         \
-        .height      = PARTY_INFO_HEIGHT,                                                        \
+        .width       = WIN_PARTY_INFO_W,                                                         \
+        .height      = WIN_PARTY_INFO_H,                                                         \
         .paletteNum  = PARTY_INFO_PAL_NORMAL,                                                    \
-        .baseBlock   = PARTY_INFO_BASE_BLOCK + (slot) * PARTY_INFO_TILES,                        \
+        .baseBlock   = WIN_PARTY_INFO(slot),                                                     \
     }
 #endif // SWSH_ITEM_MENU_IN_BAG_USE
 
@@ -1220,74 +1290,74 @@ static const struct WindowTemplate sDefaultBagWindows[] =
         .bg = 1,
         .tilemapLeft = 13,
         .tilemapTop = 3,
-        .width = 15,
-        .height = 12,
+        .width = WIN_ITEM_LIST_W,
+        .height = WIN_ITEM_LIST_H,
         .paletteNum = 1,
-        .baseBlock = 39,
+        .baseBlock = WIN_ITEM_LIST_BASE,
     },
     [WIN_DESCRIPTION] = {
         .bg = 1,
         .tilemapLeft = 11,
         .tilemapTop = 16,
-        .width = 18,
-        .height = 4,
+        .width = WIN_DESCRIPTION_W,
+        .height = WIN_DESCRIPTION_H,
         .paletteNum = 1,
-        .baseBlock = 219,
+        .baseBlock = WIN_DESCRIPTION_BASE,
     },
     [WIN_POCKET_NAME] = {
         .bg = 1,
         .tilemapLeft = 15,
         .tilemapTop = 1,
-        .width = 11,
-        .height = 2,
+        .width = WIN_POCKET_NAME_W,
+        .height = WIN_POCKET_NAME_H,
         .paletteNum = 1,
-        .baseBlock = 291,
+        .baseBlock = WIN_POCKET_NAME_BASE,
     },
     [WIN_PP_LABEL] = {
         .bg = 1,
         .tilemapLeft = 13,
         .tilemapTop = 18,
-        .width = 2,
-        .height = 2,
+        .width = WIN_PP_LABEL_W,
+        .height = WIN_PP_LABEL_H,
         .paletteNum = 1,
-        .baseBlock = 313,
+        .baseBlock = WIN_PP_LABEL_BASE,
     },
     [WIN_POW_ACC_LABEL] = {
         .bg = 1,
         .tilemapLeft = 19,
         .tilemapTop = 16,
-        .width = 5,
-        .height = 4,
+        .width = WIN_POW_ACC_LABEL_W,
+        .height = WIN_POW_ACC_LABEL_H,
         .paletteNum = 1,
-        .baseBlock = 317,
+        .baseBlock = WIN_POW_ACC_LABEL_BASE,
     },
     [WIN_PP_INFO] = {
         .bg = 1,
         .tilemapLeft = 15,
         .tilemapTop = 18,
-        .width = 2,
-        .height = 2,
+        .width = WIN_PP_INFO_W,
+        .height = WIN_PP_INFO_H,
         .paletteNum = 1,
-        .baseBlock = 337,
+        .baseBlock = WIN_PP_INFO_BASE,
     },
     [WIN_POW_ACC_INFO] = {
         .bg = 1,
         .tilemapLeft = 25,
         .tilemapTop = 16,
-        .width = 2,
-        .height = 4,
+        .width = WIN_POW_ACC_INFO_W,
+        .height = WIN_POW_ACC_INFO_H,
         .paletteNum = 1,
-        .baseBlock = 341,
+        .baseBlock = WIN_POW_ACC_INFO_BASE,
     },
 #if SWSH_ITEM_MENU_CONTEST_INFO
     [WIN_APP_JAM_LABEL] = {
         .bg = 1,
         .tilemapLeft = 18,
         .tilemapTop = 16,
-        .width = 4,
-        .height = 4,
+        .width = WIN_APP_JAM_LABEL_W,
+        .height = WIN_APP_JAM_LABEL_H,
         .paletteNum = 1,
-        .baseBlock = 349,
+        .baseBlock = WIN_APP_JAM_LABEL_BASE,
     },
 #endif
 #if SWSH_ITEM_MENU_BERRY_STAT
@@ -1295,19 +1365,19 @@ static const struct WindowTemplate sDefaultBagWindows[] =
         .bg = 1,
         .tilemapLeft = 13,
         .tilemapTop = 18,
-        .width = 11,
-        .height = 2,
+        .width = WIN_BERRY_INFO_W,
+        .height = WIN_BERRY_INFO_H,
         .paletteNum = 1,
-        .baseBlock = 619,
+        .baseBlock = WIN_BERRY_INFO_BASE,
     },
     [WIN_BERRY_FLAVORS] = {
         .bg = 1,
         .tilemapLeft = 11,
         .tilemapTop = 16,
-        .width = 18,
-        .height = 2,
+        .width = WIN_BERRY_FLAVORS_W,
+        .height = WIN_BERRY_FLAVORS_H,
         .paletteNum = 1,
-        .baseBlock = 641,
+        .baseBlock = WIN_BERRY_FLAVORS_BASE,
     },
 #endif
 #if SWSH_ITEM_MENU_IN_BAG_USE
@@ -1315,10 +1385,10 @@ static const struct WindowTemplate sDefaultBagWindows[] =
         .bg          = 1,
         .tilemapLeft = 1,
         .tilemapTop  = 2,
-        .width       = 8,
-        .height      = 3,
+        .width       = WIN_PARTY_HP_BAR_W,
+        .height      = WIN_PARTY_HP_BAR_H,
         .paletteNum  = PARTY_INFO_PAL_FOCUS,
-        .baseBlock   = 687,
+        .baseBlock   = WIN_PARTY_HP_BAR_BASE,
     },
     PARTY_INFO_WIN_TEMPLATE(0),
     PARTY_INFO_WIN_TEMPLATE(1),
@@ -1330,146 +1400,222 @@ static const struct WindowTemplate sDefaultBagWindows[] =
     DUMMY_WIN_TEMPLATE,
 };
 
+STATIC_ASSERT(ARRAY_COUNT(sDefaultBagWindows) == WIN_COUNT + 1, BagWindowTemplateCount);
+
+// ----------------------------------------------------------------------------
+// bg0 - see sContextMenuWindowTemplates
+// ----------------------------------------------------------------------------
+
+#define ITEMWIN_MESSAGE_W           27
+#define ITEMWIN_MESSAGE_H           4
+#define ITEMWIN_MESSAGE_TILES       (ITEMWIN_MESSAGE_W * ITEMWIN_MESSAGE_H)
+#define ITEMWIN_MESSAGE_BASE        WIN_PARTY_INFO(PARTY_SIZE)
+
+// only one context window is ever open at a time, so they all share one block
+#define ITEMWIN_1x1_W               7
+#define ITEMWIN_1x1_H               2
+#define ITEMWIN_1x1_TILES           (ITEMWIN_1x1_W * ITEMWIN_1x1_H)
+
+#define ITEMWIN_1x2_W               7
+#define ITEMWIN_1x2_H               4
+#define ITEMWIN_1x2_TILES           (ITEMWIN_1x2_W * ITEMWIN_1x2_H)
+
+#define ITEMWIN_2x2_W               14
+#define ITEMWIN_2x2_H               4
+#define ITEMWIN_2x2_TILES           (ITEMWIN_2x2_W * ITEMWIN_2x2_H)
+
+#define ITEMWIN_2x3_W               14
+#define ITEMWIN_2x3_H               6
+#define ITEMWIN_2x3_TILES           (ITEMWIN_2x3_W * ITEMWIN_2x3_H)
+
+#define ITEMWIN_YESNO_W             5
+#define ITEMWIN_YESNO_H             4
+#define ITEMWIN_YESNO_TILES         (ITEMWIN_YESNO_W * ITEMWIN_YESNO_H)
+
+#define ITEMWIN_PP_MOVE_SELECT_W    14
+#define ITEMWIN_PP_MOVE_SELECT_H    8
+#define ITEMWIN_PP_MOVE_SELECT_TILES (ITEMWIN_PP_MOVE_SELECT_W * ITEMWIN_PP_MOVE_SELECT_H)
+
+#define ITEMWIN_LEVEL_UP_STATS_W    10
+#define ITEMWIN_LEVEL_UP_STATS_H    11
+#define ITEMWIN_LEVEL_UP_STATS_TILES (ITEMWIN_LEVEL_UP_STATS_W * ITEMWIN_LEVEL_UP_STATS_H)
+
+#define ITEMWIN_ROTOM_CATALOG_W     12
+#define ITEMWIN_ROTOM_CATALOG_H     12
+#define ITEMWIN_ROTOM_CATALOG_TILES (ITEMWIN_ROTOM_CATALOG_W * ITEMWIN_ROTOM_CATALOG_H)
+
+#define ITEMWIN_ZYGARDE_CUBE_W      12
+#define ITEMWIN_ZYGARDE_CUBE_H      4
+#define ITEMWIN_ZYGARDE_CUBE_TILES  (ITEMWIN_ZYGARDE_CUBE_W * ITEMWIN_ZYGARDE_CUBE_H)
+
+#define ITEMWIN_CONTEXT_BASE        (ITEMWIN_MESSAGE_BASE + ITEMWIN_MESSAGE_TILES)
+#define ITEMWIN_CONTEXT_TILES       ITEMWIN_ROTOM_CATALOG_TILES
+
+STATIC_ASSERT(ITEMWIN_1x1_TILES <= ITEMWIN_CONTEXT_TILES, BagContext1x1);
+STATIC_ASSERT(ITEMWIN_1x2_TILES <= ITEMWIN_CONTEXT_TILES, BagContext1x2);
+STATIC_ASSERT(ITEMWIN_2x2_TILES <= ITEMWIN_CONTEXT_TILES, BagContext2x2);
+STATIC_ASSERT(ITEMWIN_2x3_TILES <= ITEMWIN_CONTEXT_TILES, BagContext2x3);
+STATIC_ASSERT(ITEMWIN_YESNO_TILES <= ITEMWIN_CONTEXT_TILES, BagContextYesNo);
+STATIC_ASSERT(ITEMWIN_PP_MOVE_SELECT_TILES <= ITEMWIN_CONTEXT_TILES, BagContextPpMoveSelect);
+STATIC_ASSERT(ITEMWIN_LEVEL_UP_STATS_TILES <= ITEMWIN_CONTEXT_TILES, BagContextLevelUpStats);
+STATIC_ASSERT(ITEMWIN_ZYGARDE_CUBE_TILES <= ITEMWIN_CONTEXT_TILES, BagContextZygardeCube);
+
+#define ITEMWIN_SELL_PRICE_W        6
+#define ITEMWIN_SELL_PRICE_H        5
+#define ITEMWIN_SELL_PRICE_TILES    (ITEMWIN_SELL_PRICE_W * ITEMWIN_SELL_PRICE_H)
+#define ITEMWIN_SELL_PRICE_BASE     (ITEMWIN_CONTEXT_BASE + ITEMWIN_CONTEXT_TILES)
+
+#define ITEMWIN_MONEY_W             7
+#define ITEMWIN_MONEY_H             2
+#define ITEMWIN_MONEY_TILES         (ITEMWIN_MONEY_W * ITEMWIN_MONEY_H)
+#define ITEMWIN_MONEY_BASE          (ITEMWIN_SELL_PRICE_BASE + ITEMWIN_SELL_PRICE_TILES)
+
+#define BAG_TILES_END               (ITEMWIN_MONEY_BASE + ITEMWIN_MONEY_TILES)
+
+STATIC_ASSERT(BAG_TILES_END <= BAG_CHAR_BASE_TILES, BagMenuCharBaseOverflow);
+
 static const struct WindowTemplate sContextMenuWindowTemplates[] =
 {
     [ITEMWIN_1x1] = {
         .bg = 0,
         .tilemapLeft = 22,
         .tilemapTop = 17,
-        .width = 7,
-        .height = 2,
+        .width = ITEMWIN_1x1_W,
+        .height = ITEMWIN_1x1_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_1x2] = {
         .bg = 0,
         .tilemapLeft = 22,
         .tilemapTop = 15,
-        .width = 7,
-        .height = 4,
+        .width = ITEMWIN_1x2_W,
+        .height = ITEMWIN_1x2_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_2x2] = {
         .bg = 0,
         .tilemapLeft = 15,
         .tilemapTop = 15,
-        .width = 14,
-        .height = 4,
+        .width = ITEMWIN_2x2_W,
+        .height = ITEMWIN_2x2_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_2x3] = {
         .bg = 0,
         .tilemapLeft = 15,
         .tilemapTop = 13,
-        .width = 14,
-        .height = 6,
+        .width = ITEMWIN_2x3_W,
+        .height = ITEMWIN_2x3_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_1x2_HIGH] = {
         .bg = 0,
         .tilemapLeft = 22,
         .tilemapTop = 9,
-        .width = 7,
-        .height = 4,
+        .width = ITEMWIN_1x2_W,
+        .height = ITEMWIN_1x2_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_2x2_HIGH] = {
         .bg = 0,
         .tilemapLeft = 15,
         .tilemapTop = 9,
-        .width = 14,
-        .height = 4,
+        .width = ITEMWIN_2x2_W,
+        .height = ITEMWIN_2x2_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_2x3_HIGH] = {
         .bg = 0,
         .tilemapLeft = 15,
         .tilemapTop = 7,
-        .width = 14,
-        .height = 6,
+        .width = ITEMWIN_2x3_W,
+        .height = ITEMWIN_2x3_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_MESSAGE] = {
         .bg = 0,
         .tilemapLeft = 2,
         .tilemapTop = 15,
-        .width = 27,
-        .height = 4,
+        .width = ITEMWIN_MESSAGE_W,
+        .height = ITEMWIN_MESSAGE_H,
         .paletteNum = 15,
-        .baseBlock = 367,
+        .baseBlock = ITEMWIN_MESSAGE_BASE,
     },
     [ITEMWIN_YESNO_HIGH] = { // Yes/No higher up, positioned above a lower message box
         .bg = 0,
         .tilemapLeft = 21,
         .tilemapTop = 9,
-        .width = 5,
-        .height = 4,
+        .width = ITEMWIN_YESNO_W,
+        .height = ITEMWIN_YESNO_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_SELL_PRICE] = {
         .bg = 0,
         .tilemapLeft = 1,
         .tilemapTop = 4,
-        .width = 6,
-        .height = 5,
+        .width = ITEMWIN_SELL_PRICE_W,
+        .height = ITEMWIN_SELL_PRICE_H,
         .paletteNum = 1,
-        .baseBlock = 559,
+        .baseBlock = ITEMWIN_SELL_PRICE_BASE,
     },
     [ITEMWIN_MONEY] = {
         .bg = 0,
         .tilemapLeft = 2,
         .tilemapTop = 1,
-        .width = 7,
-        .height = 2,
+        .width = ITEMWIN_MONEY_W,
+        .height = ITEMWIN_MONEY_H,
         .paletteNum = 1,
-        .baseBlock = 589,
+        .baseBlock = ITEMWIN_MONEY_BASE,
     },
 #if SWSH_ITEM_MENU_IN_BAG_USE
     [ITEMWIN_PP_MOVE_SELECT] = {
         .bg = 0,
         .tilemapLeft = 15,
         .tilemapTop = 11,
-        .width = 14,
-        .height = 8,
+        .width = ITEMWIN_PP_MOVE_SELECT_W,
+        .height = ITEMWIN_PP_MOVE_SELECT_H,
         .paletteNum = 5,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_LEVEL_UP_STATS] = {
         .bg = 0,
         .tilemapLeft = 19,
         .tilemapTop = 2,
-        .width = 10,
-        .height = 11,
+        .width = ITEMWIN_LEVEL_UP_STATS_W,
+        .height = ITEMWIN_LEVEL_UP_STATS_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_ROTOM_CATALOG] = {
         .bg = 0,
         .tilemapLeft = 17,
         .tilemapTop = 3,
-        .width = 12,
-        .height = 12,
+        .width = ITEMWIN_ROTOM_CATALOG_W,
+        .height = ITEMWIN_ROTOM_CATALOG_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
     [ITEMWIN_ZYGARDE_CUBE] = {
         .bg = 0,
         .tilemapLeft = 17,
         .tilemapTop = 11,
-        .width = 12,
-        .height = 4,
+        .width = ITEMWIN_ZYGARDE_CUBE_W,
+        .height = ITEMWIN_ZYGARDE_CUBE_H,
         .paletteNum = 15,
-        .baseBlock = 475,
+        .baseBlock = ITEMWIN_CONTEXT_BASE,
     },
 #endif
 };
+
+STATIC_ASSERT(ARRAY_COUNT(sContextMenuWindowTemplates) == ITEMWIN_COUNT, BagContextWindowTemplateCount);
 
 EWRAM_DATA struct BagMenu *gBagMenu = 0;
 EWRAM_DATA struct BagPosition gBagPosition = {0};
@@ -3113,7 +3259,7 @@ void DisplayItemMessage(u8 taskId, u8 fontId, const u8 *str, TaskFunc callback)
 
     tMsgWindowId = AddItemMessageWindow(ITEMWIN_MESSAGE);
     FillWindowPixelBuffer(tMsgWindowId, PIXEL_FILL(1));
-    DisplayMessageAndContinueTask(taskId, tMsgWindowId, 10, 13, fontId, GetPlayerTextSpeedDelay(), str, callback);
+    DisplayMessageAndContinueTask(taskId, tMsgWindowId, BAG_BASE_MSGBOX, 13, fontId, GetPlayerTextSpeedDelay(), str, callback);
     ScheduleBgCopyTilemapToVram(0);
 }
 
@@ -4459,8 +4605,8 @@ static void LoadBagMenuTextWindows(void)
 
     InitWindows(sDefaultBagWindows);
     DeactivateAllTextPrinters();
-    LoadUserWindowBorderGfx(0, 1, BG_PLTT_ID(14));
-    LoadMessageBoxGfx(0, 10, BG_PLTT_ID(13));
+    LoadUserWindowBorderGfx(0, BAG_BASE_STD_BORDER, BG_PLTT_ID(14));
+    LoadMessageBoxGfx(0, BAG_BASE_MSGBOX, BG_PLTT_ID(13));
     LoadPalette(gStandardMenuPalette, BG_PLTT_ID(15), PLTT_SIZE_4BPP);
     for (i = 0; i <= WIN_POCKET_NAME; i++)
     {
@@ -4492,7 +4638,7 @@ static u8 BagMenu_AddWindow(u8 windowType)
     if (*windowId == WINDOW_NONE)
     {
         *windowId = AddWindow(&sContextMenuWindowTemplates[windowType]);
-        DrawStdFrameWithCustomTileAndPalette(*windowId, FALSE, 1, 14);
+        DrawStdFrameWithCustomTileAndPalette(*windowId, FALSE, BAG_BASE_STD_BORDER, 14);
         ScheduleBgCopyTilemapToVram(0);
     }
     return *windowId;
@@ -4535,7 +4681,7 @@ static void RemoveItemMessageWindow(u8 windowType)
 
 void BagMenu_YesNo(u8 taskId, u8 windowType, const struct YesNoFuncTable *funcTable)
 {
-    CreateYesNoMenuWithCallbacks(taskId, &sContextMenuWindowTemplates[windowType], 1, 0, 2, 1, 14, funcTable);
+    CreateYesNoMenuWithCallbacks(taskId, &sContextMenuWindowTemplates[windowType], BAG_BASE_STD_BORDER, 0, 2, 1, 14, funcTable);
 }
 
 static void DrawFrameTilemap(const u8 *tilemap, u8 left, u8 top, u8 width, u8 height)
