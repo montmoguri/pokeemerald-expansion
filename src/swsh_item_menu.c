@@ -449,6 +449,8 @@ static void Task_BagMenu_TMHMLearnDone(u8);
 static void SpriteCB_HeldItemIcon_WaitDisappear(struct Sprite *);
 static void BagMenu_LoadHeldItemIconGfx(enum Item);
 static void BagMenu_UpdateHeldItemIcon(u8);
+static void BagMenu_CreateStatusIcons(u8 count);
+static void BagMenu_DestroyStatusIcons(void);
 static void BagMenu_UpdateStatusIcons(void);
 static void BagMenu_UpdateStatusIconPos(u8 hoveredSlot);
 static void BagMenu_ApplyItemUseBlend(void);
@@ -6273,13 +6275,7 @@ static void BagMenu_CreatePartyIcons(void)
     for (i = 0; i < count; i++)
         BagMenu_CreatePanelMonIcon(i, 0);
 
-    for (i = 0; i < count; i++)
-    {
-        u8 sid = CreateSprite(&sSpriteTemplate_StatusIcon, PARTY_STATUS_ICON_X, PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset(), 2);
-        gBagMenu->statusIconSpriteIds[i] = (sid == MAX_SPRITES) ? SPRITE_NONE : sid;
-    }
-    BagMenu_UpdateStatusIcons();
-    BagMenu_UpdateStatusIconPos(PARTY_SIZE);
+    BagMenu_CreateStatusIcons(count);
 }
 
 static void BagMenu_FreePartyIcons(void)
@@ -6303,6 +6299,27 @@ static void BagMenu_FreePartyIcons(void)
         gBagMenu->heldItemIconSpriteId = SPRITE_NONE;
     }
 
+    BagMenu_DestroyStatusIcons();
+    FreeSpriteTilesByTag(TAG_STATUS_ICON);
+}
+
+static void BagMenu_CreateStatusIcons(u8 count)
+{
+    u8 i;
+
+    for (i = 0; i < count; i++)
+    {
+        u8 sid = CreateSprite(&sSpriteTemplate_StatusIcon, PARTY_STATUS_ICON_X, PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset(), 2);
+        gBagMenu->statusIconSpriteIds[i] = (sid == MAX_SPRITES) ? SPRITE_NONE : sid;
+    }
+    BagMenu_UpdateStatusIcons();
+    BagMenu_UpdateStatusIconPos(PARTY_SIZE);
+}
+
+static void BagMenu_DestroyStatusIcons(void)
+{
+    u8 i;
+
     for (i = 0; i < PARTY_SIZE; i++)
     {
         if (gBagMenu->statusIconSpriteIds[i] != SPRITE_NONE)
@@ -6311,7 +6328,6 @@ static void BagMenu_FreePartyIcons(void)
             gBagMenu->statusIconSpriteIds[i] = SPRITE_NONE;
         }
     }
-    FreeSpriteTilesByTag(TAG_STATUS_ICON);
 }
 
 static u32 BagMenu_GetMonStatusIcon(u8 slot)
@@ -9323,12 +9339,9 @@ static void ShowMultiBattleSwapPrompt(void)
 static void BagMenu_MoveMultiFullSlotSprites(u8 slot, s16 x2)
 {
     u8 iconId = gBagMenu->partyMonIconSpriteIds[slot];
-    u8 statusId = gBagMenu->statusIconSpriteIds[slot];
 
     if (iconId != SPRITE_NONE)
         gSprites[iconId].x2 = x2;
-    if (statusId != SPRITE_NONE)
-        gSprites[statusId].x2 = x2;
 }
 
 static s16 BagMenu_MultiFullSlideOffset(u8 slot, s16 frame)
@@ -9362,11 +9375,6 @@ static void BagMenu_MultiFullFlipPage(void)
 
     for (i = 0; i < PARTY_SIZE; i++)
         BagMenu_CreatePanelMonIcon(i, -8 * MULTI_FULL_SWAP_TILES);
-
-    BagMenu_UpdateStatusIcons();
-    BagMenu_UpdateStatusIconPos(PARTY_SIZE);
-    for (i = 0; i < PARTY_SIZE; i++)
-        BagMenu_MoveMultiFullSlotSprites(i, -8 * MULTI_FULL_SWAP_TILES);
 }
 
 static void BagMenu_StartMultiFullSwap(u8 taskId)
@@ -9374,6 +9382,7 @@ static void BagMenu_StartMultiFullSwap(u8 taskId)
     s16 *data = gTasks[taskId].data;
 
     PlaySE(SE_M_HARDEN);
+    BagMenu_DestroyStatusIcons();
     tSwapPhase = 0;
     tSwapFrame = 0;
     gTasks[taskId].func = Task_BagMenu_MultiFullSwap;
@@ -9408,6 +9417,7 @@ static void Task_BagMenu_MultiFullSwap(u8 taskId)
         {
             for (i = 0; i < PARTY_SIZE; i++)
                 BagMenu_MoveMultiFullSlotSprites(i, 0);
+            BagMenu_CreateStatusIcons(PARTY_SIZE);
             tPartySlot = 0;
             gTasks[taskId].func = Task_BagMenu_HandleInput;
             return;
