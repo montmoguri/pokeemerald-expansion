@@ -701,20 +701,22 @@ static const u8 sContextMenuItems_QuizLady[] = {
     ACTION_CONFIRM_QUIZ_LADY, ACTION_CANCEL
 };
 
-static const TaskFunc sContextMenuFuncs[] = {
-    [ITEMMENULOCATION_FIELD] =                  Task_ItemContext_Normal,
-    [ITEMMENULOCATION_BATTLE] =                 Task_ItemContext_Normal,
-    [ITEMMENULOCATION_PARTY] =                  Task_ItemContext_GiveToParty,
-    [ITEMMENULOCATION_SHOP] =                   Task_ItemContext_Sell,
-    [ITEMMENULOCATION_BERRY_TREE] =             Task_FadeAndCloseBagMenu,
-    [ITEMMENULOCATION_BERRY_BLENDER_CRUSH] =    Task_ItemContext_Normal,
-    [ITEMMENULOCATION_ITEMPC] =                 Task_ItemContext_Deposit,
-    [ITEMMENULOCATION_FAVOR_LADY] =             Task_ItemContext_Normal,
-    [ITEMMENULOCATION_QUIZ_LADY] =              Task_ItemContext_Normal,
-    [ITEMMENULOCATION_APPRENTICE] =             Task_ItemContext_Normal,
-    [ITEMMENULOCATION_WALLY] =                  NULL,
-    [ITEMMENULOCATION_PCBOX] =                  Task_ItemContext_GiveToPC,
-    [ITEMMENULOCATION_BERRY_TREE_MULCH] =       Task_FadeAndCloseBagMenuIfMulch,
+static const TaskFunc sContextMenuFuncs[] =
+{
+    [ITEMMENULOCATION_FIELD]                    = Task_ItemContext_Normal,
+    [ITEMMENULOCATION_BATTLE]                   = Task_ItemContext_Normal,
+    [ITEMMENULOCATION_PARTY]                    = Task_ItemContext_GiveToParty,
+    [ITEMMENULOCATION_SHOP]                     = Task_ItemContext_Sell,
+    [ITEMMENULOCATION_BERRY_TREE]               = Task_FadeAndCloseBagMenu,
+    [ITEMMENULOCATION_BERRY_BLENDER_CRUSH]      = Task_ItemContext_Normal,
+    [ITEMMENULOCATION_ITEMPC]                   = Task_ItemContext_Deposit,
+    [ITEMMENULOCATION_FAVOR_LADY]               = Task_ItemContext_Normal,
+    [ITEMMENULOCATION_QUIZ_LADY]                = Task_ItemContext_Normal,
+    [ITEMMENULOCATION_APPRENTICE]               = Task_ItemContext_Normal,
+    [ITEMMENULOCATION_WALLY]                    = NULL,
+    [ITEMMENULOCATION_PCBOX]                    = Task_ItemContext_GiveToPC,
+    [ITEMMENULOCATION_BERRY_TREE_MULCH]         = Task_FadeAndCloseBagMenuIfMulch,
+    [ITEMMENULOCATION_RAIDEND]                  = Task_ItemContext_Normal,
 };
 
 static const struct YesNoFuncTable sYesNoTossFunctions = {ConfirmToss, CancelToss};
@@ -1647,7 +1649,7 @@ STATIC_ASSERT(ARRAY_COUNT(sContextMenuWindowTemplates) == ITEMWIN_COUNT, BagCont
 EWRAM_DATA struct BagMenu *gBagMenu = 0;
 EWRAM_DATA struct BagPosition gBagPosition = {0};
 static EWRAM_DATA struct ListBuffer2 *sListBuffer2 = 0;
-EWRAM_DATA u16 gSpecialVar_ItemId = 0;
+EWRAM_DATA enum Item gSpecialVar_ItemId = 0;
 static EWRAM_DATA struct TempWallyBag *sTempWallyBag = 0;
 #if SWSH_ITEM_MENU_IN_BAG_USE
 static EWRAM_DATA struct BagItemUseState *sBagItemUseState = NULL;
@@ -1691,6 +1693,11 @@ void CB2_ChooseMulch(void)
 void ChooseBerryForMachine(MainCallback exitCallback)
 {
     GoToBagMenu(ITEMMENULOCATION_BERRY_BLENDER_CRUSH, POCKET_BERRIES, exitCallback);
+}
+
+void CB2_ChooseBall(void)
+{
+    GoToBagMenu(ITEMMENULOCATION_RAIDEND, POCKET_POKE_BALLS, CB2_SetUpReshowBattleScreenAfterMenu2);
 }
 
 void CB2_GoToSellMenu(void)
@@ -1742,9 +1749,10 @@ void GoToBagMenu(u8 location, u8 pocket, MainCallback exitCallback)
             gBagPosition.exitCallback = exitCallback;
         if (pocket < POCKETS_COUNT)
             gBagPosition.pocket = pocket;
-        if (gBagPosition.location == ITEMMENULOCATION_BERRY_TREE ||
-            gBagPosition.location == ITEMMENULOCATION_BERRY_BLENDER_CRUSH ||
-            gBagPosition.location == ITEMMENULOCATION_BERRY_TREE_MULCH)
+        if (gBagPosition.location == ITEMMENULOCATION_BERRY_TREE
+            || gBagPosition.location == ITEMMENULOCATION_BERRY_BLENDER_CRUSH
+            || gBagPosition.location == ITEMMENULOCATION_BERRY_TREE_MULCH
+            || gBagPosition.location == ITEMMENULOCATION_RAIDEND)
             gBagMenu->pocketSwitchDisabled = TRUE;
         gBagMenu->newScreenCallback = NULL;
         gBagMenu->toSwapPos = NOT_SWAPPING;
@@ -1858,7 +1866,7 @@ static const u16 sBagRotomFormChangeMoves[] = {
 
 extern void DeleteMove(struct Pokemon *mon, enum Move move);
 extern bool32 DoesMonHaveAnyMoves(struct Pokemon *mon);
-extern u8 IsFusionMon(enum Species species);
+static u8 IsFusionMon(enum Species species);
 #endif // SWSH_ITEM_MENU_IN_BAG_USE
 
 // Matching the enum in item_menu_icons.c to reserve palette slots.
@@ -1926,9 +1934,16 @@ static bool8 SetupBagMenu(void)
         break;
     case 10:
 #if SWSH_ITEM_MENU_BATTLE_POCKETS
-        if (UsingBattlePockets() && gBagPosition.pocket < POCKETS_COUNT)
+        if (gBagPosition.location == ITEMMENULOCATION_RAIDEND)
+            gBagPosition.pocket = BATTLE_POCKET_POKE_BALLS;
+        else if (UsingBattlePockets()
+                && (gBagPosition.pocket < POCKETS_COUNT
+                    || (IsVictoryCatch() && gBagPosition.pocket == BATTLE_POCKET_POKE_BALLS)))
             gBagPosition.pocket = BATTLE_POCKET_MEDICINE;
         else if (!UsingBattlePockets() && gBagPosition.pocket >= POCKETS_COUNT)
+            gBagPosition.pocket = POCKET_ITEMS;
+#else
+        if (gBagPosition.location == ITEMMENULOCATION_BATTLE && IsVictoryCatch() && gBagPosition.pocket == POCKET_POKE_BALLS)
             gBagPosition.pocket = POCKET_ITEMS;
 #endif
         UpdatePocketItemLists();
@@ -2181,7 +2196,8 @@ static bool32 UsingBattlePockets(void)
     if (gBagPosition.isPyramid)
         return FALSE; // pyramid battles keep the flat pyramid list
 #endif
-    return gBagPosition.location == ITEMMENULOCATION_BATTLE;
+    return gBagPosition.location == ITEMMENULOCATION_BATTLE
+        || gBagPosition.location == ITEMMENULOCATION_RAIDEND;
 }
 
 // battlePocketRefs entries pack the real bag slot an entry points at
@@ -2294,7 +2310,7 @@ static struct ItemSlot BagList_GetSlot(u8 pocketId, u32 pos)
 
 static void BagList_CompactPyramid(void)
 {
-    u16 *itemIds = gSaveBlock2Ptr->frontier.pyramidBag.itemId[gSaveBlock2Ptr->frontier.lvlMode];
+    enum Item *itemIds = gSaveBlock2Ptr->frontier.pyramidBag.itemId[gSaveBlock2Ptr->frontier.lvlMode];
 #if MAX_PYRAMID_BAG_ITEM_CAPACITY > 255
     u16 *quantities = gSaveBlock2Ptr->frontier.pyramidBag.quantity[gSaveBlock2Ptr->frontier.lvlMode];
 #else
@@ -2331,7 +2347,7 @@ static void BagList_CompactPyramid(void)
 
 static struct BagPocket *BagList_PyramidScratchPocket(void)
 {
-    u16 *ids = gSaveBlock2Ptr->frontier.pyramidBag.itemId[gSaveBlock2Ptr->frontier.lvlMode];
+    enum Item *ids = gSaveBlock2Ptr->frontier.pyramidBag.itemId[gSaveBlock2Ptr->frontier.lvlMode];
 #if MAX_PYRAMID_BAG_ITEM_CAPACITY > 255
     u16 *quantities = gSaveBlock2Ptr->frontier.pyramidBag.quantity[gSaveBlock2Ptr->frontier.lvlMode];
 #else
@@ -2352,7 +2368,7 @@ static struct BagPocket *BagList_PyramidScratchPocket(void)
 
 static void BagList_PyramidScratchWriteBack(void)
 {
-    u16 *ids = gSaveBlock2Ptr->frontier.pyramidBag.itemId[gSaveBlock2Ptr->frontier.lvlMode];
+    enum Item *ids = gSaveBlock2Ptr->frontier.pyramidBag.itemId[gSaveBlock2Ptr->frontier.lvlMode];
 #if MAX_PYRAMID_BAG_ITEM_CAPACITY > 255
     u16 *quantities = gSaveBlock2Ptr->frontier.pyramidBag.quantity[gSaveBlock2Ptr->frontier.lvlMode];
 #else
@@ -3568,6 +3584,9 @@ static void ChangeBagPocketId(u8 *bagPocketId, s8 deltaBagPocketId)
             *bagPocketId = BATTLE_POCKETS_END - 1;
         else
             *bagPocketId += deltaBagPocketId;
+
+        if (IsVictoryCatch() && *bagPocketId == BATTLE_POCKET_POKE_BALLS)
+            ChangeBagPocketId(bagPocketId, deltaBagPocketId);
         return;
     }
 #endif
@@ -3577,6 +3596,9 @@ static void ChangeBagPocketId(u8 *bagPocketId, s8 deltaBagPocketId)
         *bagPocketId = POCKETS_COUNT - 1;
     else
         *bagPocketId += deltaBagPocketId;
+
+    if (gBagPosition.location == ITEMMENULOCATION_BATTLE && IsVictoryCatch() && *bagPocketId == POCKET_POKE_BALLS)
+        ChangeBagPocketId(bagPocketId, deltaBagPocketId);
 }
 
 static void SwitchBagPocket(u8 taskId, s16 deltaBagPocketId, bool16 skipEraseList)
@@ -3788,6 +3810,7 @@ static void OpenContextMenu(u8 taskId)
     {
     case ITEMMENULOCATION_BATTLE:
     case ITEMMENULOCATION_WALLY:
+    case ITEMMENULOCATION_RAIDEND:
         if (GetItemBattleUsage(gSpecialVar_ItemId))
         {
             gBagMenu->contextMenuItemsPtr = sContextMenuItems_BattleUse;
@@ -6748,6 +6771,23 @@ static bool8 BagMenu_MonHoldsItem(u8 partySlot)
     return GetMonData(&gParties[B_TRAINER_PLAYER][partySlot], MON_DATA_HELD_ITEM) != ITEM_NONE;
 }
 
+static u8 IsFusionMon(enum Species species)
+{
+    const struct Fusion *itemFusion = gFusionTablePointers[species];
+    if (itemFusion == NULL)
+        return BAG_NOT_FUSION_MON;
+    for (u32 i = 0; itemFusion[i].fusionStorageIndex != FUSION_TERMINATOR; i++)
+    {
+        if (itemFusion[i].fusingIntoMon == species)
+            return BAG_UNFUSE_MON;
+        else if (itemFusion[i].targetSpecies1 == species)
+            return BAG_FUSE_MON;
+        else if (itemFusion[i].targetSpecies2 == species)
+            return BAG_SECOND_FUSE_MON;
+    }
+    return BAG_NOT_FUSION_MON;
+}
+
 static bool8 BagMenu_IsMonEligibleFusion1(u8 partySlot)
 {
     struct Pokemon *mon = &gParties[B_TRAINER_PLAYER][partySlot];
@@ -7584,7 +7624,7 @@ static void BagMenu_UsePPOnMove(u8 taskId, u8 moveSlot)
     DisplayItemMessage(taskId, FONT_NORMAL, gStringVar4, Task_BagMenu_PartyAfterItemUse);
 }
 
-// Numbering comes from GetCurrentPpToMaxPpState and is not severity-ordered.
+// Numbering comes from GetCurrentPPToMaxPPState and is not severity-ordered.
 enum {
     PP_STATE_BELOW_HALF,
     PP_STATE_BELOW_QUARTER,
@@ -7615,7 +7655,7 @@ static void BagMenu_ShowPPMoveSelectWindow(u8 taskId)
         {
             u8 currentPp = GetMonData(mon, MON_DATA_PP1 + i);
             u8 maxPp = CalculatePPWithBonus(move, GetMonData(mon, MON_DATA_PP_BONUSES), i);
-            u8 ppState = GetCurrentPpToMaxPpState(currentPp, maxPp);
+            u8 ppState = GetCurrentPPToMaxPPState(currentPp, maxPp);
             s32 x;
 
             ConvertIntToDecimalStringN(gStringVar1, currentPp, STR_CONV_MODE_RIGHT_ALIGN, 2);
@@ -9435,7 +9475,7 @@ static u8 BagMenu_BattleTargetSlotId(bool8 partner, u8 partyIndex)
 {
     if (IsMultiBattle())
     {
-        u8 battler = partner ? BATTLE_PARTNER(gBattlerInMenuId) : gBattlerInMenuId;
+        u8 battler = partner ? GetPartnerBattler(gBattlerInMenuId) : gBattlerInMenuId;
         if (gBattlerPartyIndexes[battler] != partyIndex)
             return PARTY_SIZE;
         return (GetBattlerPosition(battler) == B_POSITION_PLAYER_RIGHT) ? 1 : 0;
