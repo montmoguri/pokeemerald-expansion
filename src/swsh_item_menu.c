@@ -82,6 +82,7 @@
 #define TAG_CATEGORY_ICON        116
 #define TAG_SPINNER_ARROW        117
 #define TAG_FRAME_QUANTITY       118
+#define TAG_MONEY_LABEL          119
 #define TAG_PARTY_HELD_ITEM      120
 #define TAG_STATUS_ICON          121
 
@@ -726,6 +727,7 @@ static const u32 sBagScreen_BG3TileMap[]        = INCGFX_U32("graphics/bag/swsh/
 static const u32 sHoverSlot_Gfx[]               = INCGFX_U32("graphics/bag/swsh/hover_slot.png", ".4bpp.smol");
 static const u32 sScrollThumb_Gfx[]             = INCGFX_U32("graphics/bag/swsh/scroll_thumb.png", ".4bpp.smol");
 static const u32 sPocketScrollArrows_Gfx[]      = INCGFX_U32("graphics/bag/swsh/pocket_scroll_arrows.png", ".4bpp.smol");
+static const u32 sMoneyLabel_Gfx[]              = INCGFX_U32("graphics/bag/swsh/money.png", ".4bpp.smol");
 static const u8 sFrameMoney_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_money.bin");
 static const u8 sFramePrice_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_price.bin");
 static const u8 sBagMenuHMIcon_Gfx[]            = INCGFX_U8("graphics/bag/swsh/hm.png", ".4bpp");
@@ -1152,6 +1154,30 @@ static const struct SpriteTemplate sSpriteTemplate_FrameQuantity = {
     .paletteTag = TAG_STATUS_ICON,
     .oam = &sOamData_FrameQuantity,
     .anims = sSpriteAnimTable_FrameQuantity,
+};
+
+static const struct OamData sOamData_MoneyLabel =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(32x8),
+    .size = SPRITE_SIZE(32x8),
+    .priority = 1,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_MoneyLabel =
+{
+    .data = sMoneyLabel_Gfx,
+    .size = (32 * 8) / 2,
+    .tag = TAG_MONEY_LABEL,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_MoneyLabel =
+{
+    .tileTag = TAG_MONEY_LABEL,
+    .paletteTag = TAG_BAG_UI_PAL,
+    .oam = &sOamData_MoneyLabel,
 };
 
 
@@ -2450,7 +2476,7 @@ static void GetItemNameFromPocket(u8 *dest, enum Item itemId)
     }
 }
 
-#define LIST_CURSOR_X               84
+#define LIST_CURSOR_X               80
 
 static void CreateCursorSprite(void)
 {
@@ -4957,6 +4983,9 @@ static void PrintSellPrice(u16 itemId)
 #define FRAME_PRICE_WIDTH    10
 #define FRAME_PRICE_HEIGHT   5
 
+#define MONEY_LABEL_X        16
+#define MONEY_LABEL_Y        4
+
 static void SetupSellWindows(void)
 {
     u8 windowId;
@@ -4971,6 +5000,9 @@ static void SetupSellWindows(void)
 
     windowId = BagMenu_AddWindowNoFrame(ITEMWIN_MONEY);
     PrintMoney(windowId);
+
+    LoadCompressedSpriteSheet(&sSpriteSheet_MoneyLabel);
+    CreateSprite(&sSpriteTemplate_MoneyLabel, MONEY_LABEL_X, MONEY_LABEL_Y, 0);
 }
 
 static void UpdateSellPrice(u16 itemId)
