@@ -152,6 +152,7 @@ enum {
     WIN_POW_ACC_INFO,
 #if SWSH_ITEM_MENU_CONTEST_INFO
     WIN_APP_JAM_LABEL,
+    WIN_APP_JAM_INFO,
 #endif
 #if SWSH_ITEM_MENU_BERRY_STAT
     WIN_BERRY_INFO,
@@ -228,7 +229,6 @@ static void LoadBagMenuTextWindows(void);
 static void AllocateBagItemListBuffers(void);
 static void LoadBagItemListBuffers(u8);
 static void PrintPocketName(const u8 *);
-static void DrawItemListBgRow(u8);
 static void SpriteCB_CursorBob(struct Sprite *);
 static void StartBagCursorBob(u8);
 static void SpriteCB_SlideCursorY(struct Sprite *);
@@ -730,11 +730,14 @@ static const u32 sBagScreen_BG2TileMap[]        = INCGFX_U32("graphics/bag/swsh/
 static const u32 sBagScreen_BG3TileMap[]        = INCGFX_U32("graphics/bag/swsh/bg3.bin", ".smolTM");
 static const u32 sHoverSlot_Gfx[]               = INCGFX_U32("graphics/bag/swsh/hover_slot.png", ".4bpp.smol");
 static const u32 sScrollThumb_Gfx[]             = INCGFX_U32("graphics/bag/swsh/scroll_thumb.png", ".4bpp.smol");
-static const u32 sPocketScrollArrows_Gfx[]      = INCGFX_U32("graphics/bag/swsh/pocket_scroll_arrows.png", ".4bpp.smol");
+static const u32 sPocketArrows_Gfx[]            = INCGFX_U32("graphics/bag/swsh/pocket_arrows.png", ".4bpp.smol");
 static const u32 sMoneyLabel_Gfx[]              = INCGFX_U32("graphics/bag/swsh/money.png", ".4bpp.smol");
 static const u8 sFrameMoney_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_money.bin");
 static const u8 sFramePrice_Tilemap[]           = INCBIN_U8("graphics/bag/swsh/frame_price.bin");
 static const u8 sBagMenuHMIcon_Gfx[]            = INCGFX_U8("graphics/bag/swsh/hm.png", ".4bpp");
+#if SWSH_ITEM_MENU_CONTEST_INFO
+static const u8 sContestHearts_Gfx[]            = INCGFX_U8("graphics/bag/swsh/contest_hearts.png", ".4bpp");
+#endif
 static const u16 sBagUI_Pal[]                   = INCGFX_U16("graphics/bag/swsh/hover_slot.png", ".gbapal");
 
 #if SWSH_ITEM_MENU_IN_BAG_USE
@@ -892,7 +895,7 @@ static const struct SpriteTemplate sSpriteTemplate_ScrollThumb =
     .callback = SpriteCB_BagScrollThumb,
 };
 
-static const struct OamData sOamData_PocketScrollArrows =
+static const struct OamData sOamData_PocketArrows =
 {
     .y = 0,
     .affineMode = ST_OAM_AFFINE_OFF,
@@ -908,34 +911,34 @@ static const struct OamData sOamData_PocketScrollArrows =
     .affineParam = 0,
 };
 
-static const union AnimCmd sSpriteAnim_PocketScrollArrow_Left[] = {
+static const union AnimCmd sSpriteAnim_PocketArrow_Left[] = {
     ANIMCMD_FRAME(0, 0, FALSE, FALSE),
     ANIMCMD_END
 };
 
-static const union AnimCmd sSpriteAnim_PocketScrollArrow_Right[] = {
+static const union AnimCmd sSpriteAnim_PocketArrow_Right[] = {
     ANIMCMD_FRAME(2, 0, FALSE, FALSE),
     ANIMCMD_END
 };
 
-static const union AnimCmd *const sSpriteAnimTable_PocketScrollArrows[] = {
-    sSpriteAnim_PocketScrollArrow_Left,
-    sSpriteAnim_PocketScrollArrow_Right,
+static const union AnimCmd *const sSpriteAnimTable_PocketArrows[] = {
+    sSpriteAnim_PocketArrow_Left,
+    sSpriteAnim_PocketArrow_Right,
 };
 
-static const struct CompressedSpriteSheet sSpriteSheet_PocketScrollArrows =
+static const struct CompressedSpriteSheet sSpriteSheet_PocketArrows =
 {
-    .data = sPocketScrollArrows_Gfx,
+    .data = sPocketArrows_Gfx,
     .size = (8 * 16 * 2) / 2,
     .tag = TAG_POCKET_SCROLL_ARROW,
 };
 
-static const struct SpriteTemplate sSpriteTemplate_PocketScrollArrows =
+static const struct SpriteTemplate sSpriteTemplate_PocketArrows =
 {
     .tileTag = TAG_POCKET_SCROLL_ARROW,
     .paletteTag = TAG_BAG_UI_PAL,
-    .oam = &sOamData_PocketScrollArrows,
-    .anims = sSpriteAnimTable_PocketScrollArrows,
+    .oam = &sOamData_PocketArrows,
+    .anims = sSpriteAnimTable_PocketArrows,
     .callback = SpriteCB_PocketScrollArrow,
 };
 
@@ -1261,10 +1264,15 @@ static const u8 sFontColorTable[][3] = {
 #define WIN_APP_JAM_LABEL_TILES     (WIN_APP_JAM_LABEL_W * WIN_APP_JAM_LABEL_H)
 #define WIN_APP_JAM_LABEL_BASE      (WIN_POW_ACC_INFO_BASE + WIN_POW_ACC_INFO_TILES)
 
+#define WIN_APP_JAM_INFO_W          4
+#define WIN_APP_JAM_INFO_H          4
+#define WIN_APP_JAM_INFO_TILES      (WIN_APP_JAM_INFO_W * WIN_APP_JAM_INFO_H)
+#define WIN_APP_JAM_INFO_BASE       (WIN_APP_JAM_LABEL_BASE + WIN_APP_JAM_LABEL_TILES)
+
 #define WIN_BERRY_INFO_W            11
 #define WIN_BERRY_INFO_H            2
 #define WIN_BERRY_INFO_TILES        (WIN_BERRY_INFO_W * WIN_BERRY_INFO_H)
-#define WIN_BERRY_INFO_BASE         (WIN_APP_JAM_LABEL_BASE + WIN_APP_JAM_LABEL_TILES)
+#define WIN_BERRY_INFO_BASE         (WIN_APP_JAM_INFO_BASE + WIN_APP_JAM_INFO_TILES)
 
 #define WIN_BERRY_FLAVORS_W         18
 #define WIN_BERRY_FLAVORS_H         2
@@ -1387,6 +1395,15 @@ static const struct WindowTemplate sDefaultBagWindows[] =
         .height = WIN_APP_JAM_LABEL_H,
         .paletteNum = 1,
         .baseBlock = WIN_APP_JAM_LABEL_BASE,
+    },
+    [WIN_APP_JAM_INFO] = {
+        .bg = 1,
+        .tilemapLeft = 23,
+        .tilemapTop = 16,
+        .width = WIN_APP_JAM_INFO_W,
+        .height = WIN_APP_JAM_INFO_H,
+        .paletteNum = 1,
+        .baseBlock = WIN_APP_JAM_INFO_BASE,
     },
 #endif
 #if SWSH_ITEM_MENU_BERRY_STAT
@@ -2150,7 +2167,7 @@ static bool8 LoadBagMenu_Graphics(void)
         gBagMenu->graphicsLoadState++;
         break;
     case 9:
-        LoadCompressedSpriteSheet(&sSpriteSheet_PocketScrollArrows);
+        LoadCompressedSpriteSheet(&sSpriteSheet_PocketArrows);
         gBagMenu->graphicsLoadState++;
         break;
     case 10:
@@ -3162,7 +3179,7 @@ static void CreatePocketScrollArrowPair(void)
                 .easingFunc = ComfyAnimEasing_EaseOutCubic,
             });
 
-        spriteId = CreateSprite(&sSpriteTemplate_PocketScrollArrows, sArrowX[i], 16, 0);
+        spriteId = CreateSprite(&sSpriteTemplate_PocketArrows, sArrowX[i], 16, 0);
         if (spriteId != MAX_SPRITES)
         {
             StartSpriteAnim(&gSprites[spriteId], i);
@@ -3539,6 +3556,7 @@ static void ReturnToItemList(u8 taskId)
         PutWindowTilemap(WIN_PP_LABEL);
         PutWindowTilemap(WIN_PP_INFO);
         PutWindowTilemap(WIN_APP_JAM_LABEL);
+        PutWindowTilemap(WIN_APP_JAM_INFO);
     }
 #endif
 #if SWSH_ITEM_MENU_BERRY_STAT
@@ -3634,7 +3652,7 @@ static void SwitchBagPocket(u8 taskId, s16 deltaBagPocketId, bool16 skipEraseLis
             ClearWindowTilemap(WIN_POW_ACC_INFO);
 #if SWSH_ITEM_MENU_CONTEST_INFO
             ClearWindowTilemap(WIN_APP_JAM_LABEL);
-            FillBgTilemapBufferRect_Palette0(2, 4, 23, 16, 4, 4);
+            ClearWindowTilemap(WIN_APP_JAM_INFO);
 #endif
             gBagMenu->moveInfoMode = 0;
         }
@@ -3657,8 +3675,6 @@ static void SwitchBagPocket(u8 taskId, s16 deltaBagPocketId, bool16 skipEraseLis
         gSprites[gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)]].invisible = TRUE;
     }
     PrintPocketName(sPocketNamesStringsTable[newPocket]);
-    FillBgTilemapBufferRect_Palette0(2, 4, 14, sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop, sDefaultBagWindows[WIN_ITEM_LIST].width, sDefaultBagWindows[WIN_ITEM_LIST].height);
-    ScheduleBgCopyTilemapToVram(2);
     SetTaskFuncWithFollowupFunc(taskId, Task_SwitchBagPocket, gTasks[taskId].func);
 }
 
@@ -3685,7 +3701,6 @@ static void Task_SwitchBagPocket(u8 taskId)
     switch (tPocketSwitchState)
     {
     case 0:
-        DrawItemListBgRow(tPocketSwitchTimer);
         if (++tPocketSwitchTimer == 6)
             tPocketSwitchState++;
         break;
@@ -3707,12 +3722,6 @@ static void Task_SwitchBagPocket(u8 taskId)
         CreatePocketScrollArrowPair();
         SwitchTaskToFollowupFunc(taskId);
     }
-}
-
-static void DrawItemListBgRow(u8 y)
-{
-    FillBgTilemapBufferRect_Palette0(2, 4, 14, y + sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop, sDefaultBagWindows[WIN_ITEM_LIST].width, 1);
-    ScheduleBgCopyTilemapToVram(2);
 }
 
 static bool8 CanSwapItems(void)
@@ -5083,8 +5092,8 @@ static void PrintMoney(u8 windowId)
 // alt prompt position when selling items
 #define PROMPT_LEFT          (gBagPosition.location == ITEMMENULOCATION_SHOP ? 7 : 10)
 #define PROMPT_TOP           (gBagPosition.location == ITEMMENULOCATION_SHOP ? 17 : 0)
-#define PROMPT_INFO_TILE     45
-#define PROMPT_SWAP_TILE     54
+#define PROMPT_INFO_TILE     176
+#define PROMPT_SWAP_TILE     185
 // for prompt dimensions, check PROMPT_WIDTH and PROMP_HEIGHT in item_menu.h
 
 static void DrawPrompt(u16 baseTile)
@@ -5332,6 +5341,7 @@ static void SwitchMoveInfoMode(s32 itemIndex)
         PutWindowTilemap(WIN_PP_LABEL);
         PutWindowTilemap(WIN_PP_INFO);
         PutWindowTilemap(WIN_APP_JAM_LABEL);
+        PutWindowTilemap(WIN_APP_JAM_INFO);
         ScheduleBgCopyTilemapToVram(1);
     }
 #endif
@@ -5358,8 +5368,7 @@ static void SwitchMoveInfoMode(s32 itemIndex)
         ClearWindowTilemap(WIN_POW_ACC_INFO);
 #if SWSH_ITEM_MENU_CONTEST_INFO
         ClearWindowTilemap(WIN_APP_JAM_LABEL);
-        FillBgTilemapBufferRect_Palette0(2, 4, 23, 16, 4, 4);
-        ScheduleBgCopyTilemapToVram(2);
+        ClearWindowTilemap(WIN_APP_JAM_INFO);
 #endif
 
         PrintItemDescription(itemIndex);
@@ -5369,20 +5378,46 @@ static void SwitchMoveInfoMode(s32 itemIndex)
 }
 
 #if SWSH_ITEM_MENU_CONTEST_INFO
+// see contest_hearts.png
+#define CONTEST_HEART_EMPTY     0
+#define CONTEST_HEART_APPEAL    1
+#define CONTEST_HEART_JAM       2
+
+#define CONTEST_HEART_SIZE      8
+#define CONTEST_HEART_COLS      4
+#define CONTEST_HEART_ROWS      2
+#define CONTEST_HEARTS_SHOWN    (CONTEST_HEART_COLS * CONTEST_HEART_ROWS)
+#define CONTEST_HEART_JAM_Y     (CONTEST_HEART_ROWS * CONTEST_HEART_SIZE)
+
+static void DrawContestHearts(u8 baseY, u8 stat, u8 filledTile)
+{
+    u8 i;
+
+    for (i = 0; i < CONTEST_HEARTS_SHOWN; i++)
+    {
+        u8 tile = (stat == 0xFF || i < stat) ? filledTile : CONTEST_HEART_EMPTY;
+
+        BlitBitmapToWindow(WIN_APP_JAM_INFO, sContestHearts_Gfx + tile * TILE_SIZE_4BPP,
+                           (i % CONTEST_HEART_COLS) * CONTEST_HEART_SIZE,
+                           baseY + (i / CONTEST_HEART_COLS) * CONTEST_HEART_SIZE,
+                           CONTEST_HEART_SIZE, CONTEST_HEART_SIZE);
+    }
+}
+
 static void UpdateMoveContestInfo(s32 itemIndex)
 {
     enum Move move;
-    u8 appeal, jam, i;
-    u16 *buf = (u16 *)gBagMenu->mainTilemapBuffer;
+    u8 appeal, jam;
     int ppInfoWidth = WindowWidthPx(WIN_PP_INFO);
 
     FillWindowPixelBuffer(WIN_PP_INFO, PIXEL_FILL(0));
 
     if (itemIndex == LIST_CANCEL)
     {
-        FillBgTilemapBufferRect_Palette0(2, 13, 23, 16, 4, 4);
+        DrawContestHearts(0, 0, CONTEST_HEART_APPEAL);
+        DrawContestHearts(CONTEST_HEART_JAM_Y, 0, CONTEST_HEART_JAM);
+        CopyWindowToVram(WIN_APP_JAM_INFO, COPYWIN_GFX);
         gSprites[gBagMenu->moveTypeIconSpriteId].invisible = TRUE;
-        ScheduleBgCopyTilemapToVram(2);
         CopyWindowToVram(WIN_PP_INFO, COPYWIN_GFX);
         return;
     }
@@ -5415,11 +5450,9 @@ static void UpdateMoveContestInfo(s32 itemIndex)
             jam /= 10;
     }
 
-    for (i = 0; i < 8; i++)
-        buf[(16 + i / 4) * 32 + (23 + i % 4)] = (appeal == 0xFF || i < appeal) ? 14 : 13;
-    for (i = 0; i < 8; i++)
-        buf[(18 + i / 4) * 32 + (23 + i % 4)] = (jam == 0xFF || i < jam) ? 15 : 13;
-    ScheduleBgCopyTilemapToVram(2);
+    DrawContestHearts(0, appeal, CONTEST_HEART_APPEAL);
+    DrawContestHearts(CONTEST_HEART_JAM_Y, jam, CONTEST_HEART_JAM);
+    CopyWindowToVram(WIN_APP_JAM_INFO, COPYWIN_GFX);
 }
 #endif // SWSH_ITEM_MENU_CONTEST_INFO
 
