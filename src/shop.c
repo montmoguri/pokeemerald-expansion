@@ -32,6 +32,7 @@
 #include "sprite.h"
 #include "string_util.h"
 #include "strings.h"
+#include "swsh_shop.h"
 #include "text_window.h"
 #include "tv.h"
 #include "shop_criteria.h"
@@ -119,7 +120,6 @@ static void Task_ShopMenu(u8 taskId);
 static void Task_HandleShopMenuQuit(u8 taskId);
 static void CB2_InitBuyMenu(void);
 static void Task_GoToBuyOrSellMenu(u8 taskId);
-static void MapPostLoadHook_ReturnToShopMenu(void);
 static void Task_ReturnToShopMenu(u8 taskId);
 static void ShowShopMenuAfterExitingBuyOrSellMenu(u8 taskId);
 static void BuyMenuDrawGraphics(void);
@@ -428,8 +428,10 @@ static void Task_ShopMenu(u8 taskId)
 static void Task_HandleShopMenuBuy(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
-    tCallbackHi = (u32)CB2_InitBuyMenu >> 16;
-    tCallbackLo = (u32)CB2_InitBuyMenu;
+    MainCallback buyMenu = SWSH_SHOP_MENU ? CB2_InitBuyMenu_SwSh : CB2_InitBuyMenu;
+
+    tCallbackHi = (u32)buyMenu >> 16;
+    tCallbackLo = (u32)buyMenu;
     gTasks[taskId].func = Task_GoToBuyOrSellMenu;
     FadeScreen(FADE_TO_BLACK, 0);
 }
@@ -471,7 +473,7 @@ static void Task_GoToBuyOrSellMenu(u8 taskId)
     }
 }
 
-static void MapPostLoadHook_ReturnToShopMenu(void)
+void MapPostLoadHook_ReturnToShopMenu(void)
 {
     FadeInFromBlack();
     CreateTask(Task_ReturnToShopMenu, 8);
