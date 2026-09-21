@@ -151,7 +151,6 @@ static void BuyMenuConfirmPurchase(u8 taskId);
 static void BuyMenuPrintItemQuantityAndPrice(u8 taskId);
 static void Task_BuyHowManyDialogueHandleInput(u8 taskId);
 static void BuyMenuSubtractMoney(u8 taskId);
-static void RecordItemPurchase(u8 taskId);
 static void Task_ReturnToItemListAfterItemPurchase(u8 taskId);
 static void Task_ReturnToItemListAfterDecorationPurchase(u8 taskId);
 static void Task_HandleShopMenuBuy(u8 taskId);
@@ -429,6 +428,9 @@ static void Task_HandleShopMenuBuy(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
     MainCallback buyMenu = SWSH_SHOP_MENU ? CB2_InitBuyMenu_SwSh : CB2_InitBuyMenu;
+
+    if (SWSH_SHOP_MENU)
+        SetBuyMenuMart_SwSh(sMartInfo.martType, sMartInfo.itemList, sMartInfo.itemCount);
 
     tCallbackHi = (u32)buyMenu >> 16;
     tCallbackLo = (u32)buyMenu;
@@ -1281,7 +1283,7 @@ static void ClearItemPurchases(void)
     memset(gMartPurchaseHistory, 0, sizeof(gMartPurchaseHistory));
 }
 
-static void RecordItemPurchase(u8 taskId)
+void RecordItemPurchase(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
 
