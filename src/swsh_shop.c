@@ -52,6 +52,7 @@ struct ShopData
     u16 mapMidTilemap[0x400];       // BG2
     u16 mapBottomTilemap[0x400];    // BG3
     s16 viewportObjects[OBJECT_EVENTS_COUNT][VIEWPORT_OBJECT_FIELD_COUNT];
+    u32 tintPalettes;               // obj pals for the map's sprites
 };
 
 static EWRAM_DATA struct ShopData *sShopData = NULL;
@@ -63,6 +64,7 @@ static void BuyMenuInitWindows(void);
 static void BuyMenuDecompressBgGraphics(void);
 static void BuyMenuDrawGraphics(void);
 static void BuyMenuDrawMapGraphics(void);
+static void BuyMenuTintMapView(void);
 static void BuyMenuDrawMapBg(void);
 static void BuyMenuDrawMapMetatile(s16 x, s16 y, const u16 *src, u8 metatileLayerType);
 static void BuyMenuDrawMapMetatileLayer(u16 *dest, s16 offset1, s16 offset2, const u16 *src);
@@ -214,6 +216,7 @@ static void BuyMenuDrawGraphics(void)
 {
     BuyMenuDrawMapGraphics();
     BuyMenuCopyMenuBgToBg1TilemapBuffer();
+    BuyMenuTintMapView();
     ScheduleBgCopyTilemapToVram(1);
     ScheduleBgCopyTilemapToVram(2);
     ScheduleBgCopyTilemapToVram(3);
@@ -224,6 +227,18 @@ static void BuyMenuDrawMapGraphics(void)
     BuyMenuCollectObjectEventData();
     BuyMenuDrawObjectEvents();
     BuyMenuDrawMapBg();
+}
+
+// tinting overworld view area
+#define MAP_VIEW_TINT_COLOR        RGB(30, 29, 30)
+#define MAP_VIEW_TINT_COEFF        10
+
+// apply tint to ow view, both map tileset and obj sprites
+static void BuyMenuTintMapView(void)
+{
+    u32 palettes = ((1 << SHOP_MENU_PALETTE_ID) - 1) | sShopData->tintPalettes;
+
+    BlendPalettesFine(palettes, gPlttBufferUnfaded, gPlttBufferUnfaded, MAP_VIEW_TINT_COEFF, MAP_VIEW_TINT_COLOR);
 }
 
 static void BuyMenuDrawMapBg(void)
@@ -358,6 +373,9 @@ static void BuyMenuDrawObjectEvents(void)
             (u16)sShopData->viewportObjects[i][X_COORD] * 16 + 8,
             (u16)sShopData->viewportObjects[i][Y_COORD] * 16 + 16 - graphicsInfo->height / 2,
             2);
+
+        // only tint these sprites/pals from ow redrawing
+        sShopData->tintPalettes |= 1 << (16 + gSprites[spriteId].oam.paletteNum);
 
         StartSpriteAnim(&gSprites[spriteId], sShopData->viewportObjects[i][ANIM_NUM]);
     }
