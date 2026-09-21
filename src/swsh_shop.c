@@ -81,6 +81,7 @@ enum {
     COLORID_HOVER_NAME,
     COLORID_HOVER_PRICE,
     COLORID_MONEY,
+    COLORID_IN_BAG,
 };
 
 enum {
@@ -204,21 +205,26 @@ static void Task_BuyMenu(u8 taskId);
 static void ExitBuyMenu(u8 taskId);
 static void Task_ExitBuyMenu(u8 taskId);
 
-static const u32 sShopMenu_Gfx[]     = INCGFX_U32("graphics/shop/swsh/menu.png", ".4bpp.smol", "-num_tiles 10 -Wnum_tiles");
-static const u16 sShopMenu_Pal[]     = INCGFX_U16("graphics/shop/swsh/menu.png", ".gbapal");
-static const u32 sShopMenu_Tilemap[] = INCGFX_U32("graphics/shop/swsh/menu.bin", ".smolTM");
-static const u32 sHoverSlot_Gfx[]    = INCGFX_U32("graphics/shop/swsh/hover_slot.png", ".4bpp.smol");
-static const u32 sScrollThumb_Gfx[]  = INCGFX_U32("graphics/shop/swsh/scroll_thumb.png", ".4bpp.smol");
-static const u16 sShopUI_Pal[]       = INCGFX_U16("graphics/shop/swsh/hover_slot.png", ".gbapal");
+static const u32 sShopMenu_Gfx[]        = INCGFX_U32("graphics/shop/swsh/menu.png", ".4bpp.smol", "-num_tiles 10 -Wnum_tiles");
+static const u16 sShopMenu_Pal[]        = INCGFX_U16("graphics/shop/swsh/menu.png", ".gbapal");
+static const u32 sShopMenu_Tilemap[]    = INCGFX_U32("graphics/shop/swsh/menu.bin", ".smolTM");
+static const u32 sHoverSlot_Gfx[]       = INCGFX_U32("graphics/shop/swsh/hover_slot.png", ".4bpp.smol");
+static const u32 sScrollThumb_Gfx[]     = INCGFX_U32("graphics/shop/swsh/scroll_thumb.png", ".4bpp.smol");
+static const u32 sInBag_Gfx[]           = INCGFX_U32("graphics/shop/swsh/in_bag.png", ".4bpp.smol");
+static const u32 sShopDesign_Gfx[]      = INCGFX_U32("graphics/shop/swsh/shop_design.png", ".4bpp.smol", "-mwidth 8 -mheight 8");
 
-#define TAG_SHOP_UI_PAL            200
-#define TAG_SHOP_SHARED_PAL        201
-#define TAG_CURSOR                 202
-#define TAG_HOVER_SLOT             203
-#define TAG_SCROLL_THUMB           204
-#define TAG_QUANTITY_FRAME         205
-#define TAG_SPINNER_ARROW          206
-#define TAG_ITEM_ICON_BASE         207 // and 208 for item icon swapping
+static const u16 sShopUI_Pal[]          = INCGFX_U16("graphics/shop/swsh/hover_slot.png", ".gbapal");
+
+#define TAG_SHOP_UI_PAL         200
+#define TAG_ITEM_CURSOR         201
+#define TAG_CURSOR              202
+#define TAG_HOVER_SLOT          203
+#define TAG_SCROLL_THUMB        204
+#define TAG_QUANTITY_FRAME      205
+#define TAG_SPINNER_ARROW       206
+#define TAG_IN_BAG              207
+#define TAG_SHOP_DESIGN         208
+#define TAG_ITEM_ICON_BASE      209 // and 210 for item icon swapping
 
 static const struct OamData sOamData_Cursor =
 {
@@ -240,7 +246,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 static const struct SpriteTemplate sSpriteTemplate_Cursor =
 {
     .tileTag = TAG_CURSOR,
-    .paletteTag = TAG_SHOP_SHARED_PAL,
+    .paletteTag = TAG_ITEM_CURSOR,
     .oam = &sOamData_Cursor,
     .callback = SpriteCB_SlideCursorY,
 };
@@ -328,6 +334,81 @@ static const struct SpriteTemplate sSpriteTemplate_ScrollThumb =
     .callback = SpriteCB_ScrollThumb,
 };
 
+static const struct OamData sOamData_InBag =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(16x32),
+    .size = SPRITE_SIZE(16x32),
+    .priority = 1,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_InBag =
+{
+    .data = sInBag_Gfx,
+    .size = (16 * 32) / 2,
+    .tag = TAG_IN_BAG,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_InBag =
+{
+    .tileTag = TAG_IN_BAG,
+    .paletteTag = TAG_SHOP_UI_PAL,
+    .oam = &sOamData_InBag,
+};
+
+static const struct OamData sOamData_ShopDesign =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(64x64),
+    .size = SPRITE_SIZE(64x64),
+    .priority = 1,
+};
+
+#define SHOP_DESIGN_FRAME_TILES  ((64 * 64) / (8 * 8))
+
+static const union AnimCmd sSpriteAnim_ShopDesign_0[] = {
+    ANIMCMD_FRAME(0 * SHOP_DESIGN_FRAME_TILES, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_ShopDesign_1[] = {
+    ANIMCMD_FRAME(1 * SHOP_DESIGN_FRAME_TILES, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_ShopDesign_2[] = {
+    ANIMCMD_FRAME(2 * SHOP_DESIGN_FRAME_TILES, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+static const union AnimCmd sSpriteAnim_ShopDesign_3[] = {
+    ANIMCMD_FRAME(3 * SHOP_DESIGN_FRAME_TILES, 0, FALSE, FALSE),
+    ANIMCMD_END
+};
+
+static const union AnimCmd *const sSpriteAnimTable_ShopDesign[] = {
+    sSpriteAnim_ShopDesign_0,
+    sSpriteAnim_ShopDesign_1,
+    sSpriteAnim_ShopDesign_2,
+    sSpriteAnim_ShopDesign_3,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_ShopDesign =
+{
+    .data = sShopDesign_Gfx,
+    .size = (64 * 64 * 4) / 2,
+    .tag = TAG_SHOP_DESIGN,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_ShopDesign =
+{
+    .tileTag = TAG_SHOP_DESIGN,
+    .paletteTag = TAG_SHOP_UI_PAL,
+    .oam = &sOamData_ShopDesign,
+    .anims = sSpriteAnimTable_ShopDesign,
+};
+
 static const struct OamData sOamData_QuantityFrame =
 {
     .affineMode = ST_OAM_AFFINE_OFF,
@@ -364,7 +445,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_QuantityFrame =
 static const struct SpriteTemplate sSpriteTemplate_QuantityFrame =
 {
     .tileTag = TAG_QUANTITY_FRAME,
-    .paletteTag = TAG_SHOP_SHARED_PAL,
+    .paletteTag = TAG_ITEM_CURSOR,
     .oam = &sOamData_QuantityFrame,
     .anims = sSpriteAnimTable_QuantityFrame,
 };
@@ -403,7 +484,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_SpinnerArrow =
 static const struct SpriteTemplate sSpriteTemplate_SpinnerArrow =
 {
     .tileTag = TAG_SPINNER_ARROW,
-    .paletteTag = TAG_SHOP_SHARED_PAL,
+    .paletteTag = TAG_ITEM_CURSOR,
     .oam = &sOamData_SpinnerArrow,
     .anims = sSpriteAnimTable_SpinnerArrow,
     .callback = SpriteCB_SpinnerArrow,
@@ -412,7 +493,7 @@ static const struct SpriteTemplate sSpriteTemplate_SpinnerArrow =
 static const struct SpritePalette sShopSpritePalettes[] =
 {
     { sShopUI_Pal,          TAG_SHOP_UI_PAL },
-    { gStatusIconsSwSh_Pal, TAG_SHOP_SHARED_PAL },
+    { gStatusIconsSwSh_Pal, TAG_ITEM_CURSOR },
     {},
 };
 
@@ -491,7 +572,7 @@ static const struct BgTemplate sShopBuyMenuBgTemplates[] =
 #define WIN_ITEM_DESCRIPTION_TILES  (WIN_ITEM_DESCRIPTION_W * WIN_ITEM_DESCRIPTION_H)
 #define WIN_ITEM_DESCRIPTION_BASE   (WIN_ITEM_LIST_BASE + WIN_ITEM_LIST_TILES)
 
-#define WIN_QUANTITY_IN_BAG_W       3
+#define WIN_QUANTITY_IN_BAG_W       4
 #define WIN_QUANTITY_IN_BAG_H       2
 #define WIN_QUANTITY_IN_BAG_TILES   (WIN_QUANTITY_IN_BAG_W * WIN_QUANTITY_IN_BAG_H)
 #define WIN_QUANTITY_IN_BAG_BASE    (WIN_ITEM_DESCRIPTION_BASE + WIN_ITEM_DESCRIPTION_TILES)
@@ -574,10 +655,11 @@ static const struct WindowTemplate sShopBuyMenuYesNoWindowTemplate =
 static const u8 sFontColorTable[][3] =
 {
                             // bgColor, textColor, shadowColor
-    [COLORID_NORMAL]      = {0,  5,  6},
-    [COLORID_HOVER_NAME]  = {0,  7,  8},
-    [COLORID_HOVER_PRICE] = {0,  7,  9},
-    [COLORID_MONEY]       = {0,  7, 10},
+    [COLORID_NORMAL]        = {0,  5,  6},
+    [COLORID_HOVER_NAME]    = {0,  7,  8},
+    [COLORID_HOVER_PRICE]   = {0,  7,  9},
+    [COLORID_MONEY]         = {0,  7, 10},
+    [COLORID_IN_BAG]        = {0,  11, 12},
 };
 
 static const struct YesNoFuncTable sShopPurchaseYesNoFuncs =
@@ -1021,9 +1103,11 @@ static void BuyMenuPrintItemDescription(u32 itemId)
     CopyWindowToVram(WIN_ITEM_DESCRIPTION, COPYWIN_GFX);
 }
 
+#define QUANTITY_IN_BAG_RIGHT_PAD  4
+
 static void BuyMenuPrintQuantityInBag(u32 itemId)
 {
-    u8 windowWidth = sShopBuyMenuWindowTemplates[WIN_QUANTITY_IN_BAG].width * 8;
+    u8 textRight = sShopBuyMenuWindowTemplates[WIN_QUANTITY_IN_BAG].width * 8 - QUANTITY_IN_BAG_RIGHT_PAD;
 
     FillWindowPixelBuffer(WIN_QUANTITY_IN_BAG, PIXEL_FILL(0));
 
@@ -1033,8 +1117,8 @@ static void BuyMenuPrintQuantityInBag(u32 itemId)
                                    STR_CONV_MODE_RIGHT_ALIGN, MAX_ITEM_DIGITS);
         StringExpandPlaceholders(gStringVar4, gText_xVar1);
         BuyMenuPrint(WIN_QUANTITY_IN_BAG, LIST_FONT, gStringVar4,
-                     GetStringRightAlignXOffset(LIST_FONT, gStringVar4, windowWidth), 0, 0, 0,
-                     TEXT_SKIP_DRAW, COLORID_NORMAL);
+                     GetStringRightAlignXOffset(LIST_FONT, gStringVar4, textRight), 0, 0, 0,
+                     TEXT_SKIP_DRAW, COLORID_IN_BAG);
     }
 
     CopyWindowToVram(WIN_QUANTITY_IN_BAG, COPYWIN_GFX);
@@ -1185,20 +1269,24 @@ static s32 ShopList_ProcessInput(void)
     return LIST_NOTHING_CHOSEN;
 }
 
-#define LIST_SPRITE_ROW_Y_OFFSET     8
-#define ITEM_ICON_X                  80
-#define ITEM_ICON_TO_CURSOR_X        22
-#define ITEM_ICON_Y_OFFSET           4
-#define LIST_CURSOR_X                (ITEM_ICON_X - ITEM_ICON_TO_CURSOR_X)
-#define HOVER_SLOT_X                 80
-#define HOVER_SLOT_SPACING           32
+#define LIST_SPRITE_ROW_Y_OFFSET    8
+#define ITEM_ICON_X                 80
+#define ITEM_ICON_TO_CURSOR_X       22
+#define ITEM_ICON_Y_OFFSET          4
+#define LIST_CURSOR_X               (ITEM_ICON_X - ITEM_ICON_TO_CURSOR_X)
+#define HOVER_SLOT_X                80
+#define HOVER_SLOT_SPACING          32
 
-#define SUBPRIORITY_SPINNER_ARROW    1
-#define SUBPRIORITY_QUANTITY_FRAME   2
-#define SUBPRIORITY_ITEM_ICON        3
-#define SUBPRIORITY_CURSOR           4
-#define SUBPRIORITY_HOVER_SLOT       5
-#define SUBPRIORITY_SCROLL_THUMB     6
+// priority 0
+#define SUBPRIORITY_SPINNER_ARROW   1
+#define SUBPRIORITY_QUANTITY_FRAME  SUBPRIORITY_SPINNER_ARROW + 1
+// priority 1
+#define SUBPRIORITY_ITEM_ICON       1
+#define SUBPRIORITY_CURSOR          SUBPRIORITY_ITEM_ICON + 1
+#define SUBPRIORITY_HOVER_SLOT      SUBPRIORITY_CURSOR + 1
+#define SUBPRIORITY_SCROLL_THUMB    SUBPRIORITY_HOVER_SLOT
+#define SUBPRIORITY_IN_BAG          SUBPRIORITY_HOVER_SLOT
+#define SUBPRIORITY_SHOP_DESIGN     SUBPRIORITY_HOVER_SLOT + 1
 
 static s16 ShopList_RowSpriteY(u16 row)
 {
@@ -1374,8 +1462,18 @@ static void BuyMenuLoadSpriteGfx(void)
     LoadCompressedSpriteSheet(&sSpriteSheet_ScrollThumb);
     LoadCompressedSpriteSheet(&sSpriteSheet_QuantityFrame);
     LoadCompressedSpriteSheet(&sSpriteSheet_SpinnerArrow);
+    LoadCompressedSpriteSheet(&sSpriteSheet_InBag);
+    LoadCompressedSpriteSheet(&sSpriteSheet_ShopDesign);
     LoadSpritePalettes(sShopSpritePalettes);
 }
+
+#define IN_BAG_X                204
+#define IN_BAG_Y                144
+
+#define SHOP_DESIGN_X           144
+#define SHOP_DESIGN_Y           64
+#define SHOP_DESIGN_SPACING     64
+#define SHOP_DESIGN_COLS        2
 
 static void BuyMenuCreateListSprites(void)
 {
@@ -1417,6 +1515,18 @@ static void BuyMenuCreateListSprites(void)
     sShopData->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY,
                                              SUBPRIORITY_CURSOR);
     StartCursorBob(sShopData->cursorSpriteId);
+
+    CreateSprite(&sSpriteTemplate_InBag, IN_BAG_X, IN_BAG_Y, SUBPRIORITY_IN_BAG);
+
+    for (i = 0; i < ARRAY_COUNT(sSpriteAnimTable_ShopDesign); i++)
+    {
+        u8 spriteId = CreateSprite(&sSpriteTemplate_ShopDesign,
+                                   SHOP_DESIGN_X + (i % SHOP_DESIGN_COLS) * SHOP_DESIGN_SPACING,
+                                   SHOP_DESIGN_Y + (i / SHOP_DESIGN_COLS) * SHOP_DESIGN_SPACING,
+                                   SUBPRIORITY_SHOP_DESIGN);
+
+        StartSpriteAnim(&gSprites[spriteId], i);
+    }
 }
 
 static void BuyMenuAddItemIcon(u32 itemId, u8 iconSlot, s16 spriteY)
@@ -2079,10 +2189,12 @@ static void BuyMenuFreeSprites(void)
     FreeSpriteTilesByTag(TAG_CURSOR);
     FreeSpriteTilesByTag(TAG_HOVER_SLOT);
     FreeSpriteTilesByTag(TAG_SCROLL_THUMB);
+    FreeSpriteTilesByTag(TAG_IN_BAG);
+    FreeSpriteTilesByTag(TAG_SHOP_DESIGN);
     FreeSpriteTilesByTag(TAG_QUANTITY_FRAME);
     FreeSpriteTilesByTag(TAG_SPINNER_ARROW);
     FreeSpritePaletteByTag(TAG_SHOP_UI_PAL);
-    FreeSpritePaletteByTag(TAG_SHOP_SHARED_PAL);
+    FreeSpritePaletteByTag(TAG_ITEM_CURSOR);
     ReleaseComfyAnims();
 }
 
