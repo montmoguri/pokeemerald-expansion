@@ -105,7 +105,6 @@ enum {
 
 #define LIST_NAME_BUFFER_SIZE           (ITEM_NAME_LENGTH + 15)
 #define DESCRIPTION_BUFFER_SIZE         200
-#define HOVER_SLOT_SPRITES_COUNT        6
 #define SCROLL_THUMB_SPRITES_COUNT      3
 #define QUANTITY_FRAME_SPRITES_COUNT    2
 #define ITEM_ICON_SLOT_COUNT            2
@@ -129,7 +128,7 @@ struct ShopData
     u16 maxQuantity;
     u16 shownItemId;
     u8 cursorSpriteId;
-    u8 hoverSlotSpriteIds[HOVER_SLOT_SPRITES_COUNT];
+    u8 hoverSlotSpriteId;
     u8 scrollThumbSpriteIds[SCROLL_THUMB_SPRITES_COUNT];
     u8 quantityFrameSpriteIds[QUANTITY_FRAME_SPRITES_COUNT];
     u8 spinnerArrowSpriteIds[SPINNER_ARROW_SPRITES_COUNT];
@@ -263,37 +262,6 @@ static const struct OamData sOamData_HoverSlot =
 
 #define HOVER_SLOT_FRAME_TILES  ((32 * 16) / (8 * 8))
 
-static const union AnimCmd sSpriteAnim_HoverSlot_0[] = {
-    ANIMCMD_FRAME(0 * HOVER_SLOT_FRAME_TILES, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_HoverSlot_1[] = {
-    ANIMCMD_FRAME(1 * HOVER_SLOT_FRAME_TILES, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_HoverSlot_2[] = {
-    ANIMCMD_FRAME(2 * HOVER_SLOT_FRAME_TILES, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_HoverSlot_3[] = {
-    ANIMCMD_FRAME(3 * HOVER_SLOT_FRAME_TILES, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_HoverSlot_4[] = {
-    ANIMCMD_FRAME(4 * HOVER_SLOT_FRAME_TILES, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_HoverSlot[] = {
-    sSpriteAnim_HoverSlot_0,
-    sSpriteAnim_HoverSlot_1,
-    sSpriteAnim_HoverSlot_2,
-    sSpriteAnim_HoverSlot_3,
-    sSpriteAnim_HoverSlot_4,
-};
-
-static const u8 sHoverSlotAnims[HOVER_SLOT_SPRITES_COUNT] = {0, 1, 1, 2, 3, 4};
-
 static const struct CompressedSpriteSheet sSpriteSheet_HoverSlot =
 {
     .data = sHoverSlot_Gfx,
@@ -306,7 +274,24 @@ static const struct SpriteTemplate sSpriteTemplate_HoverSlot =
     .tileTag = TAG_HOVER_SLOT,
     .paletteTag = TAG_SHOP_UI_PAL,
     .oam = &sOamData_HoverSlot,
-    .anims = sSpriteAnimTable_HoverSlot,
+};
+
+static const struct Subsprite sSubsprites_HoverSlot[] =
+{
+    { .x = -96, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 0 * HOVER_SLOT_FRAME_TILES, .priority = 1 },
+    { .x = -64, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 1 * HOVER_SLOT_FRAME_TILES, .priority = 1 },
+    { .x = -32, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 1 * HOVER_SLOT_FRAME_TILES, .priority = 1 },
+    { .x =   0, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 2 * HOVER_SLOT_FRAME_TILES, .priority = 1 },
+    { .x =  32, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 3 * HOVER_SLOT_FRAME_TILES, .priority = 1 },
+    { .x =  64, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 4 * HOVER_SLOT_FRAME_TILES, .priority = 1 },
+};
+
+static const struct SubspriteTable sSubspriteTable_HoverSlot[] =
+{
+    {
+        .subspriteCount = ARRAY_COUNT(sSubsprites_HoverSlot),
+        .subsprites = sSubsprites_HoverSlot
+    }
 };
 
 static const struct OamData sOamData_ScrollThumb =
@@ -684,7 +669,7 @@ void CB2_InitBuyMenu_SwSh(void)
         ClearScheduledBgCopiesToVram();
         sShopData = AllocZeroed(sizeof(*sShopData));
         sShopData->cursorSpriteId = SPRITE_NONE;
-        memset(sShopData->hoverSlotSpriteIds, SPRITE_NONE, sizeof(sShopData->hoverSlotSpriteIds));
+        sShopData->hoverSlotSpriteId = SPRITE_NONE;
         memset(sShopData->scrollThumbSpriteIds, SPRITE_NONE, sizeof(sShopData->scrollThumbSpriteIds));
         memset(sShopData->quantityFrameSpriteIds, SPRITE_NONE, sizeof(sShopData->quantityFrameSpriteIds));
         memset(sShopData->spinnerArrowSpriteIds, SPRITE_NONE, sizeof(sShopData->spinnerArrowSpriteIds));
@@ -1274,8 +1259,7 @@ static s32 ShopList_ProcessInput(void)
 #define ITEM_ICON_TO_CURSOR_X       22
 #define ITEM_ICON_Y_OFFSET          4
 #define LIST_CURSOR_X               (ITEM_ICON_X - ITEM_ICON_TO_CURSOR_X)
-#define HOVER_SLOT_X                80
-#define HOVER_SLOT_SPACING          32
+#define HOVER_SLOT_X                160
 
 // priority 0
 #define SUBPRIORITY_SPINNER_ARROW   1
@@ -1438,11 +1422,8 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
     y = ReadComfyAnimValueSmooth(&gComfyAnims[sShopData->cursorAnimId]);
     sprite->y = y;
 
-    for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
-    {
-        if (sShopData->hoverSlotSpriteIds[i] != SPRITE_NONE)
-            gSprites[sShopData->hoverSlotSpriteIds[i]].y = y;
-    }
+    if (sShopData->hoverSlotSpriteId != SPRITE_NONE)
+        gSprites[sShopData->hoverSlotSpriteId].y = y;
 
     for (i = 0; i < ITEM_ICON_SLOT_COUNT; i++)
     {
@@ -1494,14 +1475,9 @@ static void BuyMenuCreateListSprites(void)
         .easingFunc = ComfyAnimEasing_EaseOutCubic,
     });
 
-    for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
-    {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_HoverSlot, HOVER_SLOT_X + i * HOVER_SLOT_SPACING,
-                                   initialY, SUBPRIORITY_HOVER_SLOT);
-
-        sShopData->hoverSlotSpriteIds[i] = spriteId;
-        StartSpriteAnim(&gSprites[spriteId], sHoverSlotAnims[i]);
-    }
+    sShopData->hoverSlotSpriteId = CreateSprite(&sSpriteTemplate_HoverSlot, HOVER_SLOT_X,
+                                                 initialY, SUBPRIORITY_HOVER_SLOT);
+    SetSubspriteTables(&gSprites[sShopData->hoverSlotSpriteId], sSubspriteTable_HoverSlot);
 
     for (i = 0; i < SCROLL_THUMB_SPRITES_COUNT; i++)
     {
