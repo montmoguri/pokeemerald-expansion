@@ -1,9 +1,14 @@
 #include "global.h"
+#include "battle.h"
+#include "battle_main.h"
+#include "battle_util.h"
+#include "berry.h"
 #include "bg.h"
 #include "comfy_anim.h"
 #include "decompress.h"
 #include "decoration.h"
 #include "decoration_inventory.h"
+#include "dma3.h"
 #include "event_object_movement.h"
 #include "field_player_avatar.h"
 #include "field_weather.h"
@@ -36,6 +41,11 @@
 #include "text_window.h"
 #include "tv.h"
 #include "window.h"
+#if SWSH_SHOP_CONTEST_INFO
+#include "contest.h"
+#include "contest_effect.h"
+#endif
+#include "constants/berry.h"
 #include "constants/event_object_movement.h"
 #include "constants/event_objects.h"
 #include "constants/game_stat.h"
@@ -74,6 +84,19 @@ enum {
     WIN_ITEM_DESCRIPTION,
     WIN_QUANTITY_IN_BAG,
     WIN_MESSAGE,
+#if SWSH_SHOP_TM_INFO
+    WIN_PP_LABEL,
+    WIN_PP_INFO,
+    WIN_POW_ACC_LABEL,
+    WIN_POW_ACC_INFO,
+#if SWSH_SHOP_CONTEST_INFO
+    WIN_APP_JAM_LABEL,
+#endif
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    WIN_BERRY_INFO,
+    WIN_BERRY_FLAVORS,
+#endif
 };
 
 enum {
@@ -82,6 +105,7 @@ enum {
     COLORID_HOVER_PRICE,
     COLORID_MONEY,
     COLORID_IN_BAG,
+    COLORID_NO_FLAVOR,
 };
 
 enum {
@@ -108,6 +132,16 @@ enum {
 #define SCROLL_THUMB_SPRITES_COUNT      3
 #define QUANTITY_FRAME_SPRITES_COUNT    2
 #define ITEM_ICON_SLOT_COUNT            2
+
+#if SWSH_SHOP_CONTEST_INFO
+#define CONTEST_HEART_EMPTY     0
+#define CONTEST_HEART_APPEAL    1
+#define CONTEST_HEART_JAM       2
+
+#define CONTEST_HEART_COLS      4
+#define CONTEST_HEART_ROWS      2
+#define CONTEST_HEARTS_SHOWN    (CONTEST_HEART_COLS * CONTEST_HEART_ROWS)
+#endif
 
 struct ShopData
 {
@@ -137,6 +171,27 @@ struct ShopData
     u32 cursorAnimId;
     u32 cursorBobAnimId;
     u32 scrollThumbAnimId;
+#if SWSH_SHOP_TM_INFO
+    u8 moveInfoMode;
+    u8 moveTypeIconSpriteId;
+    u8 categoryIconSpriteId;
+    u16 *moveTypeIconTilesPtr;
+    void *moveTypeIconsCache;
+#if SWSH_SHOP_CONTEST_INFO
+    u8 appealHeartSpriteId;
+    u8 jamHeartSpriteId;
+    u16 *appealHeartTilesPtr;
+    u16 *jamHeartTilesPtr;
+    u8 heartTileCache[2][CONTEST_HEARTS_SHOWN * TILE_SIZE_4BPP];
+    bool8 heartsDirty;
+#endif
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    u8 berryInfoMode;
+#endif
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+    u8 infoPromptSpriteId;
+#endif
 };
 
 static EWRAM_DATA struct ShopData *sShopData = NULL;
@@ -166,6 +221,36 @@ static void BuyMenuPrintMoney(void);
 static void BuyMenuPrintPriceInList(u32 itemId, u8 y, bool32 isHovered);
 static void BuyMenuPrintItemDescription(u32 itemId);
 static void BuyMenuPrintQuantityInBag(u32 itemId);
+static void HideInfoViews(void);
+static void ShowInfoViews(void);
+static void CloseInfoViewIfUnsupported(u32 itemId);
+static void BuyMenuPrintHoveredInfo(u32 itemId);
+#if SWSH_SHOP_TM_INFO
+static void UpdateMoveBattleInfo(u32 itemId);
+static void SwitchMoveInfoMode(u32 itemId);
+static void CloseMoveInfoView(void);
+static void PrintMoveInfoLabels(void);
+#if SWSH_SHOP_CONTEST_INFO
+static void PrintContestInfoLabels(void);
+static void PrintContestDescription(u32 itemId);
+static void UpdateMoveContestInfo(u32 itemId);
+static void BuildContestHeartTiles(u8 *dest, u8 stat, u8 filledTile);
+static void BuildContestHeartsForMove(u32 itemId);
+#endif
+#endif
+#if SWSH_SHOP_BERRY_STAT
+static void UpdateBerryInfo(u32 itemId);
+static void SwitchBerryInfoMode(u32 itemId);
+static void CloseBerryInfoView(void);
+#if SWSH_SHOP_BERRY_TAG
+static void PrintBerryDescriptionInfo(u32 itemId);
+#endif
+#endif
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+static bool8 ItemHasInfoPrompt(u32 itemId);
+static void ShowInfoPrompt(void);
+static void HideInfoPrompt(void);
+#endif
 static void BuyMenuMoveCursorCallback(u32 index, bool32 onInit);
 static void BuyMenuLoadSpriteGfx(void);
 static void BuyMenuCreateListSprites(void);
@@ -214,16 +299,28 @@ static const u32 sShopDesign_Gfx[]      = INCGFX_U32("graphics/shop/swsh/shop_de
 
 static const u16 sShopUI_Pal[]          = INCGFX_U16("graphics/shop/swsh/hover_slot.png", ".gbapal");
 
-#define TAG_SHOP_UI_PAL         200
-#define TAG_ITEM_CURSOR         201
-#define TAG_CURSOR              202
-#define TAG_HOVER_SLOT          203
-#define TAG_SCROLL_THUMB        204
-#define TAG_QUANTITY_FRAME      205
-#define TAG_SPINNER_ARROW       206
-#define TAG_IN_BAG              207
-#define TAG_SHOP_DESIGN         208
-#define TAG_ITEM_ICON_BASE      209 // and 210 for item icon swapping
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+static const u32 sInfoPrompt_Gfx[]      = INCGFX_U32("graphics/shop/swsh/info_prompt.png", ".4bpp.smol");
+#endif
+#if SWSH_SHOP_CONTEST_INFO
+static const u8 sContestHearts_Gfx[]    = INCGFX_U8("graphics/shop/swsh/contest_hearts.png", ".4bpp");
+#endif
+
+#define TAG_SHOP_UI_PAL             200
+#define TAG_ITEM_CURSOR             201
+#define TAG_CURSOR                  202
+#define TAG_HOVER_SLOT              203
+#define TAG_SCROLL_THUMB            204
+#define TAG_QUANTITY_FRAME          205
+#define TAG_SPINNER_ARROW           206
+#define TAG_IN_BAG                  207
+#define TAG_SHOP_DESIGN             208
+#define TAG_ITEM_ICON_BASE          209 // and 210 for item icon swapping
+#define TAG_INFO_PROMPT             211
+#define TAG_MOVE_TYPE_ICON          212
+#define TAG_CATEGORY_ICON           213
+#define TAG_CONTEST_HEART_APPEAL    215
+#define TAG_CONTEST_HEART_JAM       216
 
 static const struct OamData sOamData_Cursor =
 {
@@ -482,6 +579,141 @@ static const struct SpritePalette sShopSpritePalettes[] =
     {},
 };
 
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+static const struct OamData sOamData_InfoPrompt =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(32x32),
+    .size = SPRITE_SIZE(32x32),
+    .priority = 1,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_InfoPrompt =
+{
+    .data = sInfoPrompt_Gfx,
+    .size = (32 * 32) / 2,
+    .tag = TAG_INFO_PROMPT,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_InfoPrompt =
+{
+    .tileTag = TAG_INFO_PROMPT,
+    .paletteTag = TAG_SHOP_UI_PAL,
+    .oam = &sOamData_InfoPrompt,
+};
+#endif
+
+#if SWSH_SHOP_TM_INFO
+static const struct OamData sOamData_MoveTypeIcon =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(32x16),
+    .size = SPRITE_SIZE(32x16),
+    .priority = 1,
+};
+
+static void SpriteCB_MoveTypeIcon(struct Sprite *sprite)
+{
+    if (sprite->data[0] != 0xFF)
+    {
+        u32 offset = sprite->data[0] * 0x100;
+        if (sShopData->moveTypeIconTilesPtr != NULL)
+            RequestDma3Copy(&((u8 *)sShopData->moveTypeIconsCache)[offset], sShopData->moveTypeIconTilesPtr, 0x100, 0x10);
+        sprite->data[0] = 0xFF;
+    }
+}
+
+static const struct SpriteTemplate sSpriteTemplate_MoveTypeIcon =
+{
+    .tileTag = TAG_MOVE_TYPE_ICON,
+    .paletteTag = TAG_MOVE_TYPE_ICON,
+    .oam = &sOamData_MoveTypeIcon,
+    .callback = SpriteCB_MoveTypeIcon,
+};
+
+static const struct OamData sOamData_CategoryIcon =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(16x16),
+    .size = SPRITE_SIZE(16x16),
+    .priority = 1,
+};
+
+static const union AnimCmd sSpriteAnim_CategoryPhysical[] = { ANIMCMD_FRAME(0, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_CategorySpecial[]  = { ANIMCMD_FRAME(4, 0), ANIMCMD_END };
+static const union AnimCmd sSpriteAnim_CategoryStatus[]   = { ANIMCMD_FRAME(8, 0), ANIMCMD_END };
+
+static const union AnimCmd *const sSpriteAnimTable_CategoryIcons[] =
+{
+    [DAMAGE_CATEGORY_PHYSICAL] = sSpriteAnim_CategoryPhysical,
+    [DAMAGE_CATEGORY_SPECIAL]  = sSpriteAnim_CategorySpecial,
+    [DAMAGE_CATEGORY_STATUS]   = sSpriteAnim_CategoryStatus,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_CategoryIcon =
+{
+    .data = gCategoryIconsSwSh_Gfx,
+    .size = 16 * 16 * 3 / 2,
+    .tag = TAG_CATEGORY_ICON,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_CategoryIcon =
+{
+    .tileTag = TAG_CATEGORY_ICON,
+    .paletteTag = TAG_ITEM_CURSOR,
+    .oam = &sOamData_CategoryIcon,
+    .anims = sSpriteAnimTable_CategoryIcons,
+};
+
+#if SWSH_SHOP_CONTEST_INFO
+static const struct OamData sOamData_ContestHeart =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(32x16),
+    .size = SPRITE_SIZE(32x16),
+    .priority = 1,
+};
+
+static void SpriteCB_ContestHeart(struct Sprite *sprite)
+{
+    if (sShopData->heartsDirty)
+    {
+        if (sShopData->appealHeartTilesPtr != NULL)
+            RequestDma3Copy(sShopData->heartTileCache[0], sShopData->appealHeartTilesPtr,
+                             CONTEST_HEARTS_SHOWN * TILE_SIZE_4BPP, 0x10);
+        if (sShopData->jamHeartTilesPtr != NULL)
+            RequestDma3Copy(sShopData->heartTileCache[1], sShopData->jamHeartTilesPtr,
+                             CONTEST_HEARTS_SHOWN * TILE_SIZE_4BPP, 0x10);
+        sShopData->heartsDirty = FALSE;
+    }
+}
+
+static const struct SpriteTemplate sSpriteTemplate_ContestHeartAppeal =
+{
+    .tileTag = TAG_CONTEST_HEART_APPEAL,
+    .paletteTag = TAG_SHOP_UI_PAL,
+    .oam = &sOamData_ContestHeart,
+    .callback = SpriteCB_ContestHeart,
+};
+
+static const struct SpriteTemplate sSpriteTemplate_ContestHeartJam =
+{
+    .tileTag = TAG_CONTEST_HEART_JAM,
+    .paletteTag = TAG_SHOP_UI_PAL,
+    .oam = &sOamData_ContestHeart,
+    .callback = SpriteCB_ContestHeart,
+};
+#endif
+#endif // SWSH_SHOP_TM_INFO
+
 static const union AffineAnimCmd sAffineAnim_ItemIcon_Appear[] =
 {
     AFFINEANIMCMD_FRAME(192, 192, 0, 0),
@@ -572,7 +804,55 @@ static const struct BgTemplate sShopBuyMenuBgTemplates[] =
 #define WIN_YESNO_TILES             (WIN_YESNO_W * WIN_YESNO_H)
 #define WIN_YESNO_BASE              (WIN_MESSAGE_BASE + WIN_MESSAGE_TILES)
 
-#define SHOP_TILES_END              (WIN_YESNO_BASE + WIN_YESNO_TILES)
+#if SWSH_SHOP_TM_INFO
+#define WIN_PP_LABEL_W              2
+#define WIN_PP_LABEL_H              2
+#define WIN_PP_LABEL_TILES          (WIN_PP_LABEL_W * WIN_PP_LABEL_H)
+#define WIN_PP_LABEL_BASE           (WIN_YESNO_BASE + WIN_YESNO_TILES)
+
+#define WIN_PP_INFO_W               2
+#define WIN_PP_INFO_H               2
+#define WIN_PP_INFO_TILES           (WIN_PP_INFO_W * WIN_PP_INFO_H)
+#define WIN_PP_INFO_BASE            (WIN_PP_LABEL_BASE + WIN_PP_LABEL_TILES)
+
+#define WIN_POW_ACC_LABEL_W         5
+#define WIN_POW_ACC_LABEL_H         4
+#define WIN_POW_ACC_LABEL_TILES     (WIN_POW_ACC_LABEL_W * WIN_POW_ACC_LABEL_H)
+#define WIN_POW_ACC_LABEL_BASE      (WIN_PP_INFO_BASE + WIN_PP_INFO_TILES)
+
+#define WIN_POW_ACC_INFO_W          2
+#define WIN_POW_ACC_INFO_H          4
+#define WIN_POW_ACC_INFO_TILES      (WIN_POW_ACC_INFO_W * WIN_POW_ACC_INFO_H)
+#define WIN_POW_ACC_INFO_BASE       (WIN_POW_ACC_LABEL_BASE + WIN_POW_ACC_LABEL_TILES)
+
+#if SWSH_SHOP_CONTEST_INFO
+#define WIN_APP_JAM_LABEL_W         4
+#define WIN_APP_JAM_LABEL_H         4
+#define WIN_APP_JAM_LABEL_TILES     (WIN_APP_JAM_LABEL_W * WIN_APP_JAM_LABEL_H)
+#define WIN_APP_JAM_LABEL_BASE      (WIN_POW_ACC_INFO_BASE + WIN_POW_ACC_INFO_TILES)
+#define TM_INFO_TILES_END           (WIN_APP_JAM_LABEL_BASE + WIN_APP_JAM_LABEL_TILES)
+#else
+#define TM_INFO_TILES_END           (WIN_POW_ACC_INFO_BASE + WIN_POW_ACC_INFO_TILES)
+#endif
+#else
+#define TM_INFO_TILES_END           (WIN_YESNO_BASE + WIN_YESNO_TILES)
+#endif
+
+#if SWSH_SHOP_BERRY_STAT
+#define WIN_BERRY_INFO_W            11
+#define WIN_BERRY_INFO_H            2
+#define WIN_BERRY_INFO_TILES        (WIN_BERRY_INFO_W * WIN_BERRY_INFO_H)
+#define WIN_BERRY_INFO_BASE         TM_INFO_TILES_END
+
+#define WIN_BERRY_FLAVORS_W         18
+#define WIN_BERRY_FLAVORS_H         2
+#define WIN_BERRY_FLAVORS_TILES     (WIN_BERRY_FLAVORS_W * WIN_BERRY_FLAVORS_H)
+#define WIN_BERRY_FLAVORS_BASE      (WIN_BERRY_INFO_BASE + WIN_BERRY_INFO_TILES)
+
+#define SHOP_TILES_END              (WIN_BERRY_FLAVORS_BASE + WIN_BERRY_FLAVORS_TILES)
+#else
+#define SHOP_TILES_END              TM_INFO_TILES_END
+#endif
 
 STATIC_ASSERT(SHOP_TILES_END <= SHOP_CHAR_BASE_TILES, ShopMenuCharBaseOverflow);
 
@@ -623,6 +903,75 @@ static const struct WindowTemplate sShopBuyMenuWindowTemplates[] =
         .paletteNum = 15,
         .baseBlock = WIN_MESSAGE_BASE,
     },
+#if SWSH_SHOP_TM_INFO
+    [WIN_PP_LABEL] = {
+        .bg = 0,
+        .tilemapLeft = 10,
+        .tilemapTop = 18,
+        .width = WIN_PP_LABEL_W,
+        .height = WIN_PP_LABEL_H,
+        .paletteNum = 15,
+        .baseBlock = WIN_PP_LABEL_BASE,
+    },
+    [WIN_PP_INFO] = {
+        .bg = 0,
+        .tilemapLeft = 12,
+        .tilemapTop = 18,
+        .width = WIN_PP_INFO_W,
+        .height = WIN_PP_INFO_H,
+        .paletteNum = 15,
+        .baseBlock = WIN_PP_INFO_BASE,
+    },
+    [WIN_POW_ACC_LABEL] = {
+        .bg = 0,
+        .tilemapLeft = 16,
+        .tilemapTop = 16,
+        .width = WIN_POW_ACC_LABEL_W,
+        .height = WIN_POW_ACC_LABEL_H,
+        .paletteNum = 15,
+        .baseBlock = WIN_POW_ACC_LABEL_BASE,
+    },
+    [WIN_POW_ACC_INFO] = {
+        .bg = 0,
+        .tilemapLeft = 22,
+        .tilemapTop = 16,
+        .width = WIN_POW_ACC_INFO_W,
+        .height = WIN_POW_ACC_INFO_H,
+        .paletteNum = 15,
+        .baseBlock = WIN_POW_ACC_INFO_BASE,
+    },
+#if SWSH_SHOP_CONTEST_INFO
+    [WIN_APP_JAM_LABEL] = {
+        .bg = 0,
+        .tilemapLeft = 15,
+        .tilemapTop = 16,
+        .width = WIN_APP_JAM_LABEL_W,
+        .height = WIN_APP_JAM_LABEL_H,
+        .paletteNum = 15,
+        .baseBlock = WIN_APP_JAM_LABEL_BASE,
+    },
+#endif
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    [WIN_BERRY_INFO] = {
+        .bg = 0,
+        .tilemapLeft = 10,
+        .tilemapTop = 18,
+        .width = WIN_BERRY_INFO_W,
+        .height = WIN_BERRY_INFO_H,
+        .paletteNum = 15,
+        .baseBlock = WIN_BERRY_INFO_BASE,
+    },
+    [WIN_BERRY_FLAVORS] = {
+        .bg = 0,
+        .tilemapLeft = 7,
+        .tilemapTop = 16,
+        .width = WIN_BERRY_FLAVORS_W,
+        .height = WIN_BERRY_FLAVORS_H,
+        .paletteNum = 15,
+        .baseBlock = WIN_BERRY_FLAVORS_BASE,
+    },
+#endif
     DUMMY_WIN_TEMPLATE
 };
 
@@ -645,6 +994,7 @@ static const u8 sFontColorTable[][3] =
     [COLORID_HOVER_PRICE]   = {0,  7,  9},
     [COLORID_MONEY]         = {0,  7, 10},
     [COLORID_IN_BAG]        = {0,  11, 12},
+    [COLORID_NO_FLAVOR]     = {0,  13,  6},
 };
 
 static const struct YesNoFuncTable sShopPurchaseYesNoFuncs =
@@ -677,6 +1027,17 @@ void CB2_InitBuyMenu_SwSh(void)
         sShopData->cursorAnimId = INVALID_COMFY_ANIM;
         sShopData->cursorBobAnimId = INVALID_COMFY_ANIM;
         sShopData->scrollThumbAnimId = INVALID_COMFY_ANIM;
+#if SWSH_SHOP_TM_INFO
+        sShopData->moveTypeIconSpriteId = SPRITE_NONE;
+        sShopData->categoryIconSpriteId = SPRITE_NONE;
+#if SWSH_SHOP_CONTEST_INFO
+        sShopData->appealHeartSpriteId = SPRITE_NONE;
+        sShopData->jamHeartSpriteId = SPRITE_NONE;
+#endif
+#endif
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+        sShopData->infoPromptSpriteId = SPRITE_NONE;
+#endif
         if (sMartInfo.martType == MART_TYPE_NORMAL)
             TryBuildDynamicShopItemList(&sMartInfo.itemList, &sMartInfo.itemCount);
         BuyMenuBuildItemNames();
@@ -755,6 +1116,18 @@ static void BuyMenuInitWindows(void)
         FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
         PutWindowTilemap(windowId);
     }
+
+#if SWSH_SHOP_TM_INFO
+    for (windowId = WIN_PP_LABEL; windowId <= WIN_POW_ACC_INFO; windowId++)
+        SetWindowAttribute(windowId, WINDOW_PALETTE_NUM, SHOP_MENU_PALETTE_ID);
+#if SWSH_SHOP_CONTEST_INFO
+    SetWindowAttribute(WIN_APP_JAM_LABEL, WINDOW_PALETTE_NUM, SHOP_MENU_PALETTE_ID);
+#endif
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    SetWindowAttribute(WIN_BERRY_INFO, WINDOW_PALETTE_NUM, SHOP_MENU_PALETTE_ID);
+    SetWindowAttribute(WIN_BERRY_FLAVORS, WINDOW_PALETTE_NUM, SHOP_MENU_PALETTE_ID);
+#endif
 }
 
 static void BuyMenuDecompressBgGraphics(void)
@@ -987,12 +1360,13 @@ static u16 BuyMenuGetEntryId(u32 index)
     return sMartInfo.itemList[index];
 }
 
-#define MAX_ITEMS_SHOWN            6
-#define LIST_FONT                  FONT_NARROW
-#define LIST_TOP_Y                 0
-#define LIST_ROW_PADDING           0
-#define LIST_ROW_NAME_X            2
-#define LIST_ROW_NAME_MAX_WIDTH    86
+#define MAX_ITEMS_SHOWN             6
+#define LIST_FONT                   FONT_NARROW
+#define LIST_TOP_Y                  0
+#define LIST_ROW_PADDING            0
+#define LIST_ROW_NAME_X             2
+#define LIST_ROW_NAME_MAX_WIDTH     86
+#define LIST_ROW_MOVE_MAX_WIDTH     (NUM_TECHNICAL_MACHINES >= 100 ? 60 : 65) // for TMs
 
 static void BuyMenuBuildItemNames(void)
 {
@@ -1001,14 +1375,25 @@ static void BuyMenuBuildItemNames(void)
     sShopData->itemNames = Alloc(sMartInfo.itemCount * sizeof(*sShopData->itemNames));
     for (i = 0; i < sMartInfo.itemCount; i++)
     {
+        u16 itemId = BuyMenuGetEntryId(i);
         u8 *end;
 
-        if (sMartInfo.martType == MART_TYPE_NORMAL)
-            end = CopyItemName(BuyMenuGetEntryId(i), sShopData->itemNames[i]);
+        if (sMartInfo.martType == MART_TYPE_NORMAL && GetItemPocket(itemId) == POCKET_TM_HM)
+        {
+            end = StringCopy(gStringVar2, GetMoveName(ItemIdToBattleMoveId(itemId)));
+            PrependFontIdToFit(gStringVar2, end, LIST_FONT, LIST_ROW_MOVE_MAX_WIDTH);
+            ConvertIntToDecimalStringN(gStringVar1, GetItemTMHMIndex(itemId), STR_CONV_MODE_LEADING_ZEROS, NUM_TECHNICAL_MACHINES >= 100 ? 3 : 2);
+            StringExpandPlaceholders(sShopData->itemNames[i], COMPOUND_STRING("TM{STR_VAR_1} {STR_VAR_2}"));
+        }
         else
-            end = StringCopy(sShopData->itemNames[i], gDecorations[BuyMenuGetEntryId(i)].name);
+        {
+            if (sMartInfo.martType == MART_TYPE_NORMAL)
+                end = CopyItemName(itemId, sShopData->itemNames[i]);
+            else
+                end = StringCopy(sShopData->itemNames[i], gDecorations[itemId].name);
 
-        PrependFontIdToFit(sShopData->itemNames[i], end, LIST_FONT, LIST_ROW_NAME_MAX_WIDTH);
+            PrependFontIdToFit(sShopData->itemNames[i], end, LIST_FONT, LIST_ROW_NAME_MAX_WIDTH);
+        }
     }
 
     sShopData->listTotal = sMartInfo.itemCount;
@@ -1107,6 +1492,574 @@ static void BuyMenuPrintQuantityInBag(u32 itemId)
     }
 
     CopyWindowToVram(WIN_QUANTITY_IN_BAG, COPYWIN_GFX);
+}
+
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+#define INFO_PROMPT_X  32
+#define INFO_PROMPT_Y  148
+
+static bool8 ItemHasInfoPrompt(u32 itemId)
+{
+    if (sMartInfo.martType != MART_TYPE_NORMAL)
+        return FALSE;
+#if SWSH_SHOP_TM_INFO
+    if (GetItemPocket(itemId) == POCKET_TM_HM)
+        return TRUE;
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    if (GetItemPocket(itemId) == POCKET_BERRIES)
+        return TRUE;
+#endif
+    return FALSE;
+}
+
+static void ShowInfoPrompt(void)
+{
+    if (sShopData->infoPromptSpriteId == SPRITE_NONE)
+        sShopData->infoPromptSpriteId = CreateSprite(&sSpriteTemplate_InfoPrompt, INFO_PROMPT_X, INFO_PROMPT_Y, 0);
+    else
+        gSprites[sShopData->infoPromptSpriteId].invisible = FALSE;
+}
+
+static void HideInfoPrompt(void)
+{
+    if (sShopData->infoPromptSpriteId != SPRITE_NONE)
+        gSprites[sShopData->infoPromptSpriteId].invisible = TRUE;
+}
+#endif // SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+
+#if SWSH_SHOP_TM_INFO
+#define MOVE_INFO_TYPE_ICON_X       96
+#define MOVE_INFO_TYPE_ICON_Y       137
+#define MOVE_INFO_CATEGORY_ICON_X   66
+#define MOVE_INFO_CATEGORY_ICON_Y   144
+
+static void UpdateMoveBattleInfo(u32 itemId)
+{
+    enum Move move = ItemIdToBattleMoveId(itemId);
+    const u8 *text;
+    u32 power;
+    u32 accuracy;
+    int ppInfoWidth = WindowWidthPx(WIN_PP_INFO);
+    int valInfoWidth = WindowWidthPx(WIN_POW_ACC_INFO);
+
+    FillWindowPixelBuffer(WIN_PP_INFO, PIXEL_FILL(0));
+    FillWindowPixelBuffer(WIN_POW_ACC_INFO, PIXEL_FILL(0));
+
+    ConvertIntToDecimalStringN(gStringVar1, GetMovePP(move), STR_CONV_MODE_LEFT_ALIGN, 3);
+    BuyMenuPrint(WIN_PP_INFO, FONT_SHORT_NARROW, gStringVar1,
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, gStringVar1, ppInfoWidth), 0, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_PP_INFO, COPYWIN_GFX);
+
+    power = GetMovePower(move);
+    if (power <= 1)
+        text = gText_ThreeDashes;
+    else
+    {
+        ConvertIntToDecimalStringN(gStringVar1, power, STR_CONV_MODE_LEFT_ALIGN, 3);
+        text = gStringVar1;
+    }
+    BuyMenuPrint(WIN_POW_ACC_INFO, FONT_SHORT_NARROW, text,
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, text, valInfoWidth), 1, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+
+    accuracy = GetMoveAccuracy(move);
+    if (accuracy == 0)
+        text = gText_ThreeDashes;
+    else
+    {
+        ConvertIntToDecimalStringN(gStringVar1, accuracy, STR_CONV_MODE_LEFT_ALIGN, 3);
+        text = gStringVar1;
+    }
+    BuyMenuPrint(WIN_POW_ACC_INFO, FONT_SHORT_NARROW, text,
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, text, valInfoWidth), 16, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_POW_ACC_INFO, COPYWIN_GFX);
+
+    gSprites[sShopData->moveTypeIconSpriteId].x = MOVE_INFO_TYPE_ICON_X;
+    gSprites[sShopData->moveTypeIconSpriteId].y = MOVE_INFO_TYPE_ICON_Y;
+    gSprites[sShopData->moveTypeIconSpriteId].oam.paletteNum = gTypesInfo[GetMoveType(move)].palette;
+    gSprites[sShopData->moveTypeIconSpriteId].data[0] = GetMoveType(move);
+    gSprites[sShopData->moveTypeIconSpriteId].invisible = FALSE;
+
+    StartSpriteAnim(&gSprites[sShopData->categoryIconSpriteId], GetBattleMoveCategory(move));
+    gSprites[sShopData->categoryIconSpriteId].invisible = FALSE;
+}
+
+#if SWSH_SHOP_CONTEST_INFO
+
+#define HEART_GRID_X           176
+#define HEART_GRID_APPEAL_Y    136
+#define HEART_GRID_JAM_Y       152
+
+static void PrintContestDescription(u32 itemId)
+{
+    enum Move move = ItemIdToBattleMoveId(itemId);
+    s32 maxWidth = sShopBuyMenuWindowTemplates[WIN_ITEM_DESCRIPTION].width * 8;
+    u8 fontId;
+
+    fontId = FormatDescriptionByWidth(sShopData->descriptionBuffer, DESCRIPTION_BUFFER_SIZE, maxWidth,
+                                      FONT_SHORT_NARROW, gContestEffects[GetMoveContestEffect(move)].description,
+                                      GetFontAttribute(FONT_SHORT_NARROW, FONTATTR_LETTER_SPACING));
+    FillWindowPixelBuffer(WIN_ITEM_DESCRIPTION, PIXEL_FILL(0));
+    BuyMenuPrint(WIN_ITEM_DESCRIPTION, fontId, sShopData->descriptionBuffer, 0, DESCRIPTION_TOP_Y, 0, 1,
+                 TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_ITEM_DESCRIPTION, COPYWIN_GFX);
+}
+
+static void BuildContestHeartTiles(u8 *dest, u8 stat, u8 filledTile)
+{
+    u8 i;
+
+    for (i = 0; i < CONTEST_HEARTS_SHOWN; i++)
+    {
+        u8 tile = (i < stat) ? filledTile : CONTEST_HEART_EMPTY;
+        memcpy(&dest[i * TILE_SIZE_4BPP], &sContestHearts_Gfx[tile * TILE_SIZE_4BPP], TILE_SIZE_4BPP);
+    }
+}
+
+static void BuildContestHeartsForMove(u32 itemId)
+{
+    u32 effect = GetMoveContestEffect(ItemIdToBattleMoveId(itemId));
+    u8 appeal = gContestEffects[effect].appeal;
+    u8 jam = gContestEffects[effect].jam;
+
+    if (appeal != 0xFF)
+        appeal /= 10;
+    if (jam != 0xFF)
+        jam /= 10;
+
+    BuildContestHeartTiles(sShopData->heartTileCache[0], appeal, CONTEST_HEART_APPEAL);
+    BuildContestHeartTiles(sShopData->heartTileCache[1], jam, CONTEST_HEART_JAM);
+}
+
+static void UpdateMoveContestInfo(u32 itemId)
+{
+    enum Move move = ItemIdToBattleMoveId(itemId);
+    u32 category = GetMoveContestCategory(move);
+    int ppInfoWidth = WindowWidthPx(WIN_PP_INFO);
+
+    FillWindowPixelBuffer(WIN_PP_INFO, PIXEL_FILL(0));
+    ConvertIntToDecimalStringN(gStringVar1, GetMovePP(move), STR_CONV_MODE_LEFT_ALIGN, 3);
+    BuyMenuPrint(WIN_PP_INFO, FONT_SHORT_NARROW, gStringVar1,
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, gStringVar1, ppInfoWidth), 0, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_PP_INFO, COPYWIN_GFX);
+
+    gSprites[sShopData->moveTypeIconSpriteId].x = MOVE_INFO_TYPE_ICON_X;
+    gSprites[sShopData->moveTypeIconSpriteId].y = MOVE_INFO_TYPE_ICON_Y;
+    gSprites[sShopData->moveTypeIconSpriteId].oam.paletteNum = gContestCategoryInfo[category].palette;
+    gSprites[sShopData->moveTypeIconSpriteId].data[0] = NUMBER_OF_MON_TYPES + category;
+    gSprites[sShopData->moveTypeIconSpriteId].invisible = FALSE;
+    gSprites[sShopData->categoryIconSpriteId].invisible = TRUE;
+
+    BuildContestHeartsForMove(itemId);
+    sShopData->heartsDirty = TRUE;
+
+    gSprites[sShopData->appealHeartSpriteId].invisible = FALSE;
+    gSprites[sShopData->jamHeartSpriteId].invisible = FALSE;
+}
+#endif // SWSH_SHOP_CONTEST_INFO
+
+static void PrintMoveInfoLabels(void)
+{
+    int winWidth = WindowWidthPx(WIN_POW_ACC_LABEL);
+
+    FillWindowPixelBuffer(WIN_PP_LABEL, PIXEL_FILL(0));
+    BuyMenuPrint(WIN_PP_LABEL, FONT_SHORT_NARROW, COMPOUND_STRING("PP"), 0, 0, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_PP_LABEL, COPYWIN_GFX);
+
+    FillWindowPixelBuffer(WIN_POW_ACC_LABEL, PIXEL_FILL(0));
+    BuyMenuPrint(WIN_POW_ACC_LABEL, FONT_SHORT_NARROW, COMPOUND_STRING("Power"),
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, COMPOUND_STRING("Power"), winWidth), 1, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    BuyMenuPrint(WIN_POW_ACC_LABEL, FONT_SHORT_NARROW, COMPOUND_STRING("Accuracy"),
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, COMPOUND_STRING("Accuracy"), winWidth), 16, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_POW_ACC_LABEL, COPYWIN_GFX);
+}
+
+#if SWSH_SHOP_CONTEST_INFO
+static void PrintContestInfoLabels(void)
+{
+    int winWidth = WindowWidthPx(WIN_APP_JAM_LABEL);
+
+    FillWindowPixelBuffer(WIN_PP_LABEL, PIXEL_FILL(0));
+    BuyMenuPrint(WIN_PP_LABEL, FONT_SHORT_NARROW, COMPOUND_STRING("PP"), 0, 0, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_PP_LABEL, COPYWIN_GFX);
+
+    FillWindowPixelBuffer(WIN_APP_JAM_LABEL, PIXEL_FILL(0));
+    BuyMenuPrint(WIN_APP_JAM_LABEL, FONT_SHORT_NARROW, COMPOUND_STRING("Appeal"),
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, COMPOUND_STRING("Appeal"), winWidth), 1, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    BuyMenuPrint(WIN_APP_JAM_LABEL, FONT_SHORT_NARROW, COMPOUND_STRING("Jam"),
+        GetStringRightAlignXOffset(FONT_SHORT_NARROW, COMPOUND_STRING("Jam"), winWidth), 16, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    CopyWindowToVram(WIN_APP_JAM_LABEL, COPYWIN_GFX);
+}
+#endif
+
+static void CloseMoveInfoView(void)
+{
+    sShopData->moveInfoMode = 0;
+
+    if (sShopData->moveTypeIconSpriteId != SPRITE_NONE)
+    {
+        DestroySprite(&gSprites[sShopData->moveTypeIconSpriteId]);
+        FreeSpriteTilesByTag(TAG_MOVE_TYPE_ICON);
+        sShopData->moveTypeIconSpriteId = SPRITE_NONE;
+    }
+    if (sShopData->categoryIconSpriteId != SPRITE_NONE)
+    {
+        DestroySprite(&gSprites[sShopData->categoryIconSpriteId]);
+        FreeSpriteTilesByTag(TAG_CATEGORY_ICON);
+        sShopData->categoryIconSpriteId = SPRITE_NONE;
+    }
+    sShopData->moveTypeIconTilesPtr = NULL;
+#if SWSH_SHOP_CONTEST_INFO
+    if (sShopData->appealHeartSpriteId != SPRITE_NONE)
+    {
+        DestroySprite(&gSprites[sShopData->appealHeartSpriteId]);
+        FreeSpriteTilesByTag(TAG_CONTEST_HEART_APPEAL);
+        sShopData->appealHeartSpriteId = SPRITE_NONE;
+    }
+    if (sShopData->jamHeartSpriteId != SPRITE_NONE)
+    {
+        DestroySprite(&gSprites[sShopData->jamHeartSpriteId]);
+        FreeSpriteTilesByTag(TAG_CONTEST_HEART_JAM);
+        sShopData->jamHeartSpriteId = SPRITE_NONE;
+    }
+    sShopData->appealHeartTilesPtr = NULL;
+    sShopData->jamHeartTilesPtr = NULL;
+#endif
+
+    ClearWindowTilemap(WIN_PP_LABEL);
+    ClearWindowTilemap(WIN_POW_ACC_LABEL);
+    ClearWindowTilemap(WIN_PP_INFO);
+    ClearWindowTilemap(WIN_POW_ACC_INFO);
+#if SWSH_SHOP_CONTEST_INFO
+    ClearWindowTilemap(WIN_APP_JAM_LABEL);
+#endif
+    PutWindowTilemap(WIN_ITEM_DESCRIPTION);
+    ScheduleBgCopyTilemapToVram(0);
+}
+
+static void SwitchMoveInfoMode(u32 itemId)
+{
+    if (sShopData->moveInfoMode == 0)
+    {
+        sShopData->moveInfoMode = 1;
+
+        LoadPalette(gMoveTypesSwSh_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
+        {
+            struct SpriteSheet sheet = { .data = sShopData->moveTypeIconsCache, .size = 0x100, .tag = TAG_MOVE_TYPE_ICON };
+            LoadSpriteSheet(&sheet);
+        }
+        LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcon);
+
+        sShopData->moveTypeIconSpriteId = CreateSprite(&sSpriteTemplate_MoveTypeIcon, MOVE_INFO_TYPE_ICON_X, MOVE_INFO_TYPE_ICON_Y, 1);
+        {
+            u16 tileStart = GetSpriteTileStartByTag(TAG_MOVE_TYPE_ICON);
+            sShopData->moveTypeIconTilesPtr = (tileStart == 0xFFFF) ? NULL : (u16 *)((u8 *)OBJ_VRAM0 + 32 * tileStart);
+        }
+        sShopData->categoryIconSpriteId = CreateSprite(&sSpriteTemplate_CategoryIcon, MOVE_INFO_CATEGORY_ICON_X, MOVE_INFO_CATEGORY_ICON_Y, 1);
+
+        PrintMoveInfoLabels();
+
+        ClearWindowTilemap(WIN_ITEM_DESCRIPTION);
+        UpdateMoveBattleInfo(itemId);
+
+        PutWindowTilemap(WIN_PP_LABEL);
+        PutWindowTilemap(WIN_POW_ACC_LABEL);
+        PutWindowTilemap(WIN_PP_INFO);
+        PutWindowTilemap(WIN_POW_ACC_INFO);
+        ScheduleBgCopyTilemapToVram(0);
+    }
+#if SWSH_SHOP_CONTEST_INFO
+    else if (sShopData->moveInfoMode == 1)
+    {
+        sShopData->moveInfoMode = 2;
+
+        gSprites[sShopData->moveTypeIconSpriteId].invisible = TRUE;
+        gSprites[sShopData->categoryIconSpriteId].invisible = TRUE;
+
+        FillWindowPixelBuffer(WIN_PP_LABEL, PIXEL_FILL(0));
+        ClearWindowTilemap(WIN_PP_LABEL);
+        FillWindowPixelBuffer(WIN_PP_INFO, PIXEL_FILL(0));
+        ClearWindowTilemap(WIN_PP_INFO);
+        FillWindowPixelBuffer(WIN_POW_ACC_LABEL, PIXEL_FILL(0));
+        ClearWindowTilemap(WIN_POW_ACC_LABEL);
+        FillWindowPixelBuffer(WIN_POW_ACC_INFO, PIXEL_FILL(0));
+        ClearWindowTilemap(WIN_POW_ACC_INFO);
+
+        PrintContestDescription(itemId);
+        PutWindowTilemap(WIN_ITEM_DESCRIPTION);
+        ScheduleBgCopyTilemapToVram(0);
+    }
+    else if (sShopData->moveInfoMode == 2)
+    {
+        sShopData->moveInfoMode = 3;
+
+        ClearWindowTilemap(WIN_ITEM_DESCRIPTION);
+
+        PrintContestInfoLabels();
+
+        if (sShopData->appealHeartSpriteId == SPRITE_NONE)
+        {
+            struct SpriteSheet appealSheet = { .data = sShopData->heartTileCache[0], .size = CONTEST_HEARTS_SHOWN * TILE_SIZE_4BPP, .tag = TAG_CONTEST_HEART_APPEAL };
+            struct SpriteSheet jamSheet = { .data = sShopData->heartTileCache[1], .size = CONTEST_HEARTS_SHOWN * TILE_SIZE_4BPP, .tag = TAG_CONTEST_HEART_JAM };
+
+            LoadSpriteSheet(&appealSheet);
+            LoadSpriteSheet(&jamSheet);
+            sShopData->appealHeartSpriteId = CreateSprite(&sSpriteTemplate_ContestHeartAppeal, HEART_GRID_X, HEART_GRID_APPEAL_Y, 1);
+            sShopData->jamHeartSpriteId = CreateSprite(&sSpriteTemplate_ContestHeartJam, HEART_GRID_X, HEART_GRID_JAM_Y, 1);
+            {
+                u16 tileStart = GetSpriteTileStartByTag(TAG_CONTEST_HEART_APPEAL);
+                sShopData->appealHeartTilesPtr = (tileStart == 0xFFFF) ? NULL : (u16 *)((u8 *)OBJ_VRAM0 + 32 * tileStart);
+            }
+            {
+                u16 tileStart = GetSpriteTileStartByTag(TAG_CONTEST_HEART_JAM);
+                sShopData->jamHeartTilesPtr = (tileStart == 0xFFFF) ? NULL : (u16 *)((u8 *)OBJ_VRAM0 + 32 * tileStart);
+            }
+        }
+
+        UpdateMoveContestInfo(itemId);
+        PutWindowTilemap(WIN_PP_LABEL);
+        PutWindowTilemap(WIN_PP_INFO);
+        PutWindowTilemap(WIN_APP_JAM_LABEL);
+        ScheduleBgCopyTilemapToVram(0);
+    }
+#endif
+    else
+    {
+        CloseMoveInfoView();
+        BuyMenuPrintItemDescription(itemId);
+    }
+}
+#endif // SWSH_SHOP_TM_INFO
+
+#if SWSH_SHOP_BERRY_STAT
+static const u8 *const sBerryFirmnessStrings[] =
+{
+    [BERRY_FIRMNESS_UNKNOWN]    = COMPOUND_STRING("???"),
+    [BERRY_FIRMNESS_VERY_SOFT]  = COMPOUND_STRING("Very soft"),
+    [BERRY_FIRMNESS_SOFT]       = COMPOUND_STRING("Soft"),
+    [BERRY_FIRMNESS_HARD]       = COMPOUND_STRING("Hard"),
+    [BERRY_FIRMNESS_VERY_HARD]  = COMPOUND_STRING("Very hard"),
+    [BERRY_FIRMNESS_SUPER_HARD] = COMPOUND_STRING("Super hard"),
+};
+
+static void UpdateBerryInfo(u32 itemId)
+{
+    const struct BerryInfo *berryInfo = GetBerryInfo(ItemIdToBerryType(itemId));
+
+    FillWindowPixelBuffer(WIN_BERRY_INFO, PIXEL_FILL(0));
+    FillWindowPixelBuffer(WIN_BERRY_FLAVORS, PIXEL_FILL(0));
+
+    if (berryInfo->size != 0)
+    {
+        u32 inches = 1000 * berryInfo->size / 254;
+        u32 fraction;
+        u8 *ptr;
+        if (inches % 10 > 4)
+            inches += 10;
+        fraction = (inches % 100) / 10;
+        inches /= 100;
+        ptr = ConvertIntToDecimalStringN(gStringVar4, inches, STR_CONV_MODE_LEFT_ALIGN, 2);
+        *ptr++ = CHAR_PERIOD;
+        ptr = ConvertIntToDecimalStringN(ptr, fraction, STR_CONV_MODE_LEFT_ALIGN, 1);
+        *ptr++ = CHAR_DBL_QUOTE_RIGHT;
+        *ptr = EOS;
+        BuyMenuPrint(WIN_BERRY_INFO, FONT_SHORT_NARROW, gStringVar4, 3, 1, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+    }
+
+    if (berryInfo->firmness != BERRY_FIRMNESS_UNKNOWN)
+        BuyMenuPrint(WIN_BERRY_INFO, FONT_SHORT_NARROW, sBerryFirmnessStrings[berryInfo->firmness], 32, 1, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
+
+    BuyMenuPrint(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Spicy"),   2,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->spicy  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+    BuyMenuPrint(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Dry"),    32,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->dry    ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+    BuyMenuPrint(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sweet"),  52,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->sweet  ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+    BuyMenuPrint(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Bitter"), 82,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->bitter ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+    BuyMenuPrint(WIN_BERRY_FLAVORS, FONT_SHORT_NARROW, COMPOUND_STRING("Sour"),  114,  1, 0, 0, TEXT_SKIP_DRAW, berryInfo->sour   ? COLORID_NORMAL : COLORID_NO_FLAVOR);
+
+    CopyWindowToVram(WIN_BERRY_INFO, COPYWIN_GFX);
+    CopyWindowToVram(WIN_BERRY_FLAVORS, COPYWIN_GFX);
+}
+
+#if SWSH_SHOP_BERRY_TAG
+static void PrintBerryDescriptionInfo(u32 itemId)
+{
+    const struct BerryInfo *berryInfo = GetBerryInfo(ItemIdToBerryType(itemId));
+
+    FillWindowPixelBuffer(WIN_ITEM_DESCRIPTION, PIXEL_FILL(0));
+    BuyMenuPrint(WIN_ITEM_DESCRIPTION, FONT_SMALL_NARROWER, berryInfo->description1, 2,  2, 0, 1, 0, COLORID_NORMAL);
+    BuyMenuPrint(WIN_ITEM_DESCRIPTION, FONT_SMALL_NARROWER, berryInfo->description2, 2, 15, 0, 1, 0, COLORID_NORMAL);
+    CopyWindowToVram(WIN_ITEM_DESCRIPTION, COPYWIN_GFX);
+}
+#endif
+
+static void CloseBerryInfoView(void)
+{
+    sShopData->berryInfoMode = 0;
+
+    ClearWindowTilemap(WIN_BERRY_INFO);
+    ClearWindowTilemap(WIN_BERRY_FLAVORS);
+    PutWindowTilemap(WIN_ITEM_DESCRIPTION);
+    ScheduleBgCopyTilemapToVram(0);
+}
+
+static void SwitchBerryInfoMode(u32 itemId)
+{
+    if (sShopData->berryInfoMode == 0)
+    {
+        sShopData->berryInfoMode = 1;
+
+        ClearWindowTilemap(WIN_ITEM_DESCRIPTION);
+        UpdateBerryInfo(itemId);
+        PutWindowTilemap(WIN_BERRY_INFO);
+        PutWindowTilemap(WIN_BERRY_FLAVORS);
+        ScheduleBgCopyTilemapToVram(0);
+    }
+#if SWSH_SHOP_BERRY_TAG
+    else if (sShopData->berryInfoMode == 1)
+    {
+        sShopData->berryInfoMode = 2;
+
+        ClearWindowTilemap(WIN_BERRY_INFO);
+        ClearWindowTilemap(WIN_BERRY_FLAVORS);
+
+        PrintBerryDescriptionInfo(itemId);
+        PutWindowTilemap(WIN_ITEM_DESCRIPTION);
+        ScheduleBgCopyTilemapToVram(0);
+    }
+#endif
+    else
+    {
+        CloseBerryInfoView();
+        BuyMenuPrintItemDescription(itemId);
+    }
+}
+#endif // SWSH_SHOP_BERRY_STAT
+
+static void HideInfoViews(void)
+{
+#if SWSH_SHOP_TM_INFO
+    if (sShopData->moveInfoMode != 0)
+    {
+        if (sShopData->moveTypeIconSpriteId != SPRITE_NONE)
+            gSprites[sShopData->moveTypeIconSpriteId].invisible = TRUE;
+        if (sShopData->categoryIconSpriteId != SPRITE_NONE)
+            gSprites[sShopData->categoryIconSpriteId].invisible = TRUE;
+#if SWSH_SHOP_CONTEST_INFO
+        if (sShopData->appealHeartSpriteId != SPRITE_NONE)
+            gSprites[sShopData->appealHeartSpriteId].invisible = TRUE;
+        if (sShopData->jamHeartSpriteId != SPRITE_NONE)
+            gSprites[sShopData->jamHeartSpriteId].invisible = TRUE;
+#endif
+        ClearWindowTilemap(WIN_PP_LABEL);
+        ClearWindowTilemap(WIN_PP_INFO);
+        ClearWindowTilemap(WIN_POW_ACC_LABEL);
+        ClearWindowTilemap(WIN_POW_ACC_INFO);
+#if SWSH_SHOP_CONTEST_INFO
+        ClearWindowTilemap(WIN_APP_JAM_LABEL);
+#endif
+    }
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    if (sShopData->berryInfoMode != 0)
+    {
+        ClearWindowTilemap(WIN_BERRY_INFO);
+        ClearWindowTilemap(WIN_BERRY_FLAVORS);
+    }
+#endif
+}
+
+static void ShowInfoViews(void)
+{
+#if SWSH_SHOP_TM_INFO
+    switch (sShopData->moveInfoMode)
+    {
+    case 1:
+        ClearWindowTilemap(WIN_ITEM_DESCRIPTION);
+        PrintMoveInfoLabels();
+        PutWindowTilemap(WIN_PP_LABEL);
+        PutWindowTilemap(WIN_PP_INFO);
+        PutWindowTilemap(WIN_POW_ACC_LABEL);
+        PutWindowTilemap(WIN_POW_ACC_INFO);
+        break;
+#if SWSH_SHOP_CONTEST_INFO
+    case 3:
+        ClearWindowTilemap(WIN_ITEM_DESCRIPTION);
+        PrintContestInfoLabels();
+        PutWindowTilemap(WIN_PP_LABEL);
+        PutWindowTilemap(WIN_PP_INFO);
+        PutWindowTilemap(WIN_APP_JAM_LABEL);
+        break;
+#endif
+    }
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    if (sShopData->berryInfoMode == 1)
+    {
+        ClearWindowTilemap(WIN_ITEM_DESCRIPTION);
+        PutWindowTilemap(WIN_BERRY_INFO);
+        PutWindowTilemap(WIN_BERRY_FLAVORS);
+    }
+#endif
+    ScheduleBgCopyTilemapToVram(0);
+}
+
+static void CloseInfoViewIfUnsupported(u32 itemId)
+{
+#if SWSH_SHOP_TM_INFO
+    if (sShopData->moveInfoMode != 0
+     && (sMartInfo.martType != MART_TYPE_NORMAL || GetItemPocket(itemId) != POCKET_TM_HM))
+        CloseMoveInfoView();
+#endif
+#if SWSH_SHOP_BERRY_STAT
+    if (sShopData->berryInfoMode != 0
+     && (sMartInfo.martType != MART_TYPE_NORMAL || GetItemPocket(itemId) != POCKET_BERRIES))
+        CloseBerryInfoView();
+#endif
+}
+
+static void BuyMenuPrintHoveredInfo(u32 itemId)
+{
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+    if (sMartInfo.martType == MART_TYPE_NORMAL)
+    {
+#if SWSH_SHOP_TM_INFO
+        if (GetItemPocket(itemId) == POCKET_TM_HM)
+        {
+            switch (sShopData->moveInfoMode)
+            {
+            case 1:
+                UpdateMoveBattleInfo(itemId);
+                return;
+#if SWSH_SHOP_CONTEST_INFO
+            case 2:
+                PrintContestDescription(itemId);
+                return;
+            case 3:
+                UpdateMoveContestInfo(itemId);
+                return;
+#endif
+            }
+        }
+#endif
+#if SWSH_SHOP_BERRY_STAT
+        if (GetItemPocket(itemId) == POCKET_BERRIES)
+        {
+            switch (sShopData->berryInfoMode)
+            {
+            case 1:
+                UpdateBerryInfo(itemId);
+                return;
+#if SWSH_SHOP_BERRY_TAG
+            case 2:
+                PrintBerryDescriptionInfo(itemId);
+                return;
+#endif
+            }
+        }
+#endif
+    }
+#endif
+
+    BuyMenuPrintItemDescription(itemId);
 }
 
 static u8 ShopList_RowHeight(void)
@@ -1245,6 +2198,30 @@ static s32 ShopList_ProcessInput(void)
 
     if (JOY_NEW(B_BUTTON))
         return LIST_CANCEL;
+
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+    if (JOY_NEW(SELECT_BUTTON) && sMartInfo.martType == MART_TYPE_NORMAL)
+    {
+        u32 itemId = BuyMenuGetEntryId(sShopData->scrollOffset + sShopData->selectedRow);
+
+#if SWSH_SHOP_TM_INFO
+        if (GetItemPocket(itemId) == POCKET_TM_HM)
+        {
+            PlaySE(SE_SELECT);
+            SwitchMoveInfoMode(itemId);
+            return LIST_NOTHING_CHOSEN;
+        }
+#endif
+#if SWSH_SHOP_BERRY_STAT
+        if (GetItemPocket(itemId) == POCKET_BERRIES)
+        {
+            PlaySE(SE_SELECT);
+            SwitchBerryInfoMode(itemId);
+            return LIST_NOTHING_CHOSEN;
+        }
+#endif
+    }
+#endif
 
     if (JOY_REPEAT(DPAD_UP))
         ShopList_Move(FALSE, JOY_NEW(DPAD_UP));
@@ -1445,7 +2422,14 @@ static void BuyMenuLoadSpriteGfx(void)
     LoadCompressedSpriteSheet(&sSpriteSheet_SpinnerArrow);
     LoadCompressedSpriteSheet(&sSpriteSheet_InBag);
     LoadCompressedSpriteSheet(&sSpriteSheet_ShopDesign);
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+    LoadCompressedSpriteSheet(&sSpriteSheet_InfoPrompt);
+#endif
     LoadSpritePalettes(sShopSpritePalettes);
+#if SWSH_SHOP_TM_INFO
+    sShopData->moveTypeIconsCache = Alloc(32 * 416 / 2);
+    DecompressDataWithHeaderWram(gMoveTypesSwSh_Gfx, sShopData->moveTypeIconsCache);
+#endif
 }
 
 #define IN_BAG_X                204
@@ -1606,8 +2590,23 @@ static void BuyMenuMoveCursorCallback(u32 index, bool32 onInit)
         ShopList_RefreshColors();
     }
 
-    BuyMenuPrintItemDescription(BuyMenuGetEntryId(index));
-    BuyMenuPrintQuantityInBag(BuyMenuGetEntryId(index));
+    {
+        u32 itemId = BuyMenuGetEntryId(index);
+
+        if (onInit)
+            ShowInfoViews();
+
+        CloseInfoViewIfUnsupported(itemId);
+        BuyMenuPrintHoveredInfo(itemId);
+        BuyMenuPrintQuantityInBag(itemId);
+
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+        if (ItemHasInfoPrompt(itemId))
+            ShowInfoPrompt();
+        else
+            HideInfoPrompt();
+#endif
+    }
 
     {
         u32 iconItemId = BuyMenuGetEntryId(index);
@@ -1820,6 +2819,10 @@ static u8 FormatDescriptionByWidth(u8 *result, s32 resultSize, s32 maxWidth, u8 
 
 static void BuyMenuDisplayMessage(u8 taskId, const u8 *text, TaskFunc callback)
 {
+    HideInfoViews();
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+    HideInfoPrompt();
+#endif
     ClearWindowTilemap(WIN_ITEM_DESCRIPTION);
     ClearWindowTilemap(WIN_QUANTITY_IN_BAG);
     DisplayMessageAndContinueTask(taskId, WIN_MESSAGE, SHOP_BASE_MSGBOX, 14, FONT_NORMAL, GetPlayerTextSpeedDelay(), text, callback);
@@ -2169,6 +3172,17 @@ static void BuyMenuFreeSprites(void)
     FreeSpriteTilesByTag(TAG_SHOP_DESIGN);
     FreeSpriteTilesByTag(TAG_QUANTITY_FRAME);
     FreeSpriteTilesByTag(TAG_SPINNER_ARROW);
+#if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
+    FreeSpriteTilesByTag(TAG_INFO_PROMPT);
+#endif
+#if SWSH_SHOP_TM_INFO
+    FreeSpriteTilesByTag(TAG_MOVE_TYPE_ICON);
+    FreeSpriteTilesByTag(TAG_CATEGORY_ICON);
+#if SWSH_SHOP_CONTEST_INFO
+    FreeSpriteTilesByTag(TAG_CONTEST_HEART_APPEAL);
+    FreeSpriteTilesByTag(TAG_CONTEST_HEART_JAM);
+#endif
+#endif
     FreeSpritePaletteByTag(TAG_SHOP_UI_PAL);
     FreeSpritePaletteByTag(TAG_ITEM_CURSOR);
     ReleaseComfyAnims();
@@ -2180,6 +3194,9 @@ static void BuyMenuFreeMemory(void)
         TryFreeDynamicShopItemList(&sMartInfo.itemList);
 
     BuyMenuFreeSprites();
+#if SWSH_SHOP_TM_INFO
+    Free(sShopData->moveTypeIconsCache);
+#endif
     Free(sShopData->itemNames);
     Free(sShopData);
     sShopData = NULL;
@@ -2229,7 +3246,7 @@ static void Task_BuyMenu(u8 taskId)
                     else if (GetItemPocket(tItemId) == POCKET_TM_HM)
                     {
                         StringCopy(gStringVar2, GetMoveName(ItemIdToBattleMoveId(tItemId)));
-                        BuyMenuDisplayMessage(taskId, gText_Var1CertainlyHowMany2, Task_BuyHowManyDialogueInit);
+                        BuyMenuDisplayMessage(taskId, COMPOUND_STRING("{STR_VAR_1} {STR_VAR_2}? Certainly.\nHow many would you like?"), Task_BuyHowManyDialogueInit);
                     }
                     else
                     {
