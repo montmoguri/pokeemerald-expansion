@@ -151,6 +151,7 @@ struct ShopData
     u16 mapBottomTilemap[0x400];    // BG3
     s16 viewportObjects[OBJECT_EVENTS_COUNT][VIEWPORT_OBJECT_FIELD_COUNT];
     u32 tintPalettes;               // obj pals for the map's sprites
+    u16 objPalsBeforeTint[16 * 16]; // untinted obj pals, for decor icons
     u8 (*itemNames)[LIST_NAME_BUFFER_SIZE];
     u8 descriptionBuffer[DESCRIPTION_BUFFER_SIZE];
     u16 listTotal;
@@ -254,6 +255,7 @@ static void HideInfoPrompt(void);
 static void BuyMenuMoveCursorCallback(u32 index, bool32 onInit);
 static void BuyMenuLoadSpriteGfx(void);
 static void BuyMenuCreateListSprites(void);
+static void BuyMenuUntintItemIcon(struct Sprite *sprite, u8 iconSlot);
 static void BuyMenuAddItemIcon(u32 itemId, u8 iconSlot, s16 spriteY);
 static void BuyMenuRemoveItemIcon(u8 iconSlot);
 static void SpriteCB_SlideCursorY(struct Sprite *sprite);
@@ -1167,6 +1169,10 @@ static void BuyMenuDrawMapGraphics(void)
 static void BuyMenuTintMapView(void)
 {
     u32 palettes = ((1 << SHOP_MENU_PALETTE_ID) - 1) | sShopData->tintPalettes;
+
+    // some decor icons reuse ow sprite pals (see BuyMenuUntintItemIcon)
+    // so keep the untinted colors to hand back to them.
+    CpuCopy16(&gPlttBufferUnfaded[OBJ_PLTT_ID(0)], sShopData->objPalsBeforeTint, sizeof(sShopData->objPalsBeforeTint));
 
     BlendPalettesFine(palettes, gPlttBufferUnfaded, gPlttBufferUnfaded, MAP_VIEW_TINT_COEFF, MAP_VIEW_TINT_COLOR);
 }
@@ -2489,6 +2495,22 @@ static void BuyMenuCreateListSprites(void)
     }
 }
 
+static void BuyMenuUntintItemIcon(struct Sprite *sprite, u8 iconSlot)
+{
+    u8 paletteNum = sprite->oam.paletteNum;
+    u32 newPaletteNum;
+
+    if (!(sShopData->tintPalettes & (1 << (16 + paletteNum))))
+        return;
+
+    newPaletteNum = AllocSpritePalette(iconSlot + TAG_ITEM_ICON_BASE);
+    if (newPaletteNum == 0xFF)
+        return;
+
+    LoadPalette(&sShopData->objPalsBeforeTint[paletteNum * 16], OBJ_PLTT_ID(newPaletteNum), PLTT_SIZE_4BPP);
+    sprite->oam.paletteNum = newPaletteNum;
+}
+
 static void BuyMenuAddItemIcon(u32 itemId, u8 iconSlot, s16 spriteY)
 {
     u8 *spriteIdPtr = &sShopData->itemSpriteIds[iconSlot];
@@ -2522,6 +2544,7 @@ static void BuyMenuAddItemIcon(u32 itemId, u8 iconSlot, s16 spriteY)
             return;
 
         gSprites[spriteId].subpriority = SUBPRIORITY_ITEM_ICON;
+        BuyMenuUntintItemIcon(&gSprites[spriteId], iconSlot);
     }
 
     *spriteIdPtr = spriteId;
