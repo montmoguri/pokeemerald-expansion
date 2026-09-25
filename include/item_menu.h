@@ -162,8 +162,6 @@ struct BagMenu
     u32 scrollThumbAnimId;
     u32 pocketScrollArrowAnimIds[2];
     s32 hoveredItemIndex;
-    u16 listTotal;
-    u8 listShown;
     u16 promptTilemapBackup[PROMPT_WIDTH * PROMPT_HEIGHT]; // storing BG2 tilemap to re-draw when info/swap prompt clears
     u16 *moveTypeIconTilesPtr;
     u8 *moveTypeIconsCache;
