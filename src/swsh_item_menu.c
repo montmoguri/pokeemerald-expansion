@@ -227,7 +227,7 @@ static void SpriteCB_SlideCursorY(struct Sprite *);
 static void SpriteCB_BagScrollThumb(struct Sprite *);
 static void SpriteCB_PocketScrollArrow(struct Sprite *);
 static void CreateCursorSprite(void);
-static void CreateHoverSlotSprites(void);
+static void CreateHoverSlotSprite(void);
 static void CreateScrollThumbSprite(void);
 static void CreatePocketScrollArrowPair(void);
 static void SpriteCB_MoveTypeIcon(struct Sprite *);
@@ -733,7 +733,7 @@ static const struct OamData sOamData_Cursor =
     .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(16x16),
     .size = SPRITE_SIZE(16x16),
-    .priority = 1,
+    .priority = 2,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
@@ -811,31 +811,7 @@ static const struct OamData sOamData_HoverSlot =
     .affineParam = 0,
 };
 
-static const union AnimCmd sSpriteAnim_HoverSlot_0[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_HoverSlot_1[] = {
-    ANIMCMD_FRAME(7, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_HoverSlot_2[] = {
-    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_HoverSlot_3[] = {
-    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_HoverSlot[] = {
-    sSpriteAnim_HoverSlot_0,
-    sSpriteAnim_HoverSlot_1,
-    sSpriteAnim_HoverSlot_2,
-    sSpriteAnim_HoverSlot_3,
-};
-
-static const u8 sHoverSlotAnims[HOVER_SLOT_SPRITES_COUNT] = {0, 1, 1, 2, 3};
+#define HOVER_SLOT_FRAME_TILES  ((32 * 16) / (8 * 8))
 
 static const struct CompressedSpriteSheet sSpriteSheet_HoverSlot =
 {
@@ -849,7 +825,23 @@ static const struct SpriteTemplate sHoverSlotSpriteTemplate =
     .tileTag = TAG_HOVER_SLOT,
     .paletteTag = TAG_BAG_UI_PAL,
     .oam = &sOamData_HoverSlot,
-    .anims = sSpriteAnimTable_HoverSlot,
+};
+
+static const struct Subsprite sSubsprites_HoverSlot[] =
+{
+    { .x = -80, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 0 * HOVER_SLOT_FRAME_TILES,     .priority = 2 },
+    { .x = -48, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 1 * HOVER_SLOT_FRAME_TILES - 1, .priority = 2 },
+    { .x = -16, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 1 * HOVER_SLOT_FRAME_TILES - 1, .priority = 2 },
+    { .x =  16, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 1 * HOVER_SLOT_FRAME_TILES,     .priority = 2 },
+    { .x =  48, .y = -8, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 2 * HOVER_SLOT_FRAME_TILES,     .priority = 2 },
+};
+
+static const struct SubspriteTable sSubspriteTable_HoverSlot[] =
+{
+    {
+        .subspriteCount = ARRAY_COUNT(sSubsprites_HoverSlot),
+        .subsprites = sSubsprites_HoverSlot
+    }
 };
 
 static const struct OamData sOamData_ScrollThumb =
@@ -1047,7 +1039,7 @@ static const struct OamData sOamData_MoveTypeIcon =
     .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(32x16),
     .size = SPRITE_SIZE(32x16),
-    .priority = 1,
+    .priority = 2,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_MoveTypeIcon =
@@ -1065,7 +1057,7 @@ static const struct OamData sOamData_CategoryIcon =
     .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(16x16),
     .size = SPRITE_SIZE(16x16),
-    .priority = 1,
+    .priority = 2,
 };
 
 static const union AnimCmd sSpriteAnim_CategoryPhysical[] =
@@ -1152,7 +1144,7 @@ static const struct OamData sOamData_MoneyLabel =
     .bpp = ST_OAM_4BPP,
     .shape = SPRITE_SHAPE(32x8),
     .size = SPRITE_SIZE(32x8),
-    .priority = 1,
+    .priority = 2,
 };
 
 static const struct CompressedSpriteSheet sSpriteSheet_MoneyLabel =
@@ -1757,7 +1749,7 @@ void GoToBagMenu(u8 location, u8 pocket, MainCallback exitCallback)
         memset(gBagMenu->spriteIds, SPRITE_NONE, sizeof(gBagMenu->spriteIds));
         gBagMenu->cursorSpriteId = SPRITE_NONE;
         memset(gBagMenu->spinnerArrowSpriteIds, SPRITE_NONE, sizeof(gBagMenu->spinnerArrowSpriteIds));
-        memset(gBagMenu->hoverSlotSpriteIds, SPRITE_NONE, sizeof(gBagMenu->hoverSlotSpriteIds));
+        gBagMenu->hoverSlotSpriteId = SPRITE_NONE;
         memset(gBagMenu->scrollThumbSpriteIds, SPRITE_NONE, sizeof(gBagMenu->scrollThumbSpriteIds));
         memset(gBagMenu->pocketScrollArrowSpriteIds, SPRITE_NONE, sizeof(gBagMenu->pocketScrollArrowSpriteIds));
         memset(gBagMenu->frameQuantityIds, SPRITE_NONE, sizeof(gBagMenu->frameQuantityIds));
@@ -1999,13 +1991,9 @@ static bool8 SetupBagMenu(void)
         gMain.state++;
         break;
     case 17:
-        CreateHoverSlotSprites();
+        CreateHoverSlotSprite();
         if (gBagMenu->numItemStacks[gBagPosition.pocket] == 0)
-        {
-            u8 i;
-            for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
-                gSprites[gBagMenu->hoverSlotSpriteIds[i]].invisible = TRUE;
-        }
+            gSprites[gBagMenu->hoverSlotSpriteId].invisible = TRUE;
         gMain.state++;
         break;
     case 18:
@@ -2438,6 +2426,17 @@ static void LoadBagItemListBuffers(u8 pocketId)
         GetItemNameFromPocket(sListBuffer2->name[i], BagList_GetItemId(pocketId, i));
 }
 
+// list window
+#define LIST_FONT                   FONT_NARROW
+#define LIST_TOP_Y                  1
+#define LIST_ROW_PADDING            0
+#define LIST_ROW_NAME_X             8
+#define LIST_ROW_NAME_W             88
+#define LIST_ROW_QTY_RIGHT          119
+#define LIST_ROW_HM_ICON_X          8
+#define LIST_ROW_REGISTERED_X       102
+#define LIST_ROW_REGISTERED_Y       4
+
 static void GetItemNameFromPocket(u8 *dest, enum Item itemId)
 {
     u8 *end;
@@ -2467,16 +2466,41 @@ static void GetItemNameFromPocket(u8 *dest, enum Item itemId)
         break;
     default:
         end = CopyItemName(itemId, dest);
-        PrependFontIdToFit(dest, end, FONT_NARROW, 88);
+        PrependFontIdToFit(dest, end, FONT_NARROW, LIST_ROW_NAME_W);
         break;
     }
 }
+// sprites
+#define LIST_SPRITE_ROW_Y_OFFSET    8
+#define ITEM_ICON_X                 102
+#define ITEM_ICON_TO_CURSOR_X       22
+#define ITEM_ICON_Y_OFFSET          4
+#define LIST_CURSOR_X               (ITEM_ICON_X - ITEM_ICON_TO_CURSOR_X)
+#define HOVER_SLOT_X                150
+#define QUANTITY_FRAME_X            144
+#define QUANTITY_FRAME_SPACING      64
+#define QUANTITY_FRAME_Y            96
+#define QUANTITY_SPINNER_X          152
+#define SWAP_SPINNER_X              98
+#define POCKET_ARROW_LEFT_X         112
+#define POCKET_ARROW_RIGHT_X        215
+#define POCKET_ARROW_Y              16
 
-#define LIST_FONT                   FONT_NARROW
-#define LIST_TOP_Y                  1
-#define LIST_ROW_PADDING            0
-#define LIST_ROW_NAME_X             8
-#define LIST_CURSOR_X               80
+// priority 1
+#define SUBPRIORITY_SPINNER_ARROW   0
+#define SUBPRIORITY_QUANTITY_FRAME  SUBPRIORITY_SPINNER_ARROW + 1
+#define SUBPRIORITY_ITEM_ICON       SUBPRIORITY_QUANTITY_FRAME + 1
+#define SUBPRIORITY_STATUS_ICON     SUBPRIORITY_ITEM_ICON + 1
+// priority 2
+#define SUBPRIORITY_CURSOR          0
+#define SUBPRIORITY_HOVER_SLOT      SUBPRIORITY_CURSOR + 1
+#define SUBPRIORITY_MOVE_TYPE_ICON  SUBPRIORITY_HOVER_SLOT + 1
+#define SUBPRIORITY_CATEGORY_ICON   SUBPRIORITY_MOVE_TYPE_ICON
+#define SUBPRIORITY_POCKET_ARROW    SUBPRIORITY_MOVE_TYPE_ICON
+#define SUBPRIORITY_SCROLL_THUMB    SUBPRIORITY_MOVE_TYPE_ICON + 1
+#define SUBPRIORITY_HELD_ITEM_ICON  SUBPRIORITY_SCROLL_THUMB
+#define SUBPRIORITY_MON_ICON        SUBPRIORITY_SCROLL_THUMB + 1
+#define SUBPRIORITY_MONEY_LABEL     SUBPRIORITY_MON_ICON
 
 static void CreateCursorSprite(void)
 {
@@ -2489,7 +2513,7 @@ static void CreateCursorSprite(void)
         .easingFunc = ComfyAnimEasing_EaseOutCubic,
     });
 
-    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY, 2);
+    gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY, SUBPRIORITY_CURSOR);
     StartBagCursorBob(gBagMenu->cursorSpriteId);
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
 }
@@ -2574,7 +2598,7 @@ static void CreateScrollThumbSprite(void)
 
     for (i = 0; i < SCROLL_THUMB_SPRITES_COUNT; i++)
     {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_ScrollThumb, SCROLL_THUMB_X, 0, 1);
+        u8 spriteId = CreateSprite(&sSpriteTemplate_ScrollThumb, SCROLL_THUMB_X, 0, SUBPRIORITY_SCROLL_THUMB);
 
         gBagMenu->scrollThumbSpriteIds[i] = spriteId;
         gSprites[spriteId].data[0] = i;
@@ -2582,16 +2606,10 @@ static void CreateScrollThumbSprite(void)
     }
 }
 
-static void CreateHoverSlotSprites(void)
+static void CreateHoverSlotSprite(void)
 {
-    s16 initialY = BagList_RowSpriteY();
-    u8 i;
-
-    for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
-    {
-        gBagMenu->hoverSlotSpriteIds[i] = CreateSprite(&sHoverSlotSpriteTemplate, 86 + i * 32, initialY, 1);
-        StartSpriteAnim(&gSprites[gBagMenu->hoverSlotSpriteIds[i]], sHoverSlotAnims[i]);
-    }
+    gBagMenu->hoverSlotSpriteId = CreateSprite(&sHoverSlotSpriteTemplate, HOVER_SLOT_X, BagList_RowSpriteY(), SUBPRIORITY_HOVER_SLOT);
+    SetSubspriteTables(&gSprites[gBagMenu->hoverSlotSpriteId], sSubspriteTable_HoverSlot);
 }
 
 #define CURSOR_BOB_RANGE 3
@@ -2647,7 +2665,6 @@ static void StartBagCursorBob(u8 spriteId)
 static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 {
     s16 y;
-    u8 i;
 
     SpriteCB_CursorBob(sprite);
 
@@ -2656,16 +2673,13 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 
     y = ReadComfyAnimValueSmooth(&gComfyAnims[gBagMenu->cursorAnimId]);
     sprite->y = y;
-    for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
-    {
-        if (gBagMenu->hoverSlotSpriteIds[i] != SPRITE_NONE)
-            gSprites[gBagMenu->hoverSlotSpriteIds[i]].y = y;
-    }
+    if (gBagMenu->hoverSlotSpriteId != SPRITE_NONE)
+        gSprites[gBagMenu->hoverSlotSpriteId].y = y;
     if (gBagMenu->toSwapPos != NOT_SWAPPING)
     {
         u8 iconSpriteId = gBagMenu->spriteIds[ITEMMENUSPRITE_ITEM + (gBagMenu->itemIconSlot ^ 1)];
         if (iconSpriteId != SPRITE_NONE)
-            gSprites[iconSpriteId].y2 = y + 4;
+            gSprites[iconSpriteId].y2 = y + ITEM_ICON_Y_OFFSET;
         if (gBagMenu->spinnerArrowSpriteIds[SPINNER_ARROW_UP] != SPRITE_NONE)
             gSprites[gBagMenu->spinnerArrowSpriteIds[SPINNER_ARROW_UP]].y = y - SPINNER_ARROW_Y_OFFSET;
         if (gBagMenu->spinnerArrowSpriteIds[SPINNER_ARROW_DOWN] != SPRITE_NONE)
@@ -2868,7 +2882,7 @@ static void BagList_ScrollRows(bool32 movingDown)
 static s16 BagList_RowSpriteY(void)
 {
     u8 windowTop = sDefaultBagWindows[WIN_ITEM_LIST].tilemapTop * 8;
-    return windowTop + LIST_TOP_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * BagList_RowHeight() + 8;
+    return windowTop + LIST_TOP_Y + gBagPosition.cursorPosition[gBagPosition.pocket] * BagList_RowHeight() + LIST_SPRITE_ROW_Y_OFFSET;
 }
 
 static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit)
@@ -2957,9 +2971,9 @@ static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit)
             if (iconSpriteId != SPRITE_NONE)
             {
                 struct Sprite *spr = &gSprites[iconSpriteId];
-                spr->x2 = 102;
-                spr->y2 = spriteY + 4;
-                spr->subpriority = 1;
+                spr->x2 = ITEM_ICON_X;
+                spr->y2 = spriteY + ITEM_ICON_Y_OFFSET;
+                spr->subpriority = SUBPRIORITY_ITEM_ICON;
                 if (gBagMenu->toSwapPos == NOT_SWAPPING)
                 {
                     spr->oam.affineMode = ST_OAM_AFFINE_NORMAL;
@@ -2972,8 +2986,8 @@ static void BagMenu_MoveCursorCallback(s32 itemIndex, bool8 onInit)
         else
         {
             struct Sprite *spr = &gSprites[iconSpriteId];
-            spr->x2 = 102;
-            spr->y2 = spriteY + 4;
+            spr->x2 = ITEM_ICON_X;
+            spr->y2 = spriteY + ITEM_ICON_Y_OFFSET;
             spr->invisible = FALSE;
         }
     }
@@ -3012,7 +3026,7 @@ static void BagList_PrintRowExtras(u32 itemIndex, u8 y, bool32 isHovered)
 
     // Draw HM icon
     if (gBagPosition.pocket == POCKET_TM_HM && GetItemTMHMIndex(itemSlot.itemId) > NUM_TECHNICAL_MACHINES)
-        BlitBitmapToWindow(WIN_ITEM_LIST, sBagMenuHMIcon_Gfx, 8, y, 16, 16);
+        BlitBitmapToWindow(WIN_ITEM_LIST, sBagMenuHMIcon_Gfx, LIST_ROW_HM_ICON_X, y, 16, 16);
 
     if (gBagPosition.pocket != POCKET_KEY_ITEMS && GetItemImportance(itemSlot.itemId) == FALSE)
     {
@@ -3021,7 +3035,7 @@ static void BagList_PrintRowExtras(u32 itemIndex, u8 y, bool32 isHovered)
 
         ConvertIntToDecimalStringN(gStringVar1, itemSlot.quantity, STR_CONV_MODE_RIGHT_ALIGN, MAX_ITEM_DIGITS);
         StringExpandPlaceholders(gStringVar4, gText_xVar1);
-        offset = GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, 119);
+        offset = GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, LIST_ROW_QTY_RIGHT);
         BagMenu_Print(WIN_ITEM_LIST, FONT_NARROW, gStringVar4, offset, y, 0, 0, TEXT_SKIP_DRAW,
                       isHovered ? COLORID_HOVER_QTY : COLORID_NORMAL);
     }
@@ -3029,7 +3043,7 @@ static void BagList_PrintRowExtras(u32 itemIndex, u8 y, bool32 isHovered)
     {
         // Print registered icon
         if (gSaveBlock1Ptr->registeredItem != ITEM_NONE && gSaveBlock1Ptr->registeredItem == itemSlot.itemId)
-            BlitBitmapToWindow(WIN_ITEM_LIST, sRegisteredSelect_Gfx, 102, y + 4, 16, 16);
+            BlitBitmapToWindow(WIN_ITEM_LIST, sRegisteredSelect_Gfx, LIST_ROW_REGISTERED_X, y + LIST_ROW_REGISTERED_Y, 16, 16);
     }
 }
 
@@ -3052,11 +3066,8 @@ static void UpdateEmptyPocket(void)
 
     if (gBagMenu->cursorSpriteId != SPRITE_NONE)
         gSprites[gBagMenu->cursorSpriteId].invisible = pocketEmpty;
-    for (i = 0; i < HOVER_SLOT_SPRITES_COUNT; i++)
-    {
-        if (gBagMenu->hoverSlotSpriteIds[i] != SPRITE_NONE)
-            gSprites[gBagMenu->hoverSlotSpriteIds[i]].invisible = pocketEmpty;
-    }
+    if (gBagMenu->hoverSlotSpriteId != SPRITE_NONE)
+        gSprites[gBagMenu->hoverSlotSpriteId].invisible = pocketEmpty;
 
     if (pocketEmpty)
     {
@@ -3076,7 +3087,7 @@ static void UpdateEmptyPocket(void)
 
 static void CreatePocketScrollArrowPair(void)
 {
-    static const u8 sArrowX[2] = {112, 215};
+    static const u8 sArrowX[2] = {POCKET_ARROW_LEFT_X, POCKET_ARROW_RIGHT_X};
     u8 i;
 
 #if SWSH_BAG_PYRAMID
@@ -3099,7 +3110,7 @@ static void CreatePocketScrollArrowPair(void)
                 .easingFunc = ComfyAnimEasing_EaseOutCubic,
             });
 
-        spriteId = CreateSprite(&sSpriteTemplate_PocketArrows, sArrowX[i], 16, 0);
+        spriteId = CreateSprite(&sSpriteTemplate_PocketArrows, sArrowX[i], POCKET_ARROW_Y, SUBPRIORITY_POCKET_ARROW);
         if (spriteId != MAX_SPRITES)
         {
             StartSpriteAnim(&gSprites[spriteId], i);
@@ -3320,7 +3331,7 @@ void CloseItemMessage(u8 taskId)
 
 static void AddItemQuantityWindow(void)
 {
-    CreateQuantityFrameSprites(96);
+    CreateQuantityFrameSprites(QUANTITY_FRAME_Y);
     PrintQuantity(1);
 }
 
@@ -3642,7 +3653,7 @@ static void StartItemSwap(u8 taskId)
     tListPosition = gBagPosition.scrollPosition[gBagPosition.pocket] + gBagPosition.cursorPosition[gBagPosition.pocket];
     gBagMenu->toSwapPos = tListPosition;
     gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
-    CreateSpinnerArrowSprites(98, cursorY, SPINNER_ARROW_LOOP);
+    CreateSpinnerArrowSprites(SWAP_SPINNER_X, cursorY, SPINNER_ARROW_LOOP);
     gTasks[taskId].func = Task_HandleSwappingItemsInput;
 }
 
@@ -4324,7 +4335,7 @@ static void CancelSell(u8 taskId)
 
 static void InitSellHowManyInput(u8 taskId)
 {
-    CreateQuantityFrameSprites(96);
+    CreateQuantityFrameSprites(QUANTITY_FRAME_Y);
     PrintQuantity(1);
     PrintSellTotal(GetItemSellPrice(gSpecialVar_ItemId));
     gTasks[taskId].func = Task_ChooseHowManyToSell;
@@ -4744,7 +4755,7 @@ static void CreateSpinnerArrowSprites(s16 x, s16 y, u8 mode)
     for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
     {
         s8 dir = (i == SPINNER_ARROW_UP) ? -1 : 1;
-        u8 spriteId = CreateSprite(&sSpriteTemplate_SpinnerArrow, x, y + dir * SPINNER_ARROW_Y_OFFSET, 0);
+        u8 spriteId = CreateSprite(&sSpriteTemplate_SpinnerArrow, x, y + dir * SPINNER_ARROW_Y_OFFSET, SUBPRIORITY_SPINNER_ARROW);
 
         StartSpriteAnim(&gSprites[spriteId], i);
         gSprites[spriteId].sDir = dir;
@@ -4793,7 +4804,6 @@ static void AnimateQuantitySpinner(void)
 #undef sTimer
 #undef sStep
 
-#define QUANTITY_SPINNER_X      152
 #define QUANTITY_FILL_INDEX     13
 #define QUANTITY_COUNT_LEFT     16
 #define QUANTITY_COUNT_RIGHT    48
@@ -4805,7 +4815,7 @@ static void CreateQuantityFrameSprites(u8 y)
     u8 i;
     for (i = 0; i < FRAME_QUANTITY_SPRITES_COUNT; i++)
     {
-        gBagMenu->frameQuantityIds[i] = CreateSprite(&sSpriteTemplate_FrameQuantity, 144 + i * 64, y, 3);
+        gBagMenu->frameQuantityIds[i] = CreateSprite(&sSpriteTemplate_FrameQuantity, QUANTITY_FRAME_X + i * QUANTITY_FRAME_SPACING, y, SUBPRIORITY_QUANTITY_FRAME);
         StartSpriteAnim(&gSprites[gBagMenu->frameQuantityIds[i]], sFrameQuantityAnims[i]);
         SetSpriteSheetFrameTileNum(&gSprites[gBagMenu->frameQuantityIds[i]]);
     }
@@ -4912,7 +4922,7 @@ static void SetupSellWindows(void)
     PrintMoney(windowId);
 
     LoadCompressedSpriteSheet(&sSpriteSheet_MoneyLabel);
-    CreateSprite(&sSpriteTemplate_MoneyLabel, MONEY_LABEL_X, MONEY_LABEL_Y, 0);
+    CreateSprite(&sSpriteTemplate_MoneyLabel, MONEY_LABEL_X, MONEY_LABEL_Y, SUBPRIORITY_MONEY_LABEL);
 }
 
 static void UpdateSellPrice(u16 itemId)
@@ -5120,12 +5130,12 @@ static void SwitchMoveInfoMode(s32 itemIndex)
         }
         LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcon);
 
-        gBagMenu->moveTypeIconSpriteId = CreateSprite(&sSpriteTemplate_MoveTypeIcon, MOVE_INFO_TYPE_ICON_X, MOVE_INFO_TYPE_ICON_Y, 1);
+        gBagMenu->moveTypeIconSpriteId = CreateSprite(&sSpriteTemplate_MoveTypeIcon, MOVE_INFO_TYPE_ICON_X, MOVE_INFO_TYPE_ICON_Y, SUBPRIORITY_MOVE_TYPE_ICON);
         {
             u16 tileStart = GetSpriteTileStartByTag(TAG_MOVE_TYPE_ICON);
             gBagMenu->moveTypeIconTilesPtr = (tileStart == 0xFFFF) ? NULL : (u16 *)((u8 *)OBJ_VRAM0 + 32 * tileStart);
         }
-        gBagMenu->categoryIconSpriteId = CreateSprite(&sSpriteTemplate_CategoryIcon, MOVE_INFO_CATEGORY_ICON_X, MOVE_INFO_CATEGORY_ICON_Y, 1);
+        gBagMenu->categoryIconSpriteId = CreateSprite(&sSpriteTemplate_CategoryIcon, MOVE_INFO_CATEGORY_ICON_X, MOVE_INFO_CATEGORY_ICON_Y, SUBPRIORITY_CATEGORY_ICON);
 
         FillWindowPixelBuffer(WIN_PP_LABEL, PIXEL_FILL(0));
         BagMenu_Print(WIN_PP_LABEL, FONT_SHORT_NARROW, sText_MoveInfoPP, 0, 0, 0, 0, TEXT_SKIP_DRAW, COLORID_NORMAL);
@@ -6118,7 +6128,7 @@ static void BagMenu_CreatePanelMonIcon(u8 slot, s16 x2)
         return;
 
     isEgg = GetMonData(mon, MON_DATA_IS_EGG);
-    spriteId = CreateMonIconIsEgg(species, SpriteCB_MonIcon, PARTY_MON_ICON_X, PARTY_MON_ICON_Y(slot) + 8 * BagMenu_PanelRowOffset(), 6, GetMonData(mon, MON_DATA_PERSONALITY), isEgg);
+    spriteId = CreateMonIconIsEgg(species, SpriteCB_MonIcon, PARTY_MON_ICON_X, PARTY_MON_ICON_Y(slot) + 8 * BagMenu_PanelRowOffset(), SUBPRIORITY_MON_ICON, GetMonData(mon, MON_DATA_PERSONALITY), isEgg);
 
     if (spriteId == MAX_SPRITES)
         return;
@@ -6161,7 +6171,7 @@ static void BagMenu_CreatePartyIcons(void)
         if (palSlot == 0xFF)
             palSlot = AllocSpritePalette(TAG_PARTY_HELD_ITEM);
         gBagMenu->heldItemPalIndex = OBJ_PLTT_ID(palSlot);
-        gBagMenu->heldItemIconSpriteId = CreateSprite(&sSpriteTemplate_HeldItemIcon, 0, 0, 5);
+        gBagMenu->heldItemIconSpriteId = CreateSprite(&sSpriteTemplate_HeldItemIcon, 0, 0, SUBPRIORITY_HELD_ITEM_ICON);
         gSprites[gBagMenu->heldItemIconSpriteId].invisible = TRUE;
     }
 
@@ -6202,7 +6212,7 @@ static void BagMenu_CreateStatusIcons(u8 count)
 
     for (i = 0; i < count; i++)
     {
-        u8 sid = CreateSprite(&sSpriteTemplate_StatusIcon, PARTY_STATUS_ICON_X, PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset(), 2);
+        u8 sid = CreateSprite(&sSpriteTemplate_StatusIcon, PARTY_STATUS_ICON_X, PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset(), SUBPRIORITY_STATUS_ICON);
         gBagMenu->statusIconSpriteIds[i] = (sid == MAX_SPRITES) ? SPRITE_NONE : sid;
     }
     BagMenu_UpdateStatusIcons();
@@ -6895,8 +6905,8 @@ static void BagMenu_ClosePartySelect(u8 taskId)
     if (iconSpriteId != SPRITE_NONE)
     {
         struct Sprite *spr = &gSprites[iconSpriteId];
-        spr->x2 = 102;
-        spr->y2 = BagList_RowSpriteY() + 4;
+        spr->x2 = ITEM_ICON_X;
+        spr->y2 = BagList_RowSpriteY() + ITEM_ICON_Y_OFFSET;
         spr->invisible = FALSE;
     }
 
@@ -8199,7 +8209,7 @@ static void Task_BagMenu_FormChangeAnim(u8 taskId)
             struct Sprite *icon;
 
             FreeAndDestroyMonIconSprite(&gSprites[gBagMenu->partyMonIconSpriteIds[slot]]);
-            spriteId = CreateMonIconIsEgg(newSpecies, SpriteCB_MonIcon, PARTY_MON_ICON_X, PARTY_MON_ICON_Y(slot) + 8 * BagMenu_PanelRowOffset(), 6, personality, FALSE);
+            spriteId = CreateMonIconIsEgg(newSpecies, SpriteCB_MonIcon, PARTY_MON_ICON_X, PARTY_MON_ICON_Y(slot) + 8 * BagMenu_PanelRowOffset(), SUBPRIORITY_MON_ICON, personality, FALSE);
             gBagMenu->partyMonIconSpriteIds[slot] = spriteId;
             icon = &gSprites[spriteId];
             icon->oam.priority = 2;
@@ -9058,7 +9068,7 @@ static void BagMenu_TryMultiUse(u8 taskId)
 
 static void BagMenu_InitMultiUseInput(u8 taskId)
 {
-    CreateQuantityFrameSprites(96);
+    CreateQuantityFrameSprites(QUANTITY_FRAME_Y);
     PrintQuantity(1);
     gTasks[taskId].func = Task_BagMenu_MultiUseInput;
 }
