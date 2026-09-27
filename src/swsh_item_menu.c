@@ -44,6 +44,8 @@
 #include "sprite.h"
 #include "strings.h"
 #include "string_util.h"
+#include "swsh_graphics.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text_window.h"
 #include "menu_helpers.h"
@@ -80,11 +82,8 @@
 #define TAG_BAG_SCROLL_THUMB     114
 #define TAG_MOVE_TYPE_ICON       115
 #define TAG_CATEGORY_ICON        116
-#define TAG_SPINNER_ARROW        117
-#define TAG_FRAME_QUANTITY       118
 #define TAG_MONEY_LABEL          119
 #define TAG_PARTY_HELD_ITEM      120
-#define TAG_STATUS_ICON          121
 
 // The buffer for the bag item list needs to be large enough to hold the maximum
 // number of item slots that could fit in a single pocket, + 1 for Cancel.
@@ -104,21 +103,6 @@ enum {
     SWITCH_POCKET_LEFT,
     SWITCH_POCKET_RIGHT
 };
-
-enum {
-    SPINNER_ARROW_UP,
-    SPINNER_ARROW_DOWN,
-};
-
-enum {
-    SPINNER_ARROW_STATIC,
-    SPINNER_ARROW_ANIM,
-    SPINNER_ARROW_LOOP,
-};
-
-#define SPINNER_ARROW_Y_OFFSET      10
-#define SPINNER_ARROW_LOOP_FRAMES   8
-#define SPINNER_ARROW_ANIM_FRAMES   3
 
 enum {
     ACTION_USE,
@@ -222,7 +206,6 @@ static void AllocateBagItemListBuffers(void);
 static void LoadBagItemListBuffers(u8);
 static void PrintPocketName(const u8 *);
 static void SpriteCB_CursorBob(struct Sprite *);
-static void StartBagCursorBob(u8);
 static void SpriteCB_SlideCursorY(struct Sprite *);
 static void SpriteCB_BagScrollThumb(struct Sprite *);
 static void SpriteCB_PocketScrollArrow(struct Sprite *);
@@ -260,7 +243,6 @@ static void BuildBattlePocketLists(void);
 static void GetItemNameFromPocket(u8 *dest, enum Item itemId);
 static void PrintItemDescription(int);
 static void UpdateEmptyPocket(void);
-static u8 FormatDescriptionByWidth(u8 *, s32, s32, u8, const u8 *, s16);
 static void BagMenu_Print(u8, u8, const u8 *, u8, u8, u8, u8, u8, u8);
 static void Task_CloseBagMenu(u8);
 static u8 AddItemMessageWindow(u8);
@@ -289,16 +271,8 @@ static void ItemMenu_Cancel(u8);
 static void HandleErrorMessage(u8);
 static void PrintItemCantBeHeld(u8);
 static u8 BagMenu_AddWindowNoFrame(u8 windowType);
-static void CreateQuantityFrameSprites(u8 y);
-static void SpriteCB_SpinnerArrow(struct Sprite *);
-static void CreateSpinnerArrowSprites(s16 x, s16 y, u8 mode);
-static void DestroySpinnerArrowSprites(void);
-static void AnimateQuantitySpinner(void);
-static void DestroyQuantityFrameSprites(void);
 static void SetupSellWindows(void);
 static void PrintSellPrice(u16 itemId);
-static void PrintQuantity(s16 quantity);
-static void PrintSellTotal(u32 total);
 static void PrintMoney(u8 windowId);
 static void UpdateSellPrice(u16 itemId);
 static void DisplaySellItemPriceAndConfirm(u8);
@@ -746,53 +720,8 @@ static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 static const struct SpriteTemplate sSpriteTemplate_Cursor =
 {
     .tileTag = TAG_ITEM_CURSOR,
-    .paletteTag = TAG_STATUS_ICON,
+    .paletteTag = TAG_SWSH_UI_PAL,
     .oam = &sOamData_Cursor,
-};
-
-
-static const struct CompressedSpriteSheet sSpriteSheet_SpinnerArrow =
-{
-    .data = gSpinnerArrowSwSh_Gfx,
-    .size = (16 * 8) / 2,
-    .tag = TAG_SPINNER_ARROW,
-};
-
-static const struct OamData sOamData_SpinnerArrow =
-{
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(16x8),
-    .size = SPRITE_SIZE(16x8),
-    .priority = 1,
-};
-
-static const union AnimCmd sAnim_SpinnerArrowUp[] =
-{
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sAnim_SpinnerArrowDown[] =
-{
-    ANIMCMD_FRAME(0, 0, FALSE, TRUE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sAnims_SpinnerArrow[] =
-{
-    [SPINNER_ARROW_UP]   = sAnim_SpinnerArrowUp,
-    [SPINNER_ARROW_DOWN] = sAnim_SpinnerArrowDown,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_SpinnerArrow =
-{
-    .tileTag = TAG_SPINNER_ARROW,
-    .paletteTag = TAG_STATUS_ICON,
-    .oam = &sOamData_SpinnerArrow,
-    .anims = sAnims_SpinnerArrow,
-    .callback = SpriteCB_SpinnerArrow,
 };
 
 static const struct OamData sOamData_HoverSlot =
@@ -966,70 +895,6 @@ static const struct SpriteTemplate sSpriteTemplate_HeldItemIcon =
     .oam = &sOamData_HeldItemIcon,
     .affineAnims = sAffineAnims_HeldItemIcon,
 };
-
-static const struct OamData sOamData_StatusIcon =
-{
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(32x8),
-    .size = SPRITE_SIZE(32x8),
-    .priority = 1,
-};
-
-// order of shared status icons sheet
-enum StatusIcon
-{
-    STATUS_ICON_PSN,
-    STATUS_ICON_PRZ,
-    STATUS_ICON_SLP,
-    STATUS_ICON_FRZ,
-    STATUS_ICON_BRN,
-    STATUS_ICON_PKRS,
-    STATUS_ICON_FNT,
-    STATUS_ICON_FRB,
-    STATUS_ICON_TOX,
-    STATUS_ICON_COUNT,
-    STATUS_ICON_NONE = STATUS_ICON_COUNT,
-};
-
-static const union AnimCmd sSpriteAnim_StatusPoison[]    = { ANIMCMD_FRAME(0,  0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusParalyzed[] = { ANIMCMD_FRAME(4,  0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusSleep[]     = { ANIMCMD_FRAME(8,  0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusFrozen[]    = { ANIMCMD_FRAME(12, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusBurn[]      = { ANIMCMD_FRAME(16, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusPokerus[]   = { ANIMCMD_FRAME(20, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusFaint[]     = { ANIMCMD_FRAME(24, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusFrostbite[] = { ANIMCMD_FRAME(28, 0), ANIMCMD_END };
-static const union AnimCmd sSpriteAnim_StatusToxic[]     = { ANIMCMD_FRAME(32, 0), ANIMCMD_END };
-
-static const union AnimCmd *const sSpriteAnims_StatusIcon[] =
-{
-    [STATUS_ICON_PSN]  = sSpriteAnim_StatusPoison,
-    [STATUS_ICON_PRZ]  = sSpriteAnim_StatusParalyzed,
-    [STATUS_ICON_SLP]  = sSpriteAnim_StatusSleep,
-    [STATUS_ICON_FRZ]  = sSpriteAnim_StatusFrozen,
-    [STATUS_ICON_BRN]  = sSpriteAnim_StatusBurn,
-    [STATUS_ICON_PKRS] = sSpriteAnim_StatusPokerus,
-    [STATUS_ICON_FNT]  = sSpriteAnim_StatusFaint,
-    [STATUS_ICON_FRB]  = sSpriteAnim_StatusFrostbite,
-    [STATUS_ICON_TOX]  = sSpriteAnim_StatusToxic,
-};
-
-static const struct CompressedSpriteSheet sSpriteSheet_StatusIcon =
-{
-    .data = gStatusIconsSwSh_Gfx,
-    .size = 32 * 8 * STATUS_ICON_COUNT / 2,
-    .tag = TAG_STATUS_ICON,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_StatusIcon =
-{
-    .tileTag = TAG_STATUS_ICON,
-    .paletteTag = TAG_STATUS_ICON,
-    .oam = &sOamData_StatusIcon,
-    .anims = sSpriteAnims_StatusIcon,
-};
 #endif // SWSH_BAG_IN_BAG_USE
 
 static const struct OamData sOamData_MoveTypeIcon =
@@ -1095,46 +960,9 @@ static const struct CompressedSpriteSheet sSpriteSheet_CategoryIcon =
 static const struct SpriteTemplate sSpriteTemplate_CategoryIcon =
 {
     .tileTag = TAG_CATEGORY_ICON,
-    .paletteTag = TAG_STATUS_ICON,
+    .paletteTag = TAG_SWSH_UI_PAL,
     .oam = &sOamData_CategoryIcon,
     .anims = sSpriteAnimTable_CategoryIcons,
-};
-
-static const struct OamData sOamData_FrameQuantity =
-{
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(64x32),
-    .size = SPRITE_SIZE(64x32),
-    .priority = 1,
-};
-
-static const union AnimCmd sSpriteAnim_FrameQuantity_0[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_FrameQuantity_1[] = {
-    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd *const sSpriteAnimTable_FrameQuantity[] = {
-    sSpriteAnim_FrameQuantity_0,
-    sSpriteAnim_FrameQuantity_1,
-};
-static const u8 sFrameQuantityAnims[FRAME_QUANTITY_SPRITES_COUNT] = {0, 1};
-
-static const struct CompressedSpriteSheet sSpriteSheet_FrameQuantity = {
-    .data = gQuantityFrameSwSh_Gfx,
-    .size = (64 * 64) / 2,
-    .tag = TAG_FRAME_QUANTITY,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_FrameQuantity = {
-    .tileTag = TAG_FRAME_QUANTITY,
-    .paletteTag = TAG_STATUS_ICON,
-    .oam = &sOamData_FrameQuantity,
-    .anims = sSpriteAnimTable_FrameQuantity,
 };
 
 static const struct OamData sOamData_MoneyLabel =
@@ -1868,7 +1696,7 @@ static void BagMenu_AllocObjPalettes(void)
     AllocSpritePalette(TAG_BAG_UI_PAL);         // Pal 0
     AllocSpritePalette(TAG_BAG_ITEM_ICON_0);    // Pal 1
     AllocSpritePalette(TAG_BAG_ITEM_ICON_1);    // Pal 2
-    AllocSpritePalette(TAG_STATUS_ICON);        // Pal 3, shared SwSh palette
+    AllocSpritePalette(TAG_SWSH_UI_PAL);        // Pal 3, shared SwSh palette
 }
 
 static bool8 SetupBagMenu(void)
@@ -2123,7 +1951,7 @@ static bool8 LoadBagMenu_Graphics(void)
         break;
     case 6:
         LoadPalette(sBagUI_Pal, OBJ_PLTT_ID(0), PLTT_SIZE_4BPP);
-        LoadPalette(gStatusIconsSwSh_Pal, OBJ_PLTT_ID(IndexOfSpritePaletteTag(TAG_STATUS_ICON)), PLTT_SIZE_4BPP);
+        LoadPalette(gStatusIconsSwSh_Pal, OBJ_PLTT_ID(IndexOfSpritePaletteTag(TAG_SWSH_UI_PAL)), PLTT_SIZE_4BPP);
         gBagMenu->graphicsLoadState++;
         break;
     case 7:
@@ -2139,16 +1967,15 @@ static bool8 LoadBagMenu_Graphics(void)
         gBagMenu->graphicsLoadState++;
         break;
     case 10:
-        gBagMenu->moveTypeIconsCache = Alloc(32 * 416 / 2);
-        DecompressDataWithHeaderWram(gMoveTypesSwSh_Gfx, gBagMenu->moveTypeIconsCache);
+        gBagMenu->moveTypeIconsCache = LoadMoveTypeIconCache();
         gBagMenu->graphicsLoadState++;
         break;
     case 11:
-        LoadCompressedSpriteSheet(&sSpriteSheet_SpinnerArrow);
+        LoadCompressedSpriteSheet(&gSpriteSheet_SpinnerArrowSwSh);
         gBagMenu->graphicsLoadState++;
         break;
     case 12:
-        LoadCompressedSpriteSheet(&sSpriteSheet_FrameQuantity);
+        LoadCompressedSpriteSheet(&gSpriteSheet_QuantityFrameSwSh);
         gBagMenu->graphicsLoadState++;
         break;
     default:
@@ -2478,9 +2305,7 @@ static void GetItemNameFromPocket(u8 *dest, enum Item itemId)
 #define LIST_CURSOR_X               (ITEM_ICON_X - ITEM_ICON_TO_CURSOR_X)
 #define HOVER_SLOT_X                150
 #define QUANTITY_FRAME_X            144
-#define QUANTITY_FRAME_SPACING      64
 #define QUANTITY_FRAME_Y            96
-#define QUANTITY_SPINNER_X          152
 #define SWAP_SPINNER_X              98
 #define POCKET_ARROW_LEFT_X         112
 #define POCKET_ARROW_RIGHT_X        215
@@ -2514,7 +2339,7 @@ static void CreateCursorSprite(void)
     });
 
     gBagMenu->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY, SUBPRIORITY_CURSOR);
-    StartBagCursorBob(gBagMenu->cursorSpriteId);
+    StartCursorBob(gBagMenu->cursorSpriteId, &gBagMenu->cursorBobAnimId);
     gSprites[gBagMenu->cursorSpriteId].callback = SpriteCB_SlideCursorY;
 }
 
@@ -2612,55 +2437,10 @@ static void CreateHoverSlotSprite(void)
     SetSubspriteTables(&gSprites[gBagMenu->hoverSlotSpriteId], sSubspriteTable_HoverSlot);
 }
 
-#define CURSOR_BOB_RANGE 3
-#define CURSOR_BOB_FRAMES 20
-#define sBobTarget data[0]
-
 static void SpriteCB_CursorBob(struct Sprite *sprite)
 {
-    struct ComfyAnim *bob;
-
-    if (gBagMenu->cursorBobAnimId == INVALID_COMFY_ANIM)
-        return;
-
-    bob = &gComfyAnims[gBagMenu->cursorBobAnimId];
-
-    if (bob->completed && sprite->x2 == sprite->sBobTarget)
-    {
-        sprite->sBobTarget = (sprite->sBobTarget == 0) ? CURSOR_BOB_RANGE : 0;
-        InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
-            .from = Q_24_8(sprite->x2),
-            .to = Q_24_8(sprite->sBobTarget),
-            .durationFrames = CURSOR_BOB_FRAMES,
-            .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-        }, bob);
-        TryAdvanceComfyAnim(bob);
-    }
-
-    sprite->x2 = ReadComfyAnimValueSmooth(bob);
+    UpdateCursorBob(sprite, gBagMenu->cursorBobAnimId);
 }
-
-static void StartBagCursorBob(u8 spriteId)
-{
-    struct ComfyAnimEasingConfig config = {
-        .from = Q_24_8(0),
-        .to = Q_24_8(CURSOR_BOB_RANGE),
-        .durationFrames = CURSOR_BOB_FRAMES,
-        .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-    };
-
-    if (gBagMenu->cursorBobAnimId == INVALID_COMFY_ANIM)
-        gBagMenu->cursorBobAnimId = CreateComfyAnim_Easing(&config);
-    else
-        InitComfyAnim_Easing(&config, &gComfyAnims[gBagMenu->cursorBobAnimId]);
-
-    gSprites[spriteId].x2 = 0;
-    gSprites[spriteId].sBobTarget = CURSOR_BOB_RANGE;
-}
-
-#undef CURSOR_BOB_RANGE
-#undef CURSOR_BOB_FRAMES
-#undef sBobTarget
 
 static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 {
@@ -3331,8 +3111,9 @@ void CloseItemMessage(u8 taskId)
 
 static void AddItemQuantityWindow(void)
 {
-    CreateQuantityFrameSprites(QUANTITY_FRAME_Y);
-    PrintQuantity(1);
+    CreateQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds,
+                               QUANTITY_FRAME_X, QUANTITY_FRAME_Y, 1, SUBPRIORITY_SPINNER_ARROW);
+    PrintQuantityFrameCount(gBagMenu->frameQuantityIds[0], 1);
 }
 
 static void Task_BagMenu_HandleInput(u8 taskId)
@@ -3653,7 +3434,7 @@ static void StartItemSwap(u8 taskId)
     tListPosition = gBagPosition.scrollPosition[gBagPosition.pocket] + gBagPosition.cursorPosition[gBagPosition.pocket];
     gBagMenu->toSwapPos = tListPosition;
     gSprites[gBagMenu->cursorSpriteId].invisible = TRUE;
-    CreateSpinnerArrowSprites(SWAP_SPINNER_X, cursorY, SPINNER_ARROW_LOOP);
+    CreateSpinnerArrowSprites(gBagMenu->spinnerArrowSpriteIds, SWAP_SPINNER_X, cursorY, SPINNER_ARROW_LOOP, 1, SUBPRIORITY_SPINNER_ARROW);
     gTasks[taskId].func = Task_HandleSwappingItemsInput;
 }
 
@@ -3669,7 +3450,7 @@ static void Task_HandleSwappingItemsInput(u8 taskId)
         {
             PlaySE(SE_SELECT);
             gBagMenu->toSwapPos = NOT_SWAPPING;
-            DestroySpinnerArrowSprites();
+            DestroySpinnerArrowSprites(gBagMenu->spinnerArrowSpriteIds);
             gSprites[gBagMenu->cursorSpriteId].invisible = FALSE;
             gTasks[taskId].func = Task_BagMenu_HandleInput;
         }
@@ -4057,19 +3838,19 @@ static void Task_ChooseHowManyToToss(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
-        PrintQuantity(tItemCount);
-        AnimateQuantitySpinner();
+        PrintQuantityFrameCount(gBagMenu->frameQuantityIds[0], tItemCount);
+        AnimateQuantitySpinner(gBagMenu->spinnerArrowSpriteIds);
     }
     else if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
         AskTossItems(taskId);
     }
     else if (JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
         CancelToss(taskId);
     }
 }
@@ -4323,7 +4104,7 @@ static void DisplaySellItemPriceAndConfirm(u8 taskId)
 static void AskSellItems(u8 taskId)
 {
     if (gBagMenu->frameQuantityIds[0] != SPRITE_NONE)
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
     BagMenu_YesNo(taskId, ITEMWIN_YESNO_HIGH, &sYesNoSellItemFunctions);
 }
 
@@ -4335,9 +4116,12 @@ static void CancelSell(u8 taskId)
 
 static void InitSellHowManyInput(u8 taskId)
 {
-    CreateQuantityFrameSprites(QUANTITY_FRAME_Y);
-    PrintQuantity(1);
-    PrintSellTotal(GetItemSellPrice(gSpecialVar_ItemId));
+    CreateQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds,
+                               QUANTITY_FRAME_X, QUANTITY_FRAME_Y, 1, SUBPRIORITY_SPINNER_ARROW);
+    PrintQuantityFrameCount(gBagMenu->frameQuantityIds[0], 1);
+    ConvertMoneyToCommaString(gStringVar1, GetItemSellPrice(gSpecialVar_ItemId));
+    StringExpandPlaceholders(gStringVar4, gText_PokedollarVar1);
+    PrintQuantityFrameTotal(gBagMenu->frameQuantityIds[1], gStringVar4);
     gTasks[taskId].func = Task_ChooseHowManyToSell;
 }
 
@@ -4347,9 +4131,11 @@ static void Task_ChooseHowManyToSell(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
-        PrintQuantity(tItemCount);
-        PrintSellTotal(GetItemSellPrice(gSpecialVar_ItemId) * tItemCount);
-        AnimateQuantitySpinner();
+        PrintQuantityFrameCount(gBagMenu->frameQuantityIds[0], tItemCount);
+        ConvertMoneyToCommaString(gStringVar1, GetItemSellPrice(gSpecialVar_ItemId) * tItemCount);
+        StringExpandPlaceholders(gStringVar4, gText_PokedollarVar1);
+        PrintQuantityFrameTotal(gBagMenu->frameQuantityIds[1], gStringVar4);
+        AnimateQuantitySpinner(gBagMenu->spinnerArrowSpriteIds);
     }
     else if (JOY_NEW(A_BUTTON))
     {
@@ -4359,7 +4145,7 @@ static void Task_ChooseHowManyToSell(u8 taskId)
     else if (JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         ReturnToItemList(taskId);
     }
@@ -4426,19 +4212,19 @@ static void Task_ChooseHowManyToDeposit(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tQuantity) == TRUE)
     {
-        PrintQuantity(tItemCount);
-        AnimateQuantitySpinner();
+        PrintQuantityFrameCount(gBagMenu->frameQuantityIds[0], tItemCount);
+        AnimateQuantitySpinner(gBagMenu->spinnerArrowSpriteIds);
     }
     else if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
         TryDepositItem(taskId);
     }
     else if (JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         ReturnToItemList(taskId);
     }
@@ -4720,125 +4506,6 @@ static void DrawFrameTilemap(const u8 *tilemap, u8 left, u8 top, u8 width, u8 he
     ScheduleBgCopyTilemapToVram(2);
 }
 
-#define sDir    data[0]  // -1 = up, +1 = down
-#define sMode   data[1]
-#define sTimer  data[2]
-#define sStep   data[3]
-
-static const u8 sSpinnerArrowOffsets[] = {0, 1, 2, 1};
-
-static void SpriteCB_SpinnerArrow(struct Sprite *sprite)
-{
-    u8 stepFrames;
-
-    if (sprite->sMode == SPINNER_ARROW_STATIC)
-        return;
-
-    stepFrames = (sprite->sMode == SPINNER_ARROW_LOOP) ? SPINNER_ARROW_LOOP_FRAMES : SPINNER_ARROW_ANIM_FRAMES;
-    if (++sprite->sTimer < stepFrames)
-        return;
-
-    sprite->sTimer = 0;
-    if (++sprite->sStep >= (s16)ARRAY_COUNT(sSpinnerArrowOffsets))
-    {
-        sprite->sStep = 0;
-        if (sprite->sMode == SPINNER_ARROW_ANIM)
-            sprite->sMode = SPINNER_ARROW_STATIC;
-    }
-    sprite->y2 = sprite->sDir * sSpinnerArrowOffsets[sprite->sStep];
-}
-
-static void CreateSpinnerArrowSprites(s16 x, s16 y, u8 mode)
-{
-    u8 i;
-
-    for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
-    {
-        s8 dir = (i == SPINNER_ARROW_UP) ? -1 : 1;
-        u8 spriteId = CreateSprite(&sSpriteTemplate_SpinnerArrow, x, y + dir * SPINNER_ARROW_Y_OFFSET, SUBPRIORITY_SPINNER_ARROW);
-
-        StartSpriteAnim(&gSprites[spriteId], i);
-        gSprites[spriteId].sDir = dir;
-        gSprites[spriteId].sMode = mode;
-        gBagMenu->spinnerArrowSpriteIds[i] = spriteId;
-    }
-}
-
-static void DestroySpinnerArrowSprites(void)
-{
-    u8 i;
-
-    for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
-    {
-        if (gBagMenu->spinnerArrowSpriteIds[i] != SPRITE_NONE)
-        {
-            DestroySprite(&gSprites[gBagMenu->spinnerArrowSpriteIds[i]]);
-            gBagMenu->spinnerArrowSpriteIds[i] = SPRITE_NONE;
-        }
-    }
-}
-
-static void AnimateQuantitySpinner(void)
-{
-    u16 dpad = JOY_REPEAT(DPAD_ANY);
-    u8 arrowIdx, spriteId;
-
-    if (dpad == DPAD_UP || dpad == DPAD_RIGHT)
-        arrowIdx = SPINNER_ARROW_UP;
-    else if (dpad == DPAD_DOWN || dpad == DPAD_LEFT)
-        arrowIdx = SPINNER_ARROW_DOWN;
-    else
-        return;
-
-    spriteId = gBagMenu->spinnerArrowSpriteIds[arrowIdx];
-    if (spriteId == SPRITE_NONE || gSprites[spriteId].sMode != SPINNER_ARROW_STATIC)
-        return;
-
-    gSprites[spriteId].sMode = SPINNER_ARROW_ANIM;
-    gSprites[spriteId].sTimer = 0;
-    gSprites[spriteId].sStep = 0;
-}
-
-#undef sDir
-#undef sMode
-#undef sTimer
-#undef sStep
-
-#define QUANTITY_FILL_INDEX     13
-#define QUANTITY_COUNT_LEFT     16
-#define QUANTITY_COUNT_RIGHT    48
-#define QUANTITY_COUNT_TOP      8
-#define QUANTITY_TOTAL_RIGHT    48
-
-static void CreateQuantityFrameSprites(u8 y)
-{
-    u8 i;
-    for (i = 0; i < FRAME_QUANTITY_SPRITES_COUNT; i++)
-    {
-        gBagMenu->frameQuantityIds[i] = CreateSprite(&sSpriteTemplate_FrameQuantity, QUANTITY_FRAME_X + i * QUANTITY_FRAME_SPACING, y, SUBPRIORITY_QUANTITY_FRAME);
-        StartSpriteAnim(&gSprites[gBagMenu->frameQuantityIds[i]], sFrameQuantityAnims[i]);
-        SetSpriteSheetFrameTileNum(&gSprites[gBagMenu->frameQuantityIds[i]]);
-    }
-    FillSpriteRectColor(
-        gBagMenu->frameQuantityIds[1], 0, QUANTITY_COUNT_TOP, QUANTITY_TOTAL_RIGHT,
-        GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
-    CreateSpinnerArrowSprites(QUANTITY_SPINNER_X, y, SPINNER_ARROW_STATIC);
-}
-
-static void DestroyQuantityFrameSprites(void)
-{
-    u8 i;
-    for (i = 0; i < FRAME_QUANTITY_SPRITES_COUNT; i++)
-    {
-        if (gBagMenu->frameQuantityIds[i] != SPRITE_NONE)
-        {
-            DestroySprite(&gSprites[gBagMenu->frameQuantityIds[i]]);
-            gBagMenu->frameQuantityIds[i] = SPRITE_NONE;
-        }
-    }
-    DestroySpinnerArrowSprites();
-}
-
 static u8 BagMenu_AddWindowNoFrame(u8 windowType)
 {
     u8 *windowId = &gBagMenu->windowIds[windowType];
@@ -4847,28 +4514,6 @@ static u8 BagMenu_AddWindowNoFrame(u8 windowType)
     PutWindowTilemap(*windowId);
     ScheduleBgCopyTilemapToVram(0);
     return *windowId;
-}
-
-// Writes amount into dest with a comma every three digits, e.g. 123456 -> "123,456".
-static void ConvertMoneyToCommaString(u8 *dest, u32 amount)
-{
-    u8 digits[MAX_MONEY_DIGITS];
-    u8 count = 0;
-    s8 i;
-
-    do
-    {
-        digits[count++] = amount % 10;
-        amount /= 10;
-    } while (amount != 0 && count < MAX_MONEY_DIGITS);
-
-    for (i = count - 1; i >= 0; i--)
-    {
-        *dest++ = CHAR_0 + digits[i];
-        if (i != 0 && i % 3 == 0)
-            *dest++ = CHAR_COMMA;
-    }
-    *dest = EOS;
 }
 
 #define SELL_PRICE_LABEL_Y   3
@@ -4928,39 +4573,6 @@ static void SetupSellWindows(void)
 static void UpdateSellPrice(u16 itemId)
 {
     PrintSellPrice(itemId);
-}
-
-static const union TextColor sQuantityTextColor =
-{
-    .background = 0,
-    .foreground = 12,
-    .shadow = 14,
-};
-
-static void PrintQuantity(s16 quantity)
-{
-    u8 spriteId = gBagMenu->frameQuantityIds[0];
-
-    ConvertIntToDecimalStringN(gStringVar1, quantity, STR_CONV_MODE_LEADING_ZEROS, MAX_ITEM_DIGITS);
-    StringExpandPlaceholders(gStringVar4, gText_xVar1);
-    FillSpriteRectColor(spriteId, QUANTITY_COUNT_LEFT, QUANTITY_COUNT_TOP,
-        QUANTITY_COUNT_RIGHT - QUANTITY_COUNT_LEFT, GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
-    AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
-        GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_COUNT_RIGHT), QUANTITY_COUNT_TOP,
-        0, 0, sQuantityTextColor, 0, gStringVar4);
-}
-
-static void PrintSellTotal(u32 total)
-{
-    u8 spriteId = gBagMenu->frameQuantityIds[1];
-
-    ConvertMoneyToCommaString(gStringVar1, total);
-    StringExpandPlaceholders(gStringVar4, gText_PokedollarVar1);
-    FillSpriteRectColor(spriteId, 0, QUANTITY_COUNT_TOP,
-        QUANTITY_TOTAL_RIGHT, GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
-    AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
-        GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_TOTAL_RIGHT), QUANTITY_COUNT_TOP,
-        0, 0, sQuantityTextColor, 0, gStringVar4);
 }
 
 static void PrintMoney(u8 windowId)
@@ -5039,9 +4651,8 @@ static void SpriteCB_MoveTypeIcon(struct Sprite *sprite)
 {
     if (sprite->data[0] != 0xFF)
     {
-        u32 offset = sprite->data[0] * 0x100;
         if (gBagMenu->moveTypeIconTilesPtr != NULL)
-            RequestDma3Copy(&gBagMenu->moveTypeIconsCache[offset], gBagMenu->moveTypeIconTilesPtr, 0x100, 0x10);
+            CopyMoveTypeIconTiles(gBagMenu->moveTypeIconsCache, sprite->data[0], gBagMenu->moveTypeIconTilesPtr);
         sprite->data[0] = 0xFF;
     }
 }
@@ -5125,7 +4736,7 @@ static void SwitchMoveInfoMode(s32 itemIndex)
 
         LoadPalette(gMoveTypesSwSh_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
         {
-            struct SpriteSheet sheet = { .data = gBagMenu->moveTypeIconsCache, .size = 0x100, .tag = TAG_MOVE_TYPE_ICON };
+            struct SpriteSheet sheet = { .data = gBagMenu->moveTypeIconsCache, .size = MOVE_TYPE_ICON_SIZE, .tag = TAG_MOVE_TYPE_ICON };
             LoadSpriteSheet(&sheet);
         }
         LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcon);
@@ -5612,176 +5223,6 @@ static s32 CompareItemsByIndex(enum Pocket pocketId, struct ItemSlot item1, stru
     return 0; // Cannot have multiple stacks of indexed items
 }
 
-// Lookup table for hyphen-removal — specific compound words that are split with a hyphen
-// in vanilla item descriptions get rejoined so they don't look odd when reflowed.
-static const struct {
-    const char *before;
-    const char *after;
-} sHyphenRemovalPatterns[] = {
-    {"Incine", "roar"},
-    {"La",     "riat"},
-    {"Marsha", "dow"},
-    {"Thi",    "ef"},
-    {"Elec",   "tric"},
-    {"Fight",  "ing"},
-    {"pro",    "motes"},
-    {"Decidu", "eye"},
-    {"Sha",    "ckle"},
-    {"invigor","ating"},
-    {"Thunder","bolt"},
-    {"inde",   "scribable"},
-};
-
-static u8 AsciiToGbaChar(char c)
-{
-    if (c >= 'A' && c <= 'Z') return CHAR_A + (c - 'A');
-    if (c >= 'a' && c <= 'z') return CHAR_a + (c - 'a');
-    if (c >= '0' && c <= '9') return CHAR_0 + (c - '0');
-    return c;
-}
-
-static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
-{
-    u32 i;
-    for (i = 0; i < ARRAY_COUNT(sHyphenRemovalPatterns); i++)
-    {
-        const char *before = sHyphenRemovalPatterns[i].before;
-        const char *after  = sHyphenRemovalPatterns[i].after;
-        u32 beforeLen = 0, afterLen = 0;
-        u32 j;
-        bool32 matches;
-
-        while (before[beforeLen]) beforeLen++;
-        while (after[afterLen])  afterLen++;
-
-        if (p < start + beforeLen)
-            continue;
-
-        matches = TRUE;
-        for (j = 0; j < beforeLen; j++)
-        {
-            if (p[-(s32)beforeLen + j] != AsciiToGbaChar(before[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-        if (!matches)
-            continue;
-
-        for (j = 0; j < afterLen; j++)
-        {
-            if (p[1 + j] != AsciiToGbaChar(after[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-        if (matches)
-            return TRUE;
-    }
-
-    // Special case: Poké-mon
-    if (p >= start + 4 &&
-        p[-4] == CHAR_P && p[-3] == CHAR_o && p[-2] == CHAR_k && p[-1] == CHAR_e_ACUTE &&
-        p[1]  == CHAR_m && p[2]  == CHAR_o && p[3]  == CHAR_n)
-        return TRUE;
-
-    return FALSE;
-}
-
-static bool32 PerformTextFormatting(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
-{
-    u8 *end, *ptr, *curLine, *lastSpace;
-    u8 *limit = result + resultSize - 1;
-
-    end = result;
-    while (*str != EOS && end < limit)
-    {
-        if (*str == CHAR_SPACE || *str == CHAR_NEWLINE)
-        {
-            if (!(*str == CHAR_NEWLINE && end > result && *(end - 1) == CHAR_HYPHEN))
-            {
-                *end = EOS;
-                end++;
-            }
-        }
-        else
-        {
-            *end = *str;
-            end++;
-        }
-        str++;
-    }
-    *end = EOS;
-
-    {
-        u8 *p = result;
-        while (p < end)
-        {
-            if (*p == CHAR_HYPHEN && ShouldRemoveHyphen(p, result, end))
-            {
-                u8 *dst = p;
-                u8 *src = p + 1;
-                while (src <= end)
-                    *dst++ = *src++;
-                end--;
-            }
-            else
-            {
-                p++;
-            }
-        }
-    }
-
-    ptr = result;
-    curLine = ptr;
-    *outLineCount = 1;
-
-    while (*ptr != EOS) ptr++;
-
-    while (ptr != end)
-    {
-        lastSpace = ptr++;
-        *lastSpace = CHAR_SPACE;
-        if (GetStringWidth(fontId, curLine, letterSpacing) > maxWidth)
-        {
-            *lastSpace = CHAR_NEWLINE;
-            (*outLineCount)++;
-            curLine = ptr;
-        }
-        while (*ptr != EOS) ptr++;
-    }
-
-    return (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
-}
-
-static u8 FormatDescriptionByWidth(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
-{
-    u32 lineCount;
-    bool32 lastLineFits;
-
-    while (TRUE)
-    {
-        lastLineFits = PerformTextFormatting(result, resultSize, maxWidth, fontId, str, letterSpacing, &lineCount);
-
-        if (lineCount < 3 && lastLineFits)
-            break;
-
-        if (fontId == FONT_SHORT_NARROW)
-        {
-            fontId = FONT_SHORT_NARROWER;
-            letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    return fontId;
-}
-
 #if SWSH_BAG_BERRY_STAT
 static void UpdateBerryInfo(s32 itemIndex)
 {
@@ -6159,7 +5600,7 @@ static void BagMenu_CreatePartyIcons(void)
 
     memset(gBagMenu->partyMonIconSpriteIds, SPRITE_NONE, sizeof(gBagMenu->partyMonIconSpriteIds));
     LoadMonIconPalettes();
-    LoadCompressedSpriteSheet(&sSpriteSheet_StatusIcon);
+    LoadCompressedSpriteSheet(&gSpriteSheet_StatusIconsSwSh);
 
     if (AllocItemIconTemporaryBuffers())
     {
@@ -6203,7 +5644,7 @@ static void BagMenu_FreePartyIcons(void)
     }
 
     BagMenu_DestroyStatusIcons();
-    FreeSpriteTilesByTag(TAG_STATUS_ICON);
+    FreeSpriteTilesByTag(TAG_SWSH_STATUS_ICONS);
 }
 
 static void BagMenu_CreateStatusIcons(u8 count)
@@ -6212,7 +5653,7 @@ static void BagMenu_CreateStatusIcons(u8 count)
 
     for (i = 0; i < count; i++)
     {
-        u8 sid = CreateSprite(&sSpriteTemplate_StatusIcon, PARTY_STATUS_ICON_X, PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset(), SUBPRIORITY_STATUS_ICON);
+        u8 sid = CreateSprite(&gSpriteTemplate_StatusIconsSwSh, PARTY_STATUS_ICON_X, PARTY_STATUS_ICON_Y(i) + 8 * BagMenu_PanelRowOffset(), SUBPRIORITY_STATUS_ICON);
         gBagMenu->statusIconSpriteIds[i] = (sid == MAX_SPRITES) ? SPRITE_NONE : sid;
     }
     BagMenu_UpdateStatusIcons();
@@ -6244,23 +5685,7 @@ static u32 BagMenu_GetMonStatusIcon(u8 slot)
     if (GetMonData(mon, MON_DATA_HP) == 0)
         return STATUS_ICON_FNT;
 
-    u32 status = GetMonData(mon, MON_DATA_STATUS);
-    if (status & STATUS1_TOXIC_POISON)
-        return STATUS_ICON_TOX;
-    if (status & STATUS1_PSN_ANY)
-        return STATUS_ICON_PSN;
-    if (status & STATUS1_PARALYSIS)
-        return STATUS_ICON_PRZ;
-    if (status & STATUS1_SLEEP)
-        return STATUS_ICON_SLP;
-    if (status & STATUS1_FREEZE)
-        return STATUS_ICON_FRZ;
-    if (status & STATUS1_BURN)
-        return STATUS_ICON_BRN;
-    if (status & STATUS1_FROSTBITE)
-        return STATUS_ICON_FRB;
-
-    return STATUS_ICON_NONE;
+    return GetStatusIconFromStatus(GetMonData(mon, MON_DATA_STATUS));
 }
 
 static void BagMenu_UpdateStatusIcons(void)
@@ -9068,8 +8493,9 @@ static void BagMenu_TryMultiUse(u8 taskId)
 
 static void BagMenu_InitMultiUseInput(u8 taskId)
 {
-    CreateQuantityFrameSprites(QUANTITY_FRAME_Y);
-    PrintQuantity(1);
+    CreateQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds,
+                               QUANTITY_FRAME_X, QUANTITY_FRAME_Y, 1, SUBPRIORITY_SPINNER_ARROW);
+    PrintQuantityFrameCount(gBagMenu->frameQuantityIds[0], 1);
     gTasks[taskId].func = Task_BagMenu_MultiUseInput;
 }
 
@@ -9079,20 +8505,20 @@ static void Task_BagMenu_MultiUseInput(u8 taskId)
 
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tMultiUseMax) == TRUE)
     {
-        PrintQuantity(tItemCount);
-        AnimateQuantitySpinner();
+        PrintQuantityFrameCount(gBagMenu->frameQuantityIds[0], tItemCount);
+        AnimateQuantitySpinner(gBagMenu->spinnerArrowSpriteIds);
     }
     else if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         BagMenu_UseItem(taskId);
     }
     else if (JOY_NEW(B_BUTTON))
     {
         PlaySE(SE_SELECT);
-        DestroyQuantityFrameSprites();
+        DestroyQuantityFrameSprites(gBagMenu->frameQuantityIds, gBagMenu->spinnerArrowSpriteIds);
         RemoveItemMessageWindow(ITEMWIN_MESSAGE);
         tItemCount = 1;
         gTasks[taskId].func = Task_BagMenu_PartyInput;

@@ -5,6 +5,7 @@
 #include "main.h"
 #include "menu_helpers.h"
 #include "swsh_item_menu.h"
+#include "swsh_utils.h"
 
 enum {
     ITEMMENULOCATION_FIELD,
@@ -83,8 +84,6 @@ enum BattlePocket
 
 #define ITEMMENU_SWAP_LINE_LENGTH 8  // Swap line is 8 sprites long
 #if SWSH_BAG_MENU
-#define FRAME_QUANTITY_SPRITES_COUNT    2
-#define SPINNER_ARROW_SPRITES_COUNT     2
 #define SCROLL_THUMB_SPRITES_COUNT      3
 #define PROMPT_WIDTH                    3
 #define PROMPT_HEIGHT                   3
@@ -151,7 +150,7 @@ struct BagMenu
     u8 hoverSlotSpriteId;
     u8 scrollThumbSpriteIds[SCROLL_THUMB_SPRITES_COUNT];
     u8 pocketScrollArrowSpriteIds[2];
-    u8 frameQuantityIds[FRAME_QUANTITY_SPRITES_COUNT];
+    u8 frameQuantityIds[QUANTITY_FRAME_SPRITES_COUNT];
     u8 moveInfoMode;
     u8 moveTypeIconSpriteId;
     u8 categoryIconSpriteId;
