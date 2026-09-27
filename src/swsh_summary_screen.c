@@ -47,6 +47,8 @@
 #include "sprite.h"
 #include "string_util.h"
 #include "strings.h"
+#include "swsh_graphics.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text.h"
 #include "tv.h"
@@ -193,21 +195,6 @@ enum SwShSummarySprites
 #else
     SPRITE_ARR_ID_COUNT = SPRITE_ARR_ID_DYNAMAX_LEVEL + DYNAMAX_LEVEL_SPRITES_COUNT,
 #endif
-};
-
-enum StatusIcon
-{
-    STATUS_ICON_PSN,
-    STATUS_ICON_PRZ,
-    STATUS_ICON_SLP,
-    STATUS_ICON_FRZ,
-    STATUS_ICON_BRN,
-    STATUS_ICON_PKRS,
-    STATUS_ICON_FNT,
-    STATUS_ICON_FRB,
-    STATUS_ICON_TOX,
-    STATUS_ICON_COUNT,
-    STATUS_ICON_NONE = STATUS_ICON_COUNT,
 };
 
 #define STATUS_ICON_X               205
@@ -486,8 +473,6 @@ static void SetStatusIconFadeSuspended(bool32);
 #endif
 static u8 AddWindowFromTemplateList(const struct WindowTemplate*, u8);
 static void ClearCancelText(void);
-static bool32 ShouldRemoveHyphen(const u8*, const u8*, const u8*);
-static u8 FormatTextByWidth(u8*, s32, u8, const u8*, s16);
 static void Task_ShowEffectTilemap(u8);
 static void Task_HideEffectTilemap(u8);
 static void ShowCategoryIcon(enum Move);
@@ -966,7 +951,6 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
     [PSS_PAGE_MEMO] = Task_PrintMemoPage,
 };
 
-#define TAG_MON_STATUS          30001
 #define TAG_MOVE_TYPES          30002
 #define TAG_MON_MARKINGS        30003
 #define TAG_SHINY_ICON          30004
@@ -1038,7 +1022,7 @@ static const union AnimCmd *const sSpriteAnimTable_CategoryIcons_SwSh[] =
 static const struct SpriteTemplate sSpriteTemplate_CategoryIcons =
 {
     .tileTag = TAG_CATEGORY_ICONS,
-    .paletteTag = TAG_MON_STATUS,
+    .paletteTag = TAG_SWSH_UI_PAL,
     .oam = &sOamData_CategoryIcons_SwSh,
     .anims = sSpriteAnimTable_CategoryIcons_SwSh,
 };
@@ -1553,7 +1537,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 static const struct SpriteTemplate sSpriteTemplate_Cursor =
 {
     .tileTag = TAG_MOVE_CURSOR,
-    .paletteTag = TAG_MON_STATUS,
+    .paletteTag = TAG_SWSH_UI_PAL,
     .oam = &sOamData_Cursor,
 };
 
@@ -1671,95 +1655,6 @@ static const struct SpriteTemplate sSpriteTemplate_DynamaxLevel =
     .paletteTag = TAG_DYNAMAX_LEVELS,
     .oam = &sOamData_DynamaxLevel,
     .anims = sSpriteAnimTable_DynamaxLevels,
-};
-
-static const struct OamData sOamData_StatusCondition =
-{
-    .y = 0,
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .mosaic = FALSE,
-    .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(32x8),
-    .x = 0,
-    .matrixNum = 0,
-    .size = SPRITE_SIZE(32x8),
-    .tileNum = 0,
-    .priority = 2,
-    .paletteNum = 0,
-    .affineParam = 0,
-};
-
-static const union AnimCmd sSpriteAnim_StatusPoison[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusParalyzed[] = {
-    ANIMCMD_FRAME(4, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusSleep[] = {
-    ANIMCMD_FRAME(8, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusFrozen[] = {
-    ANIMCMD_FRAME(12, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusBurn[] = {
-    ANIMCMD_FRAME(16, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusPokerus[] = {
-    ANIMCMD_FRAME(20, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusFaint[] = {
-    ANIMCMD_FRAME(24, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusFrostbite[] = {
-    ANIMCMD_FRAME(28, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_StatusToxic[] = {
-    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_StatusCondition[] = {
-    sSpriteAnim_StatusPoison,
-    sSpriteAnim_StatusParalyzed,
-    sSpriteAnim_StatusSleep,
-    sSpriteAnim_StatusFrozen,
-    sSpriteAnim_StatusBurn,
-    sSpriteAnim_StatusPokerus,
-    sSpriteAnim_StatusFaint,
-    sSpriteAnim_StatusFrostbite,
-    sSpriteAnim_StatusToxic,
-};
-
-STATIC_ASSERT(ARRAY_COUNT(sSpriteAnimTable_StatusCondition) == STATUS_ICON_COUNT, StatusIconAnimCount);
-
-static const struct CompressedSpriteSheet sSpriteSheet_StatusIcons =
-{
-    .data = gStatusIconsSwSh_Gfx,
-    .size = STATUS_ICON_COUNT * 4 * TILE_SIZE_4BPP,
-    .tag = TAG_MON_STATUS
-};
-
-static const struct SpritePalette sSpritePal_StatusIcons =
-{
-    .data = gStatusIconsSwSh_Pal,
-    .tag = TAG_MON_STATUS
-};
-
-static const struct SpriteTemplate sSpriteTemplate_StatusCondition =
-{
-    .tileTag = TAG_MON_STATUS,
-    .paletteTag = TAG_MON_STATUS,
-    .oam = &sOamData_StatusCondition,
-    .anims = sSpriteAnimTable_StatusCondition,
 };
 
 static const struct OamData sOamData_GenderIcons =
@@ -2373,11 +2268,11 @@ static bool8 DecompressGraphics(void)
         sMonSummaryScreen->switchCounter++;
         break;
     case 10:
-        LoadCompressedSpriteSheet(&sSpriteSheet_StatusIcons);
+        LoadCompressedSpriteSheet(&gSpriteSheet_StatusIconsSwSh);
         sMonSummaryScreen->switchCounter++;
         break;
     case 11:
-        LoadSpritePalette(&sSpritePal_StatusIcons);
+        LoadSpritePalette(&gSpritePalette_SwShUI);
         sMonSummaryScreen->switchCounter++;
         break;
     case 12:
@@ -4655,8 +4550,8 @@ static void PrintHeldItemInfo(void)
     fontId = GetFontIdToFit(text, PSS_DEFAULT_FONT, 0, 72);
     PrintTextOnWindowWithFont(windowId, text, 74, 5, 0, 0, fontId);
 
-    fontId = FormatTextByWidth(desc, 144, PSS_DEFAULT_FONT, description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
-    PrintTextOnWindowWithFont(windowId, desc, 0, 23, 1, 0, fontId);
+    fontId = FormatDescriptionByWidth(desc, sizeof(desc), 144, PSS_DEFAULT_FONT, description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, desc, 0, 23, 2, 0, fontId);
 }
 
 static void BufferStat(u8 *dst, u32 stat, u32 strId, u32 align)
@@ -5762,11 +5657,11 @@ static void PrintMoveDescription(enum Move move)
             {
                 u8 descFontId;
                 if (gMovesInfo[move].effect != EFFECT_PLACEHOLDER)
-                    descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gMovesInfo[move].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatDescriptionByWidth(desc, sizeof(desc), 136, PSS_DEFAULT_FONT, gMovesInfo[move].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
                 else
-                    descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gNotDoneYetDescription, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatDescriptionByWidth(desc, sizeof(desc), 136, PSS_DEFAULT_FONT, gNotDoneYetDescription, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
 
-                PrintTextOnWindowWithFont(windowId, desc, 0, 4, 1, 0, descFontId);
+                PrintTextOnWindowWithFont(windowId, desc, 0, 5, 2, 0, descFontId);
             }
             else
             {
@@ -5781,8 +5676,8 @@ static void PrintMoveDescription(enum Move move)
             HandleAppealJamTilemap(move);
             if (SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESC)
             {
-                u8 descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gContestEffects[GetMoveContestEffect(move)].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
-                PrintTextOnWindowWithFont(windowId, desc, 0, 4, 1, 0, descFontId);
+                u8 descFontId = FormatDescriptionByWidth(desc, sizeof(desc), 136, PSS_DEFAULT_FONT, gContestEffects[GetMoveContestEffect(move)].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+                PrintTextOnWindowWithFont(windowId, desc, 0, 5, 2, 0, descFontId);
             }
             else
             {
@@ -5853,8 +5748,8 @@ static void PrintHMMovesCantBeForgotten(void)
     u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_DESCRIPTION);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
 
-    u8 msgFontId = FormatTextByWidth(message, 136, PSS_DEFAULT_FONT, gText_HMMovesCantBeForgotten2, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
-    PrintTextOnWindowWithFont(windowId, message, 0, 4, 0, 2, msgFontId);
+    u8 msgFontId = FormatDescriptionByWidth(message, sizeof(message), 136, PSS_DEFAULT_FONT, gText_HMMovesCantBeForgotten2, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, message, 0, 5, 2, 2, msgFontId);
 }
 
 static void ShowCategoryIcon(enum Move move)
@@ -6463,21 +6358,9 @@ static u32 GetStatusIcon(struct Pokemon *mon)
     if (GetMonData(mon, MON_DATA_HP) == 0)
         return STATUS_ICON_FNT;
 
-    u32 status = GetMonData(mon, MON_DATA_STATUS);
-    if (status & STATUS1_TOXIC_POISON)
-        return STATUS_ICON_TOX;
-    if (status & STATUS1_PSN_ANY)
-        return STATUS_ICON_PSN;
-    if (status & STATUS1_SLEEP)
-        return STATUS_ICON_SLP;
-    if (status & STATUS1_PARALYSIS)
-        return STATUS_ICON_PRZ;
-    if (status & STATUS1_FREEZE)
-        return STATUS_ICON_FRZ;
-    if (status & STATUS1_BURN)
-        return STATUS_ICON_BRN;
-    if (status & STATUS1_FROSTBITE)
-        return STATUS_ICON_FRB;
+    u32 statusIcon = GetStatusIconFromStatus(GetMonData(mon, MON_DATA_STATUS));
+    if (statusIcon != STATUS_ICON_NONE)
+        return statusIcon;
     if (ShouldPokemonShowActivePokerus(mon))
         return STATUS_ICON_PKRS;
 
@@ -6495,7 +6378,8 @@ static void CreateStatusSprite(void)
         if (SWSH_SUMMARY_STATUS_ICON_FADE)
             y += STATUS_ICON_FADE_Y_OFFSET;
 
-        *spriteId = CreateSprite(&sSpriteTemplate_StatusCondition, STATUS_ICON_X, y, 6);
+        *spriteId = CreateSprite(&gSpriteTemplate_StatusIconsSwSh, STATUS_ICON_X, y, 6);
+        gSprites[*spriteId].oam.priority = 2;
 
         if (SWSH_SUMMARY_STATUS_ICON_FADE)
         {
@@ -6619,10 +6503,6 @@ static void UpdateStatusIconFade(void)
 
 #endif // SWSH_SUMMARY_STATUS_ICON_FADE
 
-#define CURSOR_BOB_RANGE 3
-#define CURSOR_BOB_FRAMES 20
-#define sBobTarget data[0]
-
 static void CreateCursorSprite(void)
 {
     if (sMonSummaryScreen->currPageIndex == PSS_PAGE_BATTLE_MOVES
@@ -6642,22 +6522,10 @@ static void CreateCursorSprite(void)
         else
             InitComfyAnim_Easing(&config, &gComfyAnims[sMonSummaryScreen->cursorAnimId]);
 
-        struct ComfyAnimEasingConfig bobConfig = {
-            .from = Q_24_8(0),
-            .to = Q_24_8(CURSOR_BOB_RANGE),
-            .durationFrames = CURSOR_BOB_FRAMES,
-            .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-        };
-
-        if (sMonSummaryScreen->cursorBobAnimId == INVALID_COMFY_ANIM)
-            sMonSummaryScreen->cursorBobAnimId = CreateComfyAnim_Easing(&bobConfig);
-        else
-            InitComfyAnim_Easing(&bobConfig, &gComfyAnims[sMonSummaryScreen->cursorBobAnimId]);
+        StartCursorBob(spriteId, &sMonSummaryScreen->cursorBobAnimId);
 
         sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MOVE_CURSOR] = spriteId;
         gSprites[spriteId].y2 = initialY2;
-        gSprites[spriteId].x2 = 0;
-        gSprites[spriteId].sBobTarget = CURSOR_BOB_RANGE;
         gSprites[spriteId].callback = SpriteCB_Cursor;
     }
 }
@@ -6686,30 +6554,8 @@ static void SpriteCB_Cursor(struct Sprite *sprite)
         }, anim);
 
     sprite->y2 = ReadComfyAnimValueSmooth(anim);
-
-    if (sMonSummaryScreen->cursorBobAnimId != INVALID_COMFY_ANIM)
-    {
-        struct ComfyAnim *bob = &gComfyAnims[sMonSummaryScreen->cursorBobAnimId];
-
-        if (bob->completed && sprite->x2 == sprite->sBobTarget)
-        {
-            sprite->sBobTarget = (sprite->sBobTarget == 0) ? CURSOR_BOB_RANGE : 0;
-            InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
-                .from = Q_24_8(sprite->x2),
-                .to = Q_24_8(sprite->sBobTarget),
-                .durationFrames = CURSOR_BOB_FRAMES,
-                .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-            }, bob);
-            TryAdvanceComfyAnim(bob);
-        }
-
-        sprite->x2 = ReadComfyAnimValueSmooth(bob);
-    }
+    UpdateCursorBob(sprite, sMonSummaryScreen->cursorBobAnimId);
 }
-
-#undef CURSOR_BOB_RANGE
-#undef CURSOR_BOB_FRAMES
-#undef sBobTarget
 
 static void LiftMoveSlot(u8 slot)
 {
@@ -6932,118 +6778,6 @@ static void UpdateMoveSlotPalette(void)
     }
 }
 
-
-// New helper function that performs the formatting logic
-static u8 PerformTextFormatting(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
-{
-    u8 *end, *ptr, *curLine, *lastSpace;
-
-    end = result;
-    // copy string, replacing spaces and line breaks with EOS
-    // EXCEPT: if newline follows a hyphen, skip the newline without adding EOS
-    while (*str != EOS)
-    {
-        if (*str == CHAR_SPACE || *str == CHAR_NEWLINE)
-        {
-            // Skip newline after hyphen, otherwise mark as break point
-            if (!(*str == CHAR_NEWLINE && end > result && *(end - 1) == CHAR_HYPHEN))
-            {
-                *end = EOS;
-                end++;
-            }
-        }
-        else
-        {
-            // Regular character - copy it
-            *end = *str;
-            end++;
-        }
-
-        str++;
-    }
-    *end = EOS; // now end points to the true end of the string
-
-    // Step 2: Remove hyphens for specific words only
-    u8 *p = result;
-    while (p < end)
-    {
-        if (*p == CHAR_HYPHEN && ShouldRemoveHyphen(p, result, end))
-        {
-            u8 *dst = p;
-            u8 *src = p + 1;
-            while (src <= end)
-                *dst++ = *src++;
-            end--;
-        }
-        else
-        {
-            p++;
-        }
-    }
-
-    ptr = result;
-    curLine = ptr;
-    *outLineCount = 1;
-
-    while (*ptr != EOS)
-        ptr++;
-    // now ptr is the first EOS char
-
-    while (ptr != end)
-    {
-        // all the EOS chars (except *end) must be replaced by either ' ' or '\n'
-        lastSpace = ptr++; // this points at the EOS
-
-        // check that adding the next word this line still fits
-        *lastSpace = CHAR_SPACE;
-        if (GetStringWidth(fontId, curLine, letterSpacing) > maxWidth)
-        {
-            *lastSpace = CHAR_NEWLINE;
-            (*outLineCount)++;
-            curLine = ptr;
-        }
-
-        while (*ptr != EOS)
-            ptr++;
-        // now ptr is the next EOS char
-    }
-
-    // Check if the last line also fits within maxWidth
-    return (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
-}
-
-// Original FormatTextByWidth function by Vexx on Ravepossum's branch
-// Modified here to use PerformTextFormatting and try 1-font narrower if needed
-static u8 FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
-{
-    u32 lineCount;
-    bool32 lastLineFits;
-
-    // Try formatting with progressively narrower fonts until it fits in 2 lines or fewer
-    while (TRUE)
-    {
-        lastLineFits = PerformTextFormatting(result, maxWidth, fontId, str, letterSpacing, &lineCount);
-
-        // If we have 2 or fewer lines AND the last line fits, we're done
-        if (lineCount < 3 && lastLineFits)
-            break;
-
-        // Try to get a narrower font
-        u8 narrowerFontId = fontId;
-        if (fontId == PSS_DEFAULT_FONT)
-            narrowerFontId = FONT_SHORT_NARROWER;
-
-        // If no narrower font available, use what we have
-        if (narrowerFontId == fontId)
-            break;
-
-        fontId = narrowerFontId;
-        letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
-    }
-
-    return fontId;
-}
-
 static inline bool32 ShouldShowMoveRelearner(void)
 {
     return (P_SUMMARY_SCREEN_MOVE_RELEARNER
@@ -7102,99 +6836,6 @@ static void CB2_ReturnToSummaryScreenFromNamingScreen(void)
 static void CB2_PssChangePokemonNickname(void)
 {
     ChangePokemonNicknameWithCallback(CB2_ReturnToSummaryScreenFromNamingScreen);
-}
-
-/*
-Montblanc note:
-- The functions below are used to remove hyphens from specific words when they are split across lines.
-- For example, Incineum Z has "Incine-\n" and "roar", which the previous formatter would have rendered: "Incine-roar"
-- Is this 100% overkill for just a few words? Yes.
-- Is it worth it to read item descriptions and not see random jank? My sanity says yes.
-*/
-// Lookup table for hyphen removal - stores both parts of hyphenated words
-static const struct HyphenPattern {
-    const char *before;
-    const char *after;
-} sHyphenRemovalPatterns[] = {
-    {"Incine", "roar"},
-    {"La", "riat"},
-    {"Marsha", "dow"},
-    {"Thi", "ef"},
-    {"Elec", "tric"},
-    {"Fight", "ing"},
-    {"pro", "motes"},
-    {"Decidu", "eye"},
-    {"Sha", "ckle"},
-    {"invigor", "ating"},
-    {"Thunder", "bolt"},
-    {"inde", "scribable"},
-};
-
-// Convert ASCII char to GBA charset equivalent
-static u8 AsciiToGbaChar(char c)
-{
-    if (c >= 'A' && c <= 'Z')
-        return CHAR_A + (c - 'A');
-    if (c >= 'a' && c <= 'z')
-        return CHAR_a + (c - 'a');
-    if (c >= '0' && c <= '9')
-        return CHAR_0 + (c - '0');
-    return c;
-}
-
-// Check if hyphen at position should be removed for specific words
-static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
-{
-    // Check all patterns in the table
-    for (u32 i = 0; i < ARRAY_COUNT(sHyphenRemovalPatterns); i++)
-    {
-        const char *before = sHyphenRemovalPatterns[i].before;
-        const char *after = sHyphenRemovalPatterns[i].after;
-
-        // Calculate lengths
-        u32 beforeLen = 0, afterLen = 0;
-        while (before[beforeLen]) beforeLen++;
-        while (after[afterLen]) afterLen++;
-
-        // Check bounds
-        if (p < start + beforeLen)
-            continue;
-
-        // Check "before" pattern
-        bool32 matches = TRUE;
-        for (u32 j = 0; j < beforeLen; j++)
-        {
-            if (p[-(s32)beforeLen + j] != AsciiToGbaChar(before[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-
-        if (!matches)
-            continue;
-
-        // Check "after" pattern
-        for (u32 j = 0; j < afterLen; j++)
-        {
-            if (p[1 + j] != AsciiToGbaChar(after[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-
-        if (matches)
-            return TRUE;
-    }
-
-    // Special case: Poké-mon (with é)
-    if (p >= start + 4 &&
-        p[-4] == CHAR_P && p[-3] == CHAR_o && p[-2] == CHAR_k && p[-1] == CHAR_e_ACUTE &&
-        p[1] == CHAR_m && p[2] == CHAR_o && p[3] == CHAR_n)
-        return TRUE;
-
-    return FALSE;
 }
 
 #endif
