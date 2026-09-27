@@ -47,6 +47,7 @@
 #include "sprite.h"
 #include "string_util.h"
 #include "strings.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text.h"
 #include "tv.h"
@@ -486,8 +487,6 @@ static void SetStatusIconFadeSuspended(bool32);
 #endif
 static u8 AddWindowFromTemplateList(const struct WindowTemplate*, u8);
 static void ClearCancelText(void);
-static bool32 ShouldRemoveHyphen(const u8*, const u8*, const u8*);
-static u8 FormatTextByWidth(u8*, s32, u8, const u8*, s16);
 static void Task_ShowEffectTilemap(u8);
 static void Task_HideEffectTilemap(u8);
 static void ShowCategoryIcon(enum Move);
@@ -4655,8 +4654,8 @@ static void PrintHeldItemInfo(void)
     fontId = GetFontIdToFit(text, PSS_DEFAULT_FONT, 0, 72);
     PrintTextOnWindowWithFont(windowId, text, 74, 5, 0, 0, fontId);
 
-    fontId = FormatTextByWidth(desc, 144, PSS_DEFAULT_FONT, description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
-    PrintTextOnWindowWithFont(windowId, desc, 0, 23, 1, 0, fontId);
+    fontId = FormatDescriptionByWidth(desc, sizeof(desc), 144, PSS_DEFAULT_FONT, description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, desc, 0, 23, 2, 0, fontId);
 }
 
 static void BufferStat(u8 *dst, u32 stat, u32 strId, u32 align)
@@ -5762,11 +5761,11 @@ static void PrintMoveDescription(enum Move move)
             {
                 u8 descFontId;
                 if (gMovesInfo[move].effect != EFFECT_PLACEHOLDER)
-                    descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gMovesInfo[move].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatDescriptionByWidth(desc, sizeof(desc), 136, PSS_DEFAULT_FONT, gMovesInfo[move].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
                 else
-                    descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gNotDoneYetDescription, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+                    descFontId = FormatDescriptionByWidth(desc, sizeof(desc), 136, PSS_DEFAULT_FONT, gNotDoneYetDescription, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
 
-                PrintTextOnWindowWithFont(windowId, desc, 0, 4, 1, 0, descFontId);
+                PrintTextOnWindowWithFont(windowId, desc, 0, 5, 2, 0, descFontId);
             }
             else
             {
@@ -5781,8 +5780,8 @@ static void PrintMoveDescription(enum Move move)
             HandleAppealJamTilemap(move);
             if (SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESC)
             {
-                u8 descFontId = FormatTextByWidth(desc, 136, PSS_DEFAULT_FONT, gContestEffects[GetMoveContestEffect(move)].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
-                PrintTextOnWindowWithFont(windowId, desc, 0, 4, 1, 0, descFontId);
+                u8 descFontId = FormatDescriptionByWidth(desc, sizeof(desc), 136, PSS_DEFAULT_FONT, gContestEffects[GetMoveContestEffect(move)].description, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+                PrintTextOnWindowWithFont(windowId, desc, 0, 5, 2, 0, descFontId);
             }
             else
             {
@@ -5853,8 +5852,8 @@ static void PrintHMMovesCantBeForgotten(void)
     u8 windowId = AddWindowFromTemplateList(sPageMovesTemplate, PSS_DATA_WINDOW_MOVE_DESCRIPTION);
     FillWindowPixelBuffer(windowId, PIXEL_FILL(0));
 
-    u8 msgFontId = FormatTextByWidth(message, 136, PSS_DEFAULT_FONT, gText_HMMovesCantBeForgotten2, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
-    PrintTextOnWindowWithFont(windowId, message, 0, 4, 0, 2, msgFontId);
+    u8 msgFontId = FormatDescriptionByWidth(message, sizeof(message), 136, PSS_DEFAULT_FONT, gText_HMMovesCantBeForgotten2, GetFontAttribute(PSS_DEFAULT_FONT, FONTATTR_LETTER_SPACING));
+    PrintTextOnWindowWithFont(windowId, message, 0, 5, 2, 2, msgFontId);
 }
 
 static void ShowCategoryIcon(enum Move move)
@@ -6932,118 +6931,6 @@ static void UpdateMoveSlotPalette(void)
     }
 }
 
-
-// New helper function that performs the formatting logic
-static u8 PerformTextFormatting(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
-{
-    u8 *end, *ptr, *curLine, *lastSpace;
-
-    end = result;
-    // copy string, replacing spaces and line breaks with EOS
-    // EXCEPT: if newline follows a hyphen, skip the newline without adding EOS
-    while (*str != EOS)
-    {
-        if (*str == CHAR_SPACE || *str == CHAR_NEWLINE)
-        {
-            // Skip newline after hyphen, otherwise mark as break point
-            if (!(*str == CHAR_NEWLINE && end > result && *(end - 1) == CHAR_HYPHEN))
-            {
-                *end = EOS;
-                end++;
-            }
-        }
-        else
-        {
-            // Regular character - copy it
-            *end = *str;
-            end++;
-        }
-
-        str++;
-    }
-    *end = EOS; // now end points to the true end of the string
-
-    // Step 2: Remove hyphens for specific words only
-    u8 *p = result;
-    while (p < end)
-    {
-        if (*p == CHAR_HYPHEN && ShouldRemoveHyphen(p, result, end))
-        {
-            u8 *dst = p;
-            u8 *src = p + 1;
-            while (src <= end)
-                *dst++ = *src++;
-            end--;
-        }
-        else
-        {
-            p++;
-        }
-    }
-
-    ptr = result;
-    curLine = ptr;
-    *outLineCount = 1;
-
-    while (*ptr != EOS)
-        ptr++;
-    // now ptr is the first EOS char
-
-    while (ptr != end)
-    {
-        // all the EOS chars (except *end) must be replaced by either ' ' or '\n'
-        lastSpace = ptr++; // this points at the EOS
-
-        // check that adding the next word this line still fits
-        *lastSpace = CHAR_SPACE;
-        if (GetStringWidth(fontId, curLine, letterSpacing) > maxWidth)
-        {
-            *lastSpace = CHAR_NEWLINE;
-            (*outLineCount)++;
-            curLine = ptr;
-        }
-
-        while (*ptr != EOS)
-            ptr++;
-        // now ptr is the next EOS char
-    }
-
-    // Check if the last line also fits within maxWidth
-    return (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
-}
-
-// Original FormatTextByWidth function by Vexx on Ravepossum's branch
-// Modified here to use PerformTextFormatting and try 1-font narrower if needed
-static u8 FormatTextByWidth(u8 *result, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
-{
-    u32 lineCount;
-    bool32 lastLineFits;
-
-    // Try formatting with progressively narrower fonts until it fits in 2 lines or fewer
-    while (TRUE)
-    {
-        lastLineFits = PerformTextFormatting(result, maxWidth, fontId, str, letterSpacing, &lineCount);
-
-        // If we have 2 or fewer lines AND the last line fits, we're done
-        if (lineCount < 3 && lastLineFits)
-            break;
-
-        // Try to get a narrower font
-        u8 narrowerFontId = fontId;
-        if (fontId == PSS_DEFAULT_FONT)
-            narrowerFontId = FONT_SHORT_NARROWER;
-
-        // If no narrower font available, use what we have
-        if (narrowerFontId == fontId)
-            break;
-
-        fontId = narrowerFontId;
-        letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
-    }
-
-    return fontId;
-}
-
 static inline bool32 ShouldShowMoveRelearner(void)
 {
     return (P_SUMMARY_SCREEN_MOVE_RELEARNER
@@ -7102,99 +6989,6 @@ static void CB2_ReturnToSummaryScreenFromNamingScreen(void)
 static void CB2_PssChangePokemonNickname(void)
 {
     ChangePokemonNicknameWithCallback(CB2_ReturnToSummaryScreenFromNamingScreen);
-}
-
-/*
-Montblanc note:
-- The functions below are used to remove hyphens from specific words when they are split across lines.
-- For example, Incineum Z has "Incine-\n" and "roar", which the previous formatter would have rendered: "Incine-roar"
-- Is this 100% overkill for just a few words? Yes.
-- Is it worth it to read item descriptions and not see random jank? My sanity says yes.
-*/
-// Lookup table for hyphen removal - stores both parts of hyphenated words
-static const struct HyphenPattern {
-    const char *before;
-    const char *after;
-} sHyphenRemovalPatterns[] = {
-    {"Incine", "roar"},
-    {"La", "riat"},
-    {"Marsha", "dow"},
-    {"Thi", "ef"},
-    {"Elec", "tric"},
-    {"Fight", "ing"},
-    {"pro", "motes"},
-    {"Decidu", "eye"},
-    {"Sha", "ckle"},
-    {"invigor", "ating"},
-    {"Thunder", "bolt"},
-    {"inde", "scribable"},
-};
-
-// Convert ASCII char to GBA charset equivalent
-static u8 AsciiToGbaChar(char c)
-{
-    if (c >= 'A' && c <= 'Z')
-        return CHAR_A + (c - 'A');
-    if (c >= 'a' && c <= 'z')
-        return CHAR_a + (c - 'a');
-    if (c >= '0' && c <= '9')
-        return CHAR_0 + (c - '0');
-    return c;
-}
-
-// Check if hyphen at position should be removed for specific words
-static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
-{
-    // Check all patterns in the table
-    for (u32 i = 0; i < ARRAY_COUNT(sHyphenRemovalPatterns); i++)
-    {
-        const char *before = sHyphenRemovalPatterns[i].before;
-        const char *after = sHyphenRemovalPatterns[i].after;
-
-        // Calculate lengths
-        u32 beforeLen = 0, afterLen = 0;
-        while (before[beforeLen]) beforeLen++;
-        while (after[afterLen]) afterLen++;
-
-        // Check bounds
-        if (p < start + beforeLen)
-            continue;
-
-        // Check "before" pattern
-        bool32 matches = TRUE;
-        for (u32 j = 0; j < beforeLen; j++)
-        {
-            if (p[-(s32)beforeLen + j] != AsciiToGbaChar(before[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-
-        if (!matches)
-            continue;
-
-        // Check "after" pattern
-        for (u32 j = 0; j < afterLen; j++)
-        {
-            if (p[1 + j] != AsciiToGbaChar(after[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-
-        if (matches)
-            return TRUE;
-    }
-
-    // Special case: Poké-mon (with é)
-    if (p >= start + 4 &&
-        p[-4] == CHAR_P && p[-3] == CHAR_o && p[-2] == CHAR_k && p[-1] == CHAR_e_ACUTE &&
-        p[1] == CHAR_m && p[2] == CHAR_o && p[3] == CHAR_n)
-        return TRUE;
-
-    return FALSE;
 }
 
 #endif
