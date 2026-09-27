@@ -44,6 +44,7 @@
 #include "sprite.h"
 #include "strings.h"
 #include "string_util.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text_window.h"
 #include "menu_helpers.h"
@@ -260,7 +261,6 @@ static void BuildBattlePocketLists(void);
 static void GetItemNameFromPocket(u8 *dest, enum Item itemId);
 static void PrintItemDescription(int);
 static void UpdateEmptyPocket(void);
-static u8 FormatDescriptionByWidth(u8 *, s32, s32, u8, const u8 *, s16);
 static void BagMenu_Print(u8, u8, const u8 *, u8, u8, u8, u8, u8, u8);
 static void Task_CloseBagMenu(u8);
 static u8 AddItemMessageWindow(u8);
@@ -5610,176 +5610,6 @@ static s32 CompareItemsByIndex(enum Pocket pocketId, struct ItemSlot item1, stru
         return 1;
 
     return 0; // Cannot have multiple stacks of indexed items
-}
-
-// Lookup table for hyphen-removal — specific compound words that are split with a hyphen
-// in vanilla item descriptions get rejoined so they don't look odd when reflowed.
-static const struct {
-    const char *before;
-    const char *after;
-} sHyphenRemovalPatterns[] = {
-    {"Incine", "roar"},
-    {"La",     "riat"},
-    {"Marsha", "dow"},
-    {"Thi",    "ef"},
-    {"Elec",   "tric"},
-    {"Fight",  "ing"},
-    {"pro",    "motes"},
-    {"Decidu", "eye"},
-    {"Sha",    "ckle"},
-    {"invigor","ating"},
-    {"Thunder","bolt"},
-    {"inde",   "scribable"},
-};
-
-static u8 AsciiToGbaChar(char c)
-{
-    if (c >= 'A' && c <= 'Z') return CHAR_A + (c - 'A');
-    if (c >= 'a' && c <= 'z') return CHAR_a + (c - 'a');
-    if (c >= '0' && c <= '9') return CHAR_0 + (c - '0');
-    return c;
-}
-
-static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
-{
-    u32 i;
-    for (i = 0; i < ARRAY_COUNT(sHyphenRemovalPatterns); i++)
-    {
-        const char *before = sHyphenRemovalPatterns[i].before;
-        const char *after  = sHyphenRemovalPatterns[i].after;
-        u32 beforeLen = 0, afterLen = 0;
-        u32 j;
-        bool32 matches;
-
-        while (before[beforeLen]) beforeLen++;
-        while (after[afterLen])  afterLen++;
-
-        if (p < start + beforeLen)
-            continue;
-
-        matches = TRUE;
-        for (j = 0; j < beforeLen; j++)
-        {
-            if (p[-(s32)beforeLen + j] != AsciiToGbaChar(before[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-        if (!matches)
-            continue;
-
-        for (j = 0; j < afterLen; j++)
-        {
-            if (p[1 + j] != AsciiToGbaChar(after[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-        if (matches)
-            return TRUE;
-    }
-
-    // Special case: Poké-mon
-    if (p >= start + 4 &&
-        p[-4] == CHAR_P && p[-3] == CHAR_o && p[-2] == CHAR_k && p[-1] == CHAR_e_ACUTE &&
-        p[1]  == CHAR_m && p[2]  == CHAR_o && p[3]  == CHAR_n)
-        return TRUE;
-
-    return FALSE;
-}
-
-static bool32 PerformTextFormatting(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
-{
-    u8 *end, *ptr, *curLine, *lastSpace;
-    u8 *limit = result + resultSize - 1;
-
-    end = result;
-    while (*str != EOS && end < limit)
-    {
-        if (*str == CHAR_SPACE || *str == CHAR_NEWLINE)
-        {
-            if (!(*str == CHAR_NEWLINE && end > result && *(end - 1) == CHAR_HYPHEN))
-            {
-                *end = EOS;
-                end++;
-            }
-        }
-        else
-        {
-            *end = *str;
-            end++;
-        }
-        str++;
-    }
-    *end = EOS;
-
-    {
-        u8 *p = result;
-        while (p < end)
-        {
-            if (*p == CHAR_HYPHEN && ShouldRemoveHyphen(p, result, end))
-            {
-                u8 *dst = p;
-                u8 *src = p + 1;
-                while (src <= end)
-                    *dst++ = *src++;
-                end--;
-            }
-            else
-            {
-                p++;
-            }
-        }
-    }
-
-    ptr = result;
-    curLine = ptr;
-    *outLineCount = 1;
-
-    while (*ptr != EOS) ptr++;
-
-    while (ptr != end)
-    {
-        lastSpace = ptr++;
-        *lastSpace = CHAR_SPACE;
-        if (GetStringWidth(fontId, curLine, letterSpacing) > maxWidth)
-        {
-            *lastSpace = CHAR_NEWLINE;
-            (*outLineCount)++;
-            curLine = ptr;
-        }
-        while (*ptr != EOS) ptr++;
-    }
-
-    return (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
-}
-
-static u8 FormatDescriptionByWidth(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
-{
-    u32 lineCount;
-    bool32 lastLineFits;
-
-    while (TRUE)
-    {
-        lastLineFits = PerformTextFormatting(result, resultSize, maxWidth, fontId, str, letterSpacing, &lineCount);
-
-        if (lineCount < 3 && lastLineFits)
-            break;
-
-        if (fontId == FONT_SHORT_NARROW)
-        {
-            fontId = FONT_SHORT_NARROWER;
-            letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    return fontId;
 }
 
 #if SWSH_BAG_BERRY_STAT
