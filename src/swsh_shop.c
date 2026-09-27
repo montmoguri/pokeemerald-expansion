@@ -36,6 +36,8 @@
 #include "string_util.h"
 #include "strings.h"
 #include "swsh_shop.h"
+#include "swsh_graphics.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text.h"
 #include "text_window.h"
@@ -116,21 +118,9 @@ enum {
     VIEWPORT_OBJECT_FIELD_COUNT,
 };
 
-enum {
-    SPINNER_ARROW_UP,
-    SPINNER_ARROW_DOWN,
-    SPINNER_ARROW_SPRITES_COUNT,
-};
-
-enum {
-    SPINNER_ARROW_STATIC,
-    SPINNER_ARROW_ANIM,
-};
-
 #define LIST_NAME_BUFFER_SIZE           (ITEM_NAME_LENGTH + 15)
 #define DESCRIPTION_BUFFER_SIZE         200
 #define SCROLL_THUMB_SPRITES_COUNT      3
-#define QUANTITY_FRAME_SPRITES_COUNT    2
 #define ITEM_ICON_SLOT_COUNT            2
 
 #if SWSH_SHOP_CONTEST_INFO
@@ -177,7 +167,7 @@ struct ShopData
     u8 moveTypeIconSpriteId;
     u8 categoryIconSpriteId;
     u16 *moveTypeIconTilesPtr;
-    void *moveTypeIconsCache;
+    u8 *moveTypeIconsCache;
 #if SWSH_SHOP_CONTEST_INFO
     u8 appealHeartSpriteId;
     u8 jamHeartSpriteId;
@@ -260,12 +250,6 @@ static void BuyMenuAddItemIcon(u32 itemId, u8 iconSlot, s16 spriteY);
 static void BuyMenuRemoveItemIcon(u8 iconSlot);
 static void SpriteCB_SlideCursorY(struct Sprite *sprite);
 static void SpriteCB_ScrollThumb(struct Sprite *sprite);
-static void SpriteCB_SpinnerArrow(struct Sprite *sprite);
-static void CreateQuantityFrameSprites(u8 y);
-static void DestroyQuantityFrameSprites(void);
-static void AnimateQuantitySpinner(void);
-static void BuyMenuPrintQuantity(s16 quantity);
-static void BuyMenuPrintTotalCost(u32 total);
 static s16 ShopList_RowSpriteY(u16 row);
 static u8 ShopList_RowHeight(void);
 static void ShopList_RefreshRow(u8 row);
@@ -276,7 +260,6 @@ static void ShopList_Step(bool32 movingDown, bool32 allowWrap);
 static void ShopList_Refresh(void);
 static void ShopList_Move(bool32 movingDown, bool32 allowWrap);
 static s32 ShopList_ProcessInput(void);
-static void ConvertMoneyToCommaString(u8 *dest, u32 amount);
 static void BuyMenuDisplayMessage(u8 taskId, const u8 *text, TaskFunc callback);
 static void BuyMenuReturnToItemList(u8 taskId);
 static void Task_BuyHowManyDialogueInit(u8 taskId);
@@ -286,7 +269,6 @@ static void BuyMenuTryMakePurchase(u8 taskId);
 static void BuyMenuSubtractMoney(u8 taskId);
 static void Task_ReturnToItemListAfterItemPurchase(u8 taskId);
 static void Task_ReturnToItemListAfterDecorationPurchase(u8 taskId);
-static u8 FormatDescriptionByWidth(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing);
 static void Task_BuyMenu(u8 taskId);
 static void ExitBuyMenu(u8 taskId);
 static void Task_ExitBuyMenu(u8 taskId);
@@ -309,12 +291,9 @@ static const u8 sContestHearts_Gfx[]    = INCGFX_U8("graphics/shop/swsh/contest_
 #endif
 
 #define TAG_SHOP_UI_PAL             200
-#define TAG_ITEM_CURSOR             201
 #define TAG_CURSOR                  202
 #define TAG_HOVER_SLOT              203
 #define TAG_SCROLL_THUMB            204
-#define TAG_QUANTITY_FRAME          205
-#define TAG_SPINNER_ARROW           206
 #define TAG_IN_BAG                  207
 #define TAG_SHOP_DESIGN             208
 #define TAG_ITEM_ICON_BASE          209 // and 210 for item icon swapping
@@ -344,7 +323,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 static const struct SpriteTemplate sSpriteTemplate_Cursor =
 {
     .tileTag = TAG_CURSOR,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_SWSH_UI_PAL,
     .oam = &sOamData_Cursor,
     .callback = SpriteCB_SlideCursorY,
 };
@@ -493,91 +472,9 @@ static const struct SpriteTemplate sSpriteTemplate_ShopDesign =
     .anims = sSpriteAnimTable_ShopDesign,
 };
 
-static const struct OamData sOamData_QuantityFrame =
-{
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(64x32),
-    .size = SPRITE_SIZE(64x32),
-    .priority = 0,
-};
-
-#define QUANTITY_FRAME_TILES    ((64 * 32) / (8 * 8))
-
-static const union AnimCmd sSpriteAnim_QuantityFrame_0[] = {
-    ANIMCMD_FRAME(0 * QUANTITY_FRAME_TILES, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_QuantityFrame_1[] = {
-    ANIMCMD_FRAME(1 * QUANTITY_FRAME_TILES, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_QuantityFrame[] = {
-    sSpriteAnim_QuantityFrame_0,
-    sSpriteAnim_QuantityFrame_1,
-};
-
-static const struct CompressedSpriteSheet sSpriteSheet_QuantityFrame =
-{
-    .data = gQuantityFrameSwSh_Gfx,
-    .size = (64 * 64) / 2,
-    .tag = TAG_QUANTITY_FRAME,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_QuantityFrame =
-{
-    .tileTag = TAG_QUANTITY_FRAME,
-    .paletteTag = TAG_ITEM_CURSOR,
-    .oam = &sOamData_QuantityFrame,
-    .anims = sSpriteAnimTable_QuantityFrame,
-};
-
-static const struct OamData sOamData_SpinnerArrow =
-{
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(16x8),
-    .size = SPRITE_SIZE(16x8),
-    .priority = 0,
-};
-
-static const union AnimCmd sSpriteAnim_SpinnerArrowUp[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_SpinnerArrowDown[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, TRUE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_SpinnerArrow[] = {
-    [SPINNER_ARROW_UP]   = sSpriteAnim_SpinnerArrowUp,
-    [SPINNER_ARROW_DOWN] = sSpriteAnim_SpinnerArrowDown,
-};
-
-static const struct CompressedSpriteSheet sSpriteSheet_SpinnerArrow =
-{
-    .data = gSpinnerArrowSwSh_Gfx,
-    .size = (16 * 8) / 2,
-    .tag = TAG_SPINNER_ARROW,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_SpinnerArrow =
-{
-    .tileTag = TAG_SPINNER_ARROW,
-    .paletteTag = TAG_ITEM_CURSOR,
-    .oam = &sOamData_SpinnerArrow,
-    .anims = sSpriteAnimTable_SpinnerArrow,
-    .callback = SpriteCB_SpinnerArrow,
-};
-
 static const struct SpritePalette sShopSpritePalettes[] =
 {
     { sShopUI_Pal,          TAG_SHOP_UI_PAL },
-    { gStatusIconsSwSh_Pal, TAG_ITEM_CURSOR },
     {},
 };
 
@@ -622,9 +519,8 @@ static void SpriteCB_MoveTypeIcon(struct Sprite *sprite)
 {
     if (sprite->data[0] != 0xFF)
     {
-        u32 offset = sprite->data[0] * 0x100;
         if (sShopData->moveTypeIconTilesPtr != NULL)
-            RequestDma3Copy(&((u8 *)sShopData->moveTypeIconsCache)[offset], sShopData->moveTypeIconTilesPtr, 0x100, 0x10);
+            CopyMoveTypeIconTiles(sShopData->moveTypeIconsCache, sprite->data[0], sShopData->moveTypeIconTilesPtr);
         sprite->data[0] = 0xFF;
     }
 }
@@ -668,7 +564,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_CategoryIcon =
 static const struct SpriteTemplate sSpriteTemplate_CategoryIcon =
 {
     .tileTag = TAG_CATEGORY_ICON,
-    .paletteTag = TAG_ITEM_CURSOR,
+    .paletteTag = TAG_SWSH_UI_PAL,
     .oam = &sOamData_CategoryIcon,
     .anims = sSpriteAnimTable_CategoryIcons,
 };
@@ -1751,7 +1647,7 @@ static void SwitchMoveInfoMode(u32 itemId)
 
         LoadPalette(gMoveTypesSwSh_Pal, OBJ_PLTT_ID(13), 3 * PLTT_SIZE_4BPP);
         {
-            struct SpriteSheet sheet = { .data = sShopData->moveTypeIconsCache, .size = 0x100, .tag = TAG_MOVE_TYPE_ICON };
+            struct SpriteSheet sheet = { .data = sShopData->moveTypeIconsCache, .size = MOVE_TYPE_ICON_SIZE, .tag = TAG_MOVE_TYPE_ICON };
             LoadSpriteSheet(&sheet);
         }
         LoadCompressedSpriteSheet(&sSpriteSheet_CategoryIcon);
@@ -2246,7 +2142,6 @@ static s32 ShopList_ProcessInput(void)
 
 // priority 0
 #define SUBPRIORITY_SPINNER_ARROW   1
-#define SUBPRIORITY_QUANTITY_FRAME  SUBPRIORITY_SPINNER_ARROW + 1
 // priority 1
 #define SUBPRIORITY_ITEM_ICON       1
 #define SUBPRIORITY_CURSOR          SUBPRIORITY_ITEM_ICON + 1
@@ -2346,58 +2241,12 @@ static void SpriteCB_ScrollThumb(struct Sprite *sprite)
         sprite->y2 = ReadComfyAnimValueSmooth(&gComfyAnims[sShopData->scrollThumbAnimId]);
 }
 
-#define CURSOR_BOB_RANGE    3
-#define CURSOR_BOB_FRAMES   20
-#define sBobTarget data[0]
-
-static void SpriteCB_CursorBob(struct Sprite *sprite)
-{
-    struct ComfyAnim *bob;
-
-    if (sShopData->cursorBobAnimId == INVALID_COMFY_ANIM)
-        return;
-
-    bob = &gComfyAnims[sShopData->cursorBobAnimId];
-
-    if (bob->completed && sprite->x2 == sprite->sBobTarget)
-    {
-        sprite->sBobTarget = (sprite->sBobTarget == 0) ? CURSOR_BOB_RANGE : 0;
-        InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
-            .from = Q_24_8(sprite->x2),
-            .to = Q_24_8(sprite->sBobTarget),
-            .durationFrames = CURSOR_BOB_FRAMES,
-            .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-        }, bob);
-        TryAdvanceComfyAnim(bob);
-    }
-
-    sprite->x2 = ReadComfyAnimValueSmooth(bob);
-}
-
-static void StartCursorBob(u8 spriteId)
-{
-    struct ComfyAnimEasingConfig config = {
-        .from = Q_24_8(0),
-        .to = Q_24_8(CURSOR_BOB_RANGE),
-        .durationFrames = CURSOR_BOB_FRAMES,
-        .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-    };
-
-    if (sShopData->cursorBobAnimId == INVALID_COMFY_ANIM)
-        sShopData->cursorBobAnimId = CreateComfyAnim_Easing(&config);
-    else
-        InitComfyAnim_Easing(&config, &gComfyAnims[sShopData->cursorBobAnimId]);
-
-    gSprites[spriteId].x2 = 0;
-    gSprites[spriteId].sBobTarget = CURSOR_BOB_RANGE;
-}
-
 static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 {
     s16 y;
     u8 i;
 
-    SpriteCB_CursorBob(sprite);
+    UpdateCursorBob(sprite, sShopData->cursorBobAnimId);
 
     if (sShopData->cursorAnimId == INVALID_COMFY_ANIM)
         return;
@@ -2415,26 +2264,22 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
     }
 }
 
-#undef CURSOR_BOB_RANGE
-#undef CURSOR_BOB_FRAMES
-#undef sBobTarget
-
 static void BuyMenuLoadSpriteGfx(void)
 {
     LoadCompressedSpriteSheet(&sSpriteSheet_Cursor);
     LoadCompressedSpriteSheet(&sSpriteSheet_HoverSlot);
     LoadCompressedSpriteSheet(&sSpriteSheet_ScrollThumb);
-    LoadCompressedSpriteSheet(&sSpriteSheet_QuantityFrame);
-    LoadCompressedSpriteSheet(&sSpriteSheet_SpinnerArrow);
+    LoadCompressedSpriteSheet(&gSpriteSheet_QuantityFrameSwSh);
+    LoadCompressedSpriteSheet(&gSpriteSheet_SpinnerArrowSwSh);
     LoadCompressedSpriteSheet(&sSpriteSheet_InBag);
     LoadCompressedSpriteSheet(&sSpriteSheet_ShopDesign);
 #if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
     LoadCompressedSpriteSheet(&sSpriteSheet_InfoPrompt);
 #endif
     LoadSpritePalettes(sShopSpritePalettes);
+    LoadSpritePalette(&gSpritePalette_SwShUI);
 #if SWSH_SHOP_TM_INFO
-    sShopData->moveTypeIconsCache = Alloc(32 * 416 / 2);
-    DecompressDataWithHeaderWram(gMoveTypesSwSh_Gfx, sShopData->moveTypeIconsCache);
+    sShopData->moveTypeIconsCache = LoadMoveTypeIconCache();
 #endif
 }
 
@@ -2480,7 +2325,7 @@ static void BuyMenuCreateListSprites(void)
 
     sShopData->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, LIST_CURSOR_X, initialY,
                                              SUBPRIORITY_CURSOR);
-    StartCursorBob(sShopData->cursorSpriteId);
+    StartCursorBob(sShopData->cursorSpriteId, &sShopData->cursorBobAnimId);
 
     CreateSprite(&sSpriteTemplate_InBag, IN_BAG_X, IN_BAG_Y, SUBPRIORITY_IN_BAG);
 
@@ -2648,195 +2493,6 @@ static void BuyMenuMoveCursorCallback(u32 index, bool32 onInit)
         PlaySE(SE_SELECT);
 }
 
-// add a comma every three digits, e.g. 123456 -> "123,456".
-static void ConvertMoneyToCommaString(u8 *dest, u32 amount)
-{
-    u8 digits[MAX_MONEY_DIGITS];
-    u8 count = 0;
-    s8 i;
-
-    do
-    {
-        digits[count++] = amount % 10;
-        amount /= 10;
-    } while (amount != 0 && count < MAX_MONEY_DIGITS);
-
-    for (i = count - 1; i >= 0; i--)
-    {
-        *dest++ = CHAR_0 + digits[i];
-        if (i != 0 && i % 3 == 0)
-            *dest++ = CHAR_COMMA;
-    }
-    *dest = EOS;
-}
-
-static const struct {
-    const char *before;
-    const char *after;
-} sHyphenRemovalPatterns[] = {
-    {"Incine", "roar"},
-    {"La",     "riat"},
-    {"Marsha", "dow"},
-    {"Thi",    "ef"},
-    {"Elec",   "tric"},
-    {"Fight",  "ing"},
-    {"pro",    "motes"},
-    {"Decidu", "eye"},
-    {"Sha",    "ckle"},
-    {"invigor","ating"},
-    {"Thunder","bolt"},
-    {"inde",   "scribable"},
-};
-
-static u8 AsciiToGbaChar(char c)
-{
-    if (c >= 'A' && c <= 'Z') return CHAR_A + (c - 'A');
-    if (c >= 'a' && c <= 'z') return CHAR_a + (c - 'a');
-    if (c >= '0' && c <= '9') return CHAR_0 + (c - '0');
-    return c;
-}
-
-static bool32 ShouldRemoveHyphen(const u8 *p, const u8 *start, const u8 *end)
-{
-    u32 i;
-    for (i = 0; i < ARRAY_COUNT(sHyphenRemovalPatterns); i++)
-    {
-        const char *before = sHyphenRemovalPatterns[i].before;
-        const char *after  = sHyphenRemovalPatterns[i].after;
-        u32 beforeLen = 0, afterLen = 0;
-        u32 j;
-        bool32 matches;
-
-        while (before[beforeLen]) beforeLen++;
-        while (after[afterLen])  afterLen++;
-
-        if (p < start + beforeLen)
-            continue;
-
-        matches = TRUE;
-        for (j = 0; j < beforeLen; j++)
-        {
-            if (p[-(s32)beforeLen + j] != AsciiToGbaChar(before[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-        if (!matches)
-            continue;
-
-        for (j = 0; j < afterLen; j++)
-        {
-            if (p[1 + j] != AsciiToGbaChar(after[j]))
-            {
-                matches = FALSE;
-                break;
-            }
-        }
-        if (matches)
-            return TRUE;
-    }
-
-    // Special case: Poké-mon
-    if (p >= start + 4 &&
-        p[-4] == CHAR_P && p[-3] == CHAR_o && p[-2] == CHAR_k && p[-1] == CHAR_e_ACUTE &&
-        p[1]  == CHAR_m && p[2]  == CHAR_o && p[3]  == CHAR_n)
-        return TRUE;
-
-    return FALSE;
-}
-
-static bool32 PerformTextFormatting(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing, u32 *outLineCount)
-{
-    u8 *end, *ptr, *curLine, *lastSpace;
-    u8 *limit = result + resultSize - 1;
-
-    end = result;
-    while (*str != EOS && end < limit)
-    {
-        if (*str == CHAR_SPACE || *str == CHAR_NEWLINE)
-        {
-            if (!(*str == CHAR_NEWLINE && end > result && *(end - 1) == CHAR_HYPHEN))
-            {
-                *end = EOS;
-                end++;
-            }
-        }
-        else
-        {
-            *end = *str;
-            end++;
-        }
-        str++;
-    }
-    *end = EOS;
-
-    {
-        u8 *p = result;
-        while (p < end)
-        {
-            if (*p == CHAR_HYPHEN && ShouldRemoveHyphen(p, result, end))
-            {
-                u8 *dst = p;
-                u8 *src = p + 1;
-                while (src <= end)
-                    *dst++ = *src++;
-                end--;
-            }
-            else
-            {
-                p++;
-            }
-        }
-    }
-
-    ptr = result;
-    curLine = ptr;
-    *outLineCount = 1;
-
-    while (*ptr != EOS) ptr++;
-
-    while (ptr != end)
-    {
-        lastSpace = ptr++;
-        *lastSpace = CHAR_SPACE;
-        if (GetStringWidth(fontId, curLine, letterSpacing) > maxWidth)
-        {
-            *lastSpace = CHAR_NEWLINE;
-            (*outLineCount)++;
-            curLine = ptr;
-        }
-        while (*ptr != EOS) ptr++;
-    }
-
-    return (GetStringWidth(fontId, curLine, letterSpacing) <= maxWidth);
-}
-
-static u8 FormatDescriptionByWidth(u8 *result, s32 resultSize, s32 maxWidth, u8 fontId, const u8 *str, s16 letterSpacing)
-{
-    u32 lineCount;
-    bool32 lastLineFits;
-
-    while (TRUE)
-    {
-        lastLineFits = PerformTextFormatting(result, resultSize, maxWidth, fontId, str, letterSpacing, &lineCount);
-
-        if (lineCount < 3 && lastLineFits)
-            break;
-
-        if (fontId == FONT_SHORT_NARROW)
-        {
-            fontId = FONT_SHORT_NARROWER;
-            letterSpacing = GetFontAttribute(fontId, FONTATTR_LETTER_SPACING);
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    return fontId;
-}
 #define tItemCount  data[1]
 #define tItemId     data[5]
 
@@ -2863,170 +2519,7 @@ static void BuyMenuReturnToItemList(u8 taskId)
 }
 
 #define QUANTITY_FRAME_X            144
-#define QUANTITY_FRAME_SPACING      64
 #define QUANTITY_FRAME_Y            96
-#define QUANTITY_SPINNER_X          152
-
-#define SPINNER_ARROW_Y_OFFSET      10
-#define SPINNER_ARROW_ANIM_FRAMES   3
-
-#define QUANTITY_FILL_INDEX         13
-#define QUANTITY_COUNT_LEFT         16
-#define QUANTITY_COUNT_RIGHT        48
-#define QUANTITY_COUNT_TOP          8
-#define QUANTITY_TOTAL_RIGHT        48
-
-#define sDir    data[0]  // -1 = up, +1 = down
-#define sMode   data[1]
-#define sTimer  data[2]
-#define sStep   data[3]
-
-static const u8 sSpinnerArrowOffsets[] = {0, 1, 2, 1};
-
-static void SpriteCB_SpinnerArrow(struct Sprite *sprite)
-{
-    if (sprite->sMode == SPINNER_ARROW_STATIC)
-        return;
-
-    if (++sprite->sTimer < SPINNER_ARROW_ANIM_FRAMES)
-        return;
-
-    sprite->sTimer = 0;
-    if (++sprite->sStep >= (s16)ARRAY_COUNT(sSpinnerArrowOffsets))
-    {
-        sprite->sStep = 0;
-        sprite->sMode = SPINNER_ARROW_STATIC;
-    }
-    sprite->y2 = sprite->sDir * sSpinnerArrowOffsets[sprite->sStep];
-}
-
-static void CreateSpinnerArrowSprites(s16 x, s16 y)
-{
-    u8 i;
-
-    for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
-    {
-        s8 dir = (i == SPINNER_ARROW_UP) ? -1 : 1;
-        u8 spriteId = CreateSprite(&sSpriteTemplate_SpinnerArrow, x, y + dir * SPINNER_ARROW_Y_OFFSET,
-                                   SUBPRIORITY_SPINNER_ARROW);
-
-        StartSpriteAnim(&gSprites[spriteId], i);
-        gSprites[spriteId].sDir = dir;
-        gSprites[spriteId].sMode = SPINNER_ARROW_STATIC;
-        sShopData->spinnerArrowSpriteIds[i] = spriteId;
-    }
-}
-
-static void DestroySpinnerArrowSprites(void)
-{
-    u8 i;
-
-    for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
-    {
-        if (sShopData->spinnerArrowSpriteIds[i] != SPRITE_NONE)
-        {
-            DestroySprite(&gSprites[sShopData->spinnerArrowSpriteIds[i]]);
-            sShopData->spinnerArrowSpriteIds[i] = SPRITE_NONE;
-        }
-    }
-}
-
-static void AnimateQuantitySpinner(void)
-{
-    u16 dpad = JOY_REPEAT(DPAD_ANY);
-    u8 arrowIdx, spriteId;
-
-    if (dpad == DPAD_UP || dpad == DPAD_RIGHT)
-        arrowIdx = SPINNER_ARROW_UP;
-    else if (dpad == DPAD_DOWN || dpad == DPAD_LEFT)
-        arrowIdx = SPINNER_ARROW_DOWN;
-    else
-        return;
-
-    spriteId = sShopData->spinnerArrowSpriteIds[arrowIdx];
-    if (spriteId == SPRITE_NONE || gSprites[spriteId].sMode != SPINNER_ARROW_STATIC)
-        return;
-
-    gSprites[spriteId].sMode = SPINNER_ARROW_ANIM;
-    gSprites[spriteId].sTimer = 0;
-    gSprites[spriteId].sStep = 0;
-}
-
-#undef sDir
-#undef sMode
-#undef sTimer
-#undef sStep
-
-static void CreateQuantityFrameSprites(u8 y)
-{
-    u8 i;
-
-    for (i = 0; i < QUANTITY_FRAME_SPRITES_COUNT; i++)
-    {
-        u8 spriteId = CreateSprite(&sSpriteTemplate_QuantityFrame, QUANTITY_FRAME_X + i * QUANTITY_FRAME_SPACING,
-                                   y, SUBPRIORITY_QUANTITY_FRAME);
-
-        sShopData->quantityFrameSpriteIds[i] = spriteId;
-        StartSpriteAnim(&gSprites[spriteId], i);
-        SetSpriteSheetFrameTileNum(&gSprites[spriteId]);
-    }
-    CreateSpinnerArrowSprites(QUANTITY_SPINNER_X, y);
-}
-
-static void DestroyQuantityFrameSprites(void)
-{
-    u8 i;
-
-    for (i = 0; i < QUANTITY_FRAME_SPRITES_COUNT; i++)
-    {
-        if (sShopData->quantityFrameSpriteIds[i] != SPRITE_NONE)
-        {
-            DestroySprite(&gSprites[sShopData->quantityFrameSpriteIds[i]]);
-            sShopData->quantityFrameSpriteIds[i] = SPRITE_NONE;
-        }
-    }
-    DestroySpinnerArrowSprites();
-}
-
-static const union TextColor sQuantityTextColor =
-{
-    .background = 0,
-    .foreground = 12,
-    .shadow = 14,
-};
-
-static void BuyMenuPrintQuantity(s16 quantity)
-{
-    u8 spriteId = sShopData->quantityFrameSpriteIds[0];
-
-    if (spriteId == SPRITE_NONE)
-        return;
-
-    ConvertIntToDecimalStringN(gStringVar1, quantity, STR_CONV_MODE_LEADING_ZEROS, MAX_ITEM_DIGITS);
-    StringExpandPlaceholders(gStringVar4, gText_xVar1);
-    FillSpriteRectColor(spriteId, QUANTITY_COUNT_LEFT, QUANTITY_COUNT_TOP,
-                        QUANTITY_COUNT_RIGHT - QUANTITY_COUNT_LEFT,
-                        GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
-    AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
-                                       GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_COUNT_RIGHT),
-                                       QUANTITY_COUNT_TOP, 0, 0, sQuantityTextColor, 0, gStringVar4);
-}
-
-static void BuyMenuPrintTotalCost(u32 total)
-{
-    u8 spriteId = sShopData->quantityFrameSpriteIds[1];
-
-    if (spriteId == SPRITE_NONE)
-        return;
-
-    ConvertMoneyToCommaString(gStringVar1, total);
-    StringExpandPlaceholders(gStringVar4, gText_PokedollarVar1);
-    FillSpriteRectColor(spriteId, 0, QUANTITY_COUNT_TOP, QUANTITY_TOTAL_RIGHT,
-                        GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
-    AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
-                                       GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_TOTAL_RIGHT),
-                                       QUANTITY_COUNT_TOP, 0, 0, sQuantityTextColor, 0, gStringVar4);
-}
 
 static void Task_BuyHowManyDialogueInit(u8 taskId)
 {
@@ -3034,9 +2527,10 @@ static void Task_BuyHowManyDialogueInit(u8 taskId)
     u32 maxQuantity;
 
     tItemCount = 1;
-    CreateQuantityFrameSprites(QUANTITY_FRAME_Y);
-    BuyMenuPrintQuantity(tItemCount);
-    BuyMenuPrintTotalCost(sShopData->totalCost);
+    CreateQuantityFrameSprites(sShopData->quantityFrameSpriteIds, sShopData->spinnerArrowSpriteIds,
+                               QUANTITY_FRAME_X, QUANTITY_FRAME_Y, 0, SUBPRIORITY_SPINNER_ARROW);
+    PrintQuantityFrameCount(sShopData->quantityFrameSpriteIds[0], tItemCount);
+    PrintQuantityFrameTotal(sShopData->quantityFrameSpriteIds[1], sShopData->totalCost);
 
     // Avoid division by zero in-case something costs 0 pokedollars.
     if (sShopData->totalCost == 0)
@@ -3059,16 +2553,16 @@ static void Task_BuyHowManyDialogueHandleInput(u8 taskId)
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, sShopData->maxQuantity) == TRUE)
     {
         sShopData->totalCost = (GetItemPrice(tItemId) >> IsPokeNewsActive(POKENEWS_SLATEPORT)) * tItemCount;
-        BuyMenuPrintQuantity(tItemCount);
-        BuyMenuPrintTotalCost(sShopData->totalCost);
-        AnimateQuantitySpinner();
+        PrintQuantityFrameCount(sShopData->quantityFrameSpriteIds[0], tItemCount);
+        PrintQuantityFrameTotal(sShopData->quantityFrameSpriteIds[1], sShopData->totalCost);
+        AnimateQuantitySpinner(sShopData->spinnerArrowSpriteIds);
     }
     else
     {
         if (JOY_NEW(A_BUTTON))
         {
             PlaySE(SE_SELECT);
-            DestroyQuantityFrameSprites();
+            DestroyQuantityFrameSprites(sShopData->quantityFrameSpriteIds, sShopData->spinnerArrowSpriteIds);
             CopyItemName(tItemId, gStringVar1);
             ConvertIntToDecimalStringN(gStringVar2, tItemCount, STR_CONV_MODE_LEFT_ALIGN, MAX_ITEM_DIGITS);
             ConvertMoneyToCommaString(gStringVar3, sShopData->totalCost);
@@ -3077,7 +2571,7 @@ static void Task_BuyHowManyDialogueHandleInput(u8 taskId)
         else if (JOY_NEW(B_BUTTON))
         {
             PlaySE(SE_SELECT);
-            DestroyQuantityFrameSprites();
+            DestroyQuantityFrameSprites(sShopData->quantityFrameSpriteIds, sShopData->spinnerArrowSpriteIds);
             BuyMenuReturnToItemList(taskId);
         }
     }
@@ -3193,8 +2687,8 @@ static void BuyMenuFreeSprites(void)
     FreeSpriteTilesByTag(TAG_SCROLL_THUMB);
     FreeSpriteTilesByTag(TAG_IN_BAG);
     FreeSpriteTilesByTag(TAG_SHOP_DESIGN);
-    FreeSpriteTilesByTag(TAG_QUANTITY_FRAME);
-    FreeSpriteTilesByTag(TAG_SPINNER_ARROW);
+    FreeSpriteTilesByTag(TAG_SWSH_QUANTITY_FRAME);
+    FreeSpriteTilesByTag(TAG_SWSH_SPINNER_ARROW);
 #if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
     FreeSpriteTilesByTag(TAG_INFO_PROMPT);
 #endif
@@ -3207,7 +2701,7 @@ static void BuyMenuFreeSprites(void)
 #endif
 #endif
     FreeSpritePaletteByTag(TAG_SHOP_UI_PAL);
-    FreeSpritePaletteByTag(TAG_ITEM_CURSOR);
+    FreeSpritePaletteByTag(TAG_SWSH_UI_PAL);
     ReleaseComfyAnims();
 }
 
