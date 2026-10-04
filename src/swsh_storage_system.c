@@ -36,6 +36,8 @@
 #include "sound.h"
 #include "string_util.h"
 #include "strings.h"
+#include "swsh_graphics.h"
+#include "swsh_utils.h"
 #include "text.h"
 #include "text_window.h"
 #include "trig.h"
@@ -827,7 +829,6 @@ static void CreateMarkingComboSprite(void);
 static void UpdateMarkingComboSprite(void);
 static void ClearBottomWindow(void);
 static void UpdateGenderIconSprite(u8);
-static void UpdateTypeIconTiles(u8, void *);
 static void SpriteCB_TypeIcon(struct Sprite *);
 static void UpdateTypeIconsSprite(void);
 static void UpdateStatLabelsSprites(void);
@@ -3749,8 +3750,6 @@ static bool8 InitPokeStorageWindows(void)
     }
 }
 
-#define TYPE_ICONS_GFX_SIZE (32 * 416 / 2)
-
 static bool8 InitPalettesAndSprites(void)
 {
     switch (sStorage->graphicsLoadState)
@@ -3769,12 +3768,11 @@ static bool8 InitPalettesAndSprites(void)
         break;
     case 3:
     {
-        sStorage->typeIconsGfx = Alloc(TYPE_ICONS_GFX_SIZE);
-        DecompressDataWithHeaderWram(gMoveTypesSwSh_Gfx, sStorage->typeIconsGfx);
+        sStorage->typeIconsGfx = LoadMoveTypeIconCache();
 
         struct SpriteSheet sheet = {
             .data = sStorage->typeIconsGfx,
-            .size = 2 * 0x100,
+            .size = 2 * MOVE_TYPE_ICON_SIZE,
             .tag = GFXTAG_TYPE_ICON,
         };
 
@@ -3946,19 +3944,13 @@ static void UpdateShinyIconSprite(void)
     }
 }
 
-static void UpdateTypeIconTiles(u8 typeId, void *dest)
-{
-    u32 offset = typeId * 0x100;
-    RequestDma3Copy(&sStorage->typeIconsGfx[offset], dest, 0x100, 0x10);
-}
-
 static void SpriteCB_TypeIcon(struct Sprite *sprite)
 {
     if (sprite->data[0] != 0xFF)
     {
         u8 typeId = sprite->data[0];
         u8 index = sprite->data[1];
-        UpdateTypeIconTiles(typeId, sStorage->typeIconTilesPtr[index]);
+        CopyMoveTypeIconTiles(sStorage->typeIconsGfx, typeId, sStorage->typeIconTilesPtr[index]);
         sprite->data[0] = 0xFF;
     }
 }
