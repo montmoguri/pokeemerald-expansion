@@ -833,7 +833,7 @@ static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
 static const struct SpriteTemplate sSpriteTemplate_Cursor =
 {
     .tileTag = TAG_CURSOR,
-    .paletteTag = TAG_STATUS_ICONS,
+    .paletteTag = TAG_SWSH_UI_PAL,
     .oam = &sOamData_Cursor,
 };
 
@@ -947,212 +947,18 @@ static const struct SpriteTemplate sSpriteTemplate_MessageWindow =
     .anims = sSpriteAnimTable_MessageWindow,
 };
 
-static const struct OamData sOamData_QuantityFrame =
-{
-    .y = 0,
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .mosaic = FALSE,
-    .bpp = ST_OAM_4BPP,
-    .size = SPRITE_SIZE(64x32),
-    .x = 0,
-    .matrixNum = 0,
-    .shape = SPRITE_SHAPE(64x32),
-    .tileNum = 0,
-    .priority = 1,
-    .paletteNum = 0,
-    .affineParam = 0,
-};
-
-static const union AnimCmd sSpriteAnim_QuantityFrame_0[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_QuantityFrame_1[] = {
-    ANIMCMD_FRAME(32, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_QuantityFrame[] = {
-    sSpriteAnim_QuantityFrame_0,
-    sSpriteAnim_QuantityFrame_1,
-};
-
-static const u8 sQuantityFrameAnims[QUANTITY_FRAME_SPRITES_COUNT] = {0, 1};
-
-static const struct CompressedSpriteSheet sSpriteSheet_QuantityFrame =
-{
-    .data = gQuantityFrameSwSh_Gfx,
-    .size = (64 * 64) / 2,
-    .tag = TAG_QUANTITY_FRAME,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_QuantityFrame =
-{
-    .tileTag = TAG_QUANTITY_FRAME,
-    .paletteTag = TAG_STATUS_ICONS,
-    .oam = &sOamData_QuantityFrame,
-    .anims = sSpriteAnimTable_QuantityFrame,
-};
-
-static const struct OamData sOamData_SpinnerArrow =
-{
-    .y = 0,
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .mosaic = FALSE,
-    .bpp = ST_OAM_4BPP,
-    .size = SPRITE_SIZE(16x8),
-    .x = 0,
-    .matrixNum = 0,
-    .shape = SPRITE_SHAPE(16x8),
-    .tileNum = 0,
-    .priority = 1,
-    .paletteNum = 0,
-    .affineParam = 0,
-};
-
-static const union AnimCmd sSpriteAnim_SpinnerArrowUp[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, FALSE),
-    ANIMCMD_END
-};
-static const union AnimCmd sSpriteAnim_SpinnerArrowDown[] = {
-    ANIMCMD_FRAME(0, 0, FALSE, TRUE),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteAnimTable_SpinnerArrow[] = {
-    [SPINNER_ARROW_UP]   = sSpriteAnim_SpinnerArrowUp,
-    [SPINNER_ARROW_DOWN] = sSpriteAnim_SpinnerArrowDown,
-};
-
-static const struct CompressedSpriteSheet sSpriteSheet_SpinnerArrow =
-{
-    .data = gSpinnerArrowSwSh_Gfx,
-    .size = (16 * 8) / 2,
-    .tag = TAG_SPINNER_ARROW,
-};
-
-static const struct SpriteTemplate sSpriteTemplate_SpinnerArrow =
-{
-    .tileTag = TAG_SPINNER_ARROW,
-    .paletteTag = TAG_STATUS_ICONS,
-    .oam = &sOamData_SpinnerArrow,
-    .anims = sSpriteAnimTable_SpinnerArrow,
-    .callback = SpriteCB_SpinnerArrow,
-};
-
 static const struct SpritePalette sSpritePal_PartyMonShadow =
 {
     .data = gMonShadowSwSh_Pal,
     .tag = TAG_MON_SHADOW
 };
 
-static const struct OamData sOamData_StatusCondition =
-{
-    .y = 0,
-    .affineMode = ST_OAM_AFFINE_OFF,
-    .objMode = ST_OAM_OBJ_NORMAL,
-    .mosaic = FALSE,
-    .bpp = ST_OAM_4BPP,
-    .shape = SPRITE_SHAPE(32x8),
-    .x = 0,
-    .matrixNum = 0,
-    .size = SPRITE_SIZE(32x8),
-    .tileNum = 0,
-    .priority = 1,
-    .paletteNum = 0,
-    .affineParam = 0
-};
-
-static const union AnimCmd sSpriteAnim_StatusPoison[] =
-{
-    ANIMCMD_FRAME(0, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusParalyzed[] =
-{
-    ANIMCMD_FRAME(4, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusSleep[] =
-{
-    ANIMCMD_FRAME(8, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusFrozen[] =
-{
-    ANIMCMD_FRAME(12, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusBurn[] =
-{
-    ANIMCMD_FRAME(16, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusPokerus[] =
-{
-    ANIMCMD_FRAME(20, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusFaint[] =
-{
-    ANIMCMD_FRAME(24, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusFrostbite[] =
-{
-    ANIMCMD_FRAME(28, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd sSpriteAnim_StatusToxic[] =
-{
-    ANIMCMD_FRAME(32, 0),
-    ANIMCMD_END
-};
-
-static const union AnimCmd *const sSpriteTemplate_StatusCondition[] =
-{
-    sSpriteAnim_StatusPoison,
-    sSpriteAnim_StatusParalyzed,
-    sSpriteAnim_StatusSleep,
-    sSpriteAnim_StatusFrozen,
-    sSpriteAnim_StatusBurn,
-    sSpriteAnim_StatusPokerus,
-    sSpriteAnim_StatusFaint,
-    sSpriteAnim_StatusFrostbite,
-    sSpriteAnim_StatusToxic,
-};
-
-STATIC_ASSERT(ARRAY_COUNT(sSpriteTemplate_StatusCondition) == STATUS_ICON_COUNT, StatusIconAnimCount);
-
-static const struct CompressedSpriteSheet sSpriteSheet_StatusIcons =
-{
-    .data = gStatusIconsSwSh_Gfx,
-    .size = STATUS_ICON_COUNT * 4 * TILE_SIZE_4BPP,
-    .tag = TAG_STATUS_ICONS
-};
-
-static const struct SpritePalette sSpritePalette_StatusIcons =
-{
-    .data = gStatusIconsSwSh_Pal,
-    .tag = TAG_STATUS_ICONS
-};
-
 const struct SpriteTemplate gSpriteTemplate_StatusIcons =
 {
-    .tileTag = TAG_STATUS_ICONS,
-    .paletteTag = TAG_STATUS_ICONS,
-    .oam = &sOamData_StatusCondition,
-    .anims = sSpriteTemplate_StatusCondition,
+    .tileTag = TAG_SWSH_STATUS_ICONS,
+    .paletteTag = TAG_SWSH_UI_PAL,
+    .oam = &gOamData_StatusIconsSwSh,
+    .anims = gSpriteAnimTable_StatusIconsSwSh,
 };
 
 static const struct OamData sOamData_MoveTypes =

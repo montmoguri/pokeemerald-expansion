@@ -66,6 +66,8 @@
 #include "start_menu.h"
 #include "string_util.h"
 #include "strings.h"
+#include "swsh_graphics.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text.h"
 #include "text_window.h"
@@ -141,7 +143,6 @@ enum {
     ACTIONS_ZYGARDE_CUBE,
 };
 
-#define TAG_STATUS_ICONS                55119
 #define TAG_HELD_ITEM                   55120
 #define TAG_CURSOR                      55121
 #define TAG_HOVER_ITEM                  55122
@@ -152,8 +153,6 @@ enum {
 #define TAG_SWITCH_ITEM_1               55141
 #define TAG_SWITCH_ITEM_2               55142
 #define TAG_MESSAGE_WINDOW              55150
-#define TAG_QUANTITY_FRAME              55151
-#define TAG_SPINNER_ARROW               55152
 #define TAG_MOVE_TYPES                  55160
 
 #define PARTY_ITEM_PAL_COUNT            3
@@ -161,24 +160,6 @@ enum {
 #define PARTY_ITEM_PAL_NONE             0xFF
 
 #define MESSAGE_WINDOW_SPRITES_COUNT    8
-#define QUANTITY_FRAME_SPRITES_COUNT    2
-#define SPINNER_ARROW_SPRITES_COUNT     2
-
-enum {
-    SPINNER_ARROW_UP,
-    SPINNER_ARROW_DOWN,
-};
-
-enum {
-    SPINNER_ARROW_STATIC,
-    SPINNER_ARROW_ANIM,
-    SPINNER_ARROW_LOOP,
-};
-
-#define SPINNER_ARROW_Y_OFFSET          10
-#define SPINNER_ARROW_LOOP_FRAMES       8
-#define SPINNER_ARROW_ANIM_FRAMES       3
-
 #define BG_PARTY_SLOTS 1
 #define BG_PARTY_HELD  0
 
@@ -213,21 +194,6 @@ enum {
     PARTYWIN_OAK_VOICEOVER,
     PARTYWIN_YESNO,
     PARTYWIN_COUNT,
-};
-
-enum StatusIcon
-{
-    STATUS_ICON_PSN,
-    STATUS_ICON_PRZ,
-    STATUS_ICON_SLP,
-    STATUS_ICON_FRZ,
-    STATUS_ICON_BRN,
-    STATUS_ICON_PKRS,
-    STATUS_ICON_FNT,
-    STATUS_ICON_FRB,
-    STATUS_ICON_TOX,
-    STATUS_ICON_COUNT,
-    STATUS_ICON_NONE = STATUS_ICON_COUNT,
 };
 
 #define MON_IDLE_ANIM_FRAMES  300               // Frames before the mon animation loops - see SWSH_PARTY_MON_IDLE_ANIMS
@@ -283,7 +249,7 @@ struct PartyMenuInternal
     // Cursor movement state
     u8 comfyAnimX;
     u8 comfyAnimY;
-    u8 comfyAnimBob;
+    u32 comfyAnimBob;
     u8 comfyAnimHeld;        // lifted party slot - vertical slide during switching
     s16 heldSlotOffset;      // pixels the lifted party slot is displaced from the row it came from
     s16 heldSlotScroll;
@@ -458,12 +424,6 @@ static void CreatePartyMonStatusSprite(struct Pokemon *, struct PartyMenuBox *);
 static void CreateHoverSprite(struct PartyMenuBox *, u8);
 static void CreateMessageWindowSprite(void);
 static void DestroyMessageWindowSprite(void);
-static void CreateQuantityFrameSprites(void);
-static void DestroyQuantityFrameSprites(void);
-static void SpriteCB_SpinnerArrow(struct Sprite *);
-static void CreateSpinnerArrowSprites(s16, s16, u8);
-static void DestroySpinnerArrowSprites(void);
-static void AnimateQuantitySpinner(void);
 static void DestroyHoverSprite(void);
 static void CreateItemIconSprite(struct PartyMenuBox *, u8, enum Item);
 static void CreateItemMoveSprite(u8, u8, enum Item);
@@ -573,7 +533,6 @@ static void ShowOrHideHeldItemSprite(enum Item, struct PartyMenuBox *);
 static void CreateHeldItemSpriteForTrade(u8, bool8);
 static void SpriteCB_HeldItem(struct Sprite *);
 static void SetHeldItemIconPalSwap(bool32);
-static u32 GetStatusIconFromStatus(u32);
 static void SetPartyMonAilmentGfx(struct Pokemon *, struct PartyMenuBox *);
 static void UpdatePartyMonAilmentGfx(u32, struct PartyMenuBox *);
 #if SWSH_PARTY_STATUS_ICONS_FADE
@@ -788,9 +747,9 @@ static void InitPartyMenu(u8 menuType, u8 layout, u8 partyAction, bool8 keepCurs
         for (i = 0; i < ARRAY_COUNT(sPartyMenuInternal->messageWindowSpriteIds); i++)
             sPartyMenuInternal->messageWindowSpriteIds[i] = MAX_SPRITES;
         for (i = 0; i < ARRAY_COUNT(sPartyMenuInternal->quantityFrameSpriteIds); i++)
-            sPartyMenuInternal->quantityFrameSpriteIds[i] = MAX_SPRITES;
+            sPartyMenuInternal->quantityFrameSpriteIds[i] = SPRITE_NONE;
         for (i = 0; i < ARRAY_COUNT(sPartyMenuInternal->spinnerArrowSpriteIds); i++)
-            sPartyMenuInternal->spinnerArrowSpriteIds[i] = MAX_SPRITES;
+            sPartyMenuInternal->spinnerArrowSpriteIds[i] = SPRITE_NONE;
         sPartyMenuInternal->fusionFirstMonSlot = PARTY_SIZE;
         sPartyMenuInternal->fusionFirstMonSpecies = SPECIES_NONE;
 
@@ -1428,11 +1387,11 @@ static bool8 DecompressGraphics(void)
         sPartyMenuInternal->switchCounter++;
         break;
     case 14:
-        LoadCompressedSpriteSheet(&sSpriteSheet_StatusIcons);
+        LoadCompressedSpriteSheet(&gSpriteSheet_StatusIconsSwSh);
         sPartyMenuInternal->switchCounter++;
         break;
     case 15:
-        LoadSpritePalette(&sSpritePalette_StatusIcons);
+        LoadSpritePalette(&gSpritePalette_SwShUI);
         sPartyMenuInternal->switchCounter++;
         break;
     case 16:
@@ -1444,11 +1403,11 @@ static bool8 DecompressGraphics(void)
         sPartyMenuInternal->switchCounter++;
         break;
     case 18:
-        LoadCompressedSpriteSheet(&sSpriteSheet_QuantityFrame);
+        LoadCompressedSpriteSheet(&gSpriteSheet_QuantityFrameSwSh);
         sPartyMenuInternal->switchCounter++;
         break;
     case 19:
-        LoadCompressedSpriteSheet(&sSpriteSheet_SpinnerArrow);
+        LoadCompressedSpriteSheet(&gSpriteSheet_SpinnerArrowSwSh);
         sPartyMenuInternal->switchCounter++;
         break;
     case 20:
@@ -5812,56 +5771,19 @@ static void SnapPartyMenuCursor(s16 x, s16 y)
     RestartCursorAnim(&sPartyMenuInternal->comfyAnimY, y, y, 1);
 }
 
-#define CURSOR_BOB_RANGE 3
-#define CURSOR_BOB_FRAMES 20
-#define sBobTarget data[0]
-
 static void SpriteCB_PartyMenuCursor(struct Sprite *sprite)
 {
-    struct ComfyAnim *bob;
-
-    if (sPartyMenuInternal == NULL || sPartyMenuInternal->comfyAnimBob == INVALID_COMFY_ANIM)
+    if (sPartyMenuInternal == NULL)
         return;
 
-    bob = &gComfyAnims[sPartyMenuInternal->comfyAnimBob];
-
-    if (bob->completed && sprite->x2 == sprite->sBobTarget)
-    {
-        sprite->sBobTarget = (sprite->sBobTarget == 0) ? CURSOR_BOB_RANGE : 0;
-        InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
-            .from = Q_24_8(sprite->x2),
-            .to = Q_24_8(sprite->sBobTarget),
-            .durationFrames = CURSOR_BOB_FRAMES,
-            .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-        }, bob);
-        TryAdvanceComfyAnim(bob);
-    }
-
-    sprite->x2 = ReadComfyAnimValueSmooth(bob);
+    UpdateCursorBob(sprite, sPartyMenuInternal->comfyAnimBob);
 }
 
 static void StartPartyMenuCursorBob(u8 spriteId)
 {
-    struct ComfyAnimEasingConfig config = {
-        .from = Q_24_8(0),
-        .to = Q_24_8(CURSOR_BOB_RANGE),
-        .durationFrames = CURSOR_BOB_FRAMES,
-        .easingFunc = ComfyAnimEasing_EaseInOutQuad,
-    };
-
-    if (sPartyMenuInternal->comfyAnimBob == INVALID_COMFY_ANIM)
-        sPartyMenuInternal->comfyAnimBob = CreateComfyAnim_Easing(&config);
-    else
-        InitComfyAnim_Easing(&config, &gComfyAnims[sPartyMenuInternal->comfyAnimBob]);
-
-    gSprites[spriteId].x2 = 0;
-    gSprites[spriteId].sBobTarget = CURSOR_BOB_RANGE;
+    StartCursorBob(spriteId, &sPartyMenuInternal->comfyAnimBob);
     gSprites[spriteId].callback = SpriteCB_PartyMenuCursor;
 }
-
-#undef CURSOR_BOB_RANGE
-#undef CURSOR_BOB_FRAMES
-#undef sBobTarget
 
 static void CreateItemIconSprite(struct PartyMenuBox *menuBox, u8 slot, enum Item item)
 {
@@ -6195,134 +6117,6 @@ static void DestroyMessageWindowSprite(void)
     }
 }
 
-#define sDir    data[0]  // -1 = up, +1 = down
-#define sMode   data[1]
-#define sTimer  data[2]
-#define sStep   data[3]
-
-static const u8 sSpinnerArrowOffsets[] = {0, 1, 2, 1};
-
-static void SpriteCB_SpinnerArrow(struct Sprite *sprite)
-{
-    u8 stepFrames;
-
-    if (sprite->sMode == SPINNER_ARROW_STATIC)
-        return;
-
-    stepFrames = (sprite->sMode == SPINNER_ARROW_LOOP) ? SPINNER_ARROW_LOOP_FRAMES : SPINNER_ARROW_ANIM_FRAMES;
-    if (++sprite->sTimer < stepFrames)
-        return;
-
-    sprite->sTimer = 0;
-    if (++sprite->sStep >= (s16)ARRAY_COUNT(sSpinnerArrowOffsets))
-    {
-        sprite->sStep = 0;
-        if (sprite->sMode == SPINNER_ARROW_ANIM)
-            sprite->sMode = SPINNER_ARROW_STATIC;
-    }
-    sprite->y2 = sprite->sDir * sSpinnerArrowOffsets[sprite->sStep];
-}
-
-static void CreateSpinnerArrowSprites(s16 x, s16 y, u8 mode)
-{
-    int i;
-
-    for (i = 0; i < SPINNER_ARROW_SPRITES_COUNT; i++)
-    {
-        s8 dir = (i == SPINNER_ARROW_UP) ? -1 : 1;
-        u8 spriteId = CreateSprite(&sSpriteTemplate_SpinnerArrow, x, y + dir * SPINNER_ARROW_Y_OFFSET, 0);
-
-        if (spriteId != MAX_SPRITES)
-        {
-            StartSpriteAnim(&gSprites[spriteId], i);
-            gSprites[spriteId].sDir = dir;
-            gSprites[spriteId].sMode = mode;
-            sPartyMenuInternal->spinnerArrowSpriteIds[i] = spriteId;
-        }
-    }
-}
-
-static void DestroySpinnerArrowSprites(void)
-{
-    int i;
-
-    for (i = 0; i < ARRAY_COUNT(sPartyMenuInternal->spinnerArrowSpriteIds); i++)
-    {
-        if (sPartyMenuInternal->spinnerArrowSpriteIds[i] != MAX_SPRITES)
-        {
-            DestroySprite(&gSprites[sPartyMenuInternal->spinnerArrowSpriteIds[i]]);
-            sPartyMenuInternal->spinnerArrowSpriteIds[i] = MAX_SPRITES;
-        }
-    }
-}
-
-static void AnimateQuantitySpinner(void)
-{
-    u16 dpad = JOY_REPEAT(DPAD_ANY);
-    u8 arrowIdx, spriteId;
-
-    if (dpad == DPAD_UP || dpad == DPAD_RIGHT)
-        arrowIdx = SPINNER_ARROW_UP;
-    else if (dpad == DPAD_DOWN || dpad == DPAD_LEFT)
-        arrowIdx = SPINNER_ARROW_DOWN;
-    else
-        return;
-
-    spriteId = sPartyMenuInternal->spinnerArrowSpriteIds[arrowIdx];
-    if (spriteId == MAX_SPRITES || gSprites[spriteId].sMode != SPINNER_ARROW_STATIC)
-        return;
-
-    gSprites[spriteId].sMode = SPINNER_ARROW_ANIM;
-    gSprites[spriteId].sTimer = 0;
-    gSprites[spriteId].sStep = 0;
-}
-
-#undef sDir
-#undef sMode
-#undef sTimer
-#undef sStep
-
-#define QUANTITY_SPINNER_X      152
-
-static void CreateQuantityFrameSprites(void)
-{
-    s16 x = 144;
-    s16 y = 96;
-    int i;
-    u8 spriteId;
-
-    if (sPartyMenuInternal->quantityFrameSpriteIds[0] != MAX_SPRITES)
-        return;
-
-    for (i = 0; i < QUANTITY_FRAME_SPRITES_COUNT; i++)
-    {
-        spriteId = CreateSprite(&sSpriteTemplate_QuantityFrame, x + (i * 64), y, 0);
-        if (spriteId != MAX_SPRITES)
-        {
-            StartSpriteAnim(&gSprites[spriteId], sQuantityFrameAnims[i]);
-            SetSpriteSheetFrameTileNum(&gSprites[spriteId]);
-            gSprites[spriteId].oam.priority = 1;
-            gSprites[spriteId].subpriority = 1;
-            sPartyMenuInternal->quantityFrameSpriteIds[i] = spriteId;
-        }
-    }
-    CreateSpinnerArrowSprites(QUANTITY_SPINNER_X, y, SPINNER_ARROW_STATIC);
-}
-
-static void DestroyQuantityFrameSprites(void)
-{
-    int i;
-    for (i = 0; i < ARRAY_COUNT(sPartyMenuInternal->quantityFrameSpriteIds); i++)
-    {
-        if (sPartyMenuInternal->quantityFrameSpriteIds[i] != MAX_SPRITES)
-        {
-            DestroySprite(&gSprites[sPartyMenuInternal->quantityFrameSpriteIds[i]]);
-            sPartyMenuInternal->quantityFrameSpriteIds[i] = MAX_SPRITES;
-        }
-    }
-    DestroySpinnerArrowSprites();
-}
-
 static void DestroySelectFrame(void)
 {
     u8 i;
@@ -6399,25 +6193,6 @@ static void CreatePartyMonStatusSpriteParameterized(enum Species species, u32 st
         if (SWSH_PARTY_STATUS_ICONS_FADE)
             gSprites[menuBox->statusSpriteId].oam.objMode = ST_OAM_OBJ_BLEND;
     }
-}
-
-static u32 GetStatusIconFromStatus(u32 status)
-{
-    if (status & STATUS1_TOXIC_POISON)
-        return STATUS_ICON_TOX;
-    if (status & STATUS1_PSN_ANY)
-        return STATUS_ICON_PSN;
-    if (status & STATUS1_SLEEP)
-        return STATUS_ICON_SLP;
-    if (status & STATUS1_PARALYSIS)
-        return STATUS_ICON_PRZ;
-    if (status & STATUS1_FREEZE)
-        return STATUS_ICON_FRZ;
-    if (status & STATUS1_BURN)
-        return STATUS_ICON_BRN;
-    if (status & STATUS1_FROSTBITE)
-        return STATUS_ICON_FRB;
-    return STATUS_ICON_NONE;
 }
 
 static u32 GetStatusIcon(struct Pokemon *mon)
@@ -6697,8 +6472,8 @@ static void UpdateStatusIconFade(void)
 
 void LoadPartyMenuAilmentGfx(void)
 {
-    LoadCompressedSpriteSheet(&sSpriteSheet_StatusIcons);
-    LoadSpritePalette(&sSpritePalette_StatusIcons);
+    LoadCompressedSpriteSheet(&gSpriteSheet_StatusIconsSwSh);
+    LoadSpritePalette(&gSpritePalette_SwShUI);
 }
 
 void CB2_ShowPartyMenuForItemUse(void)
@@ -10822,39 +10597,25 @@ static void ClearHowManyItemsWindow(u8 taskId)
     ClearStdWindowAndFrameToTransparent(WIN_MSG, FALSE);
     ClearWindowTilemap(WIN_MSG);
     DestroyMessageWindowSprite();
-    DestroyQuantityFrameSprites();
+    DestroyQuantityFrameSprites(sPartyMenuInternal->quantityFrameSpriteIds, sPartyMenuInternal->spinnerArrowSpriteIds);
     ScheduleBgCopyTilemapToVram(0);
 }
 
-#define QUANTITY_FILL_INDEX     13
-#define QUANTITY_COUNT_LEFT     16
-#define QUANTITY_COUNT_RIGHT    48
-#define QUANTITY_COUNT_TOP      8
-
-static const union TextColor sQuantityTextColor =
-{
-    .background = 0,
-    .foreground = 12,
-    .shadow = 14,
-};
+#define QUANTITY_FRAME_X        144
+#define QUANTITY_FRAME_Y        96
 
 static void PrintHowManyItemsWindow(u8 taskId)
 {
     s16 *data = gTasks[taskId].data;
     u8 spriteId;
 
-    CreateQuantityFrameSprites();
+    CreateQuantityFrameSprites(sPartyMenuInternal->quantityFrameSpriteIds, sPartyMenuInternal->spinnerArrowSpriteIds,
+                               QUANTITY_FRAME_X, QUANTITY_FRAME_Y, 1, 0);
     spriteId = sPartyMenuInternal->quantityFrameSpriteIds[0];
-    if (spriteId == MAX_SPRITES)
+    if (spriteId == SPRITE_NONE)
         return;
 
-    ConvertIntToDecimalStringN(gStringVar1, tItemCount, STR_CONV_MODE_LEADING_ZEROS, MAX_ITEM_DIGITS);
-    StringExpandPlaceholders(gStringVar3, gText_xVar1);
-    FillSpriteRectColor(spriteId, QUANTITY_COUNT_LEFT, QUANTITY_COUNT_TOP,
-        QUANTITY_COUNT_RIGHT - QUANTITY_COUNT_LEFT, GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
-    AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
-        GetStringRightAlignXOffset(FONT_NARROW, gStringVar3, QUANTITY_COUNT_RIGHT), QUANTITY_COUNT_TOP,
-        0, 0, sQuantityTextColor, 0, gStringVar3);
+    PrintQuantityFrameCount(spriteId, tItemCount);
 }
 
 static void Task_GiveHowManyItems(u8 taskId)
@@ -10874,7 +10635,7 @@ static void Task_GiveHowManyItemsHandleInput(u8 taskId)
     if (AdjustQuantityAccordingToDPadInput(&tItemCount, tMaxItemQuantity) == TRUE)
     {
         PrintHowManyItemsWindow(taskId);
-        AnimateQuantitySpinner();
+        AnimateQuantitySpinner(sPartyMenuInternal->spinnerArrowSpriteIds);
     }
     else
     {
