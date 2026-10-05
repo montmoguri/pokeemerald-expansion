@@ -68,7 +68,7 @@ void AnimateQuantitySpinner(const u8 *spriteIds);
 void CreateQuantityFrameSprites(u8 *frameSpriteIds, u8 *spinnerSpriteIds, s16 x, s16 y, u8 priority, u8 subpriority);
 void DestroyQuantityFrameSprites(u8 *frameSpriteIds, u8 *spinnerSpriteIds);
 void PrintQuantityFrameCount(u8 spriteId, u16 quantity);
-void PrintQuantityFrameTotal(u8 spriteId, u32 total);
+void PrintQuantityFrameTotal(u8 spriteId, const u8 *str);
 void StartCursorBob(u8 spriteId, u32 *animId);
 void UpdateCursorBob(struct Sprite *sprite, u32 animId);
 

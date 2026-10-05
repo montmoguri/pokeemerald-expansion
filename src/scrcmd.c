@@ -55,6 +55,7 @@
 #include "slot_machine.h"
 #include "sound.h"
 #include "string_util.h"
+#include "swsh_shop.h"
 #include "text.h"
 #include "text_window.h"
 #include "trainer_see.h"
@@ -2536,6 +2537,30 @@ bool8 ScrCmd_pokemartdecoration2(struct ScriptContext *ctx)
     Script_RequestEffects(SCREFF_V1 | SCREFF_HARDWARE);
 
     CreateDecorationShop2Menu(ptr);
+    ScriptContext_Stop();
+    return TRUE;
+}
+
+bool8 ScrCmd_currencymart(struct ScriptContext *ctx)
+{
+    enum MartCurrency currency = ScriptReadByte(ctx);
+    const void *ptr = (void *)ScriptReadWord(ctx);
+
+    Script_RequestEffects(SCREFF_V1 | SCREFF_HARDWARE);
+
+    CreateCurrencyMart_SwSh(ptr, currency);
+    ScriptContext_Stop();
+    return TRUE;
+}
+
+bool8 ScrCmd_currencymartdecoration(struct ScriptContext *ctx)
+{
+    enum MartCurrency currency = ScriptReadByte(ctx);
+    const void *ptr = (void *)ScriptReadWord(ctx);
+
+    Script_RequestEffects(SCREFF_V1 | SCREFF_HARDWARE);
+
+    CreateCurrencyMartDecoration_SwSh(ptr, currency);
     ScriptContext_Stop();
     return TRUE;
 }

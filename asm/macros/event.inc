@@ -1326,6 +1326,45 @@
 	.4byte \products
 	.endm
 
+	@ Opens the buy list directly, priced in a MART_CURRENCY_* value.
+	@ Products should be a list of .2byte item values preceded by an .align 2
+	@ Optional: martinlineprices for manually inlined prices (required for non-money currencies)
+	.macro currencymart currency:req, products:req
+	.byte SCR_OP_CURRENCYMART
+	.byte \currency
+	.4byte \products
+	.endm
+
+	@ Identical to currencymart, but treats the list as decorations.
+	.macro currencymartdecoration currency:req, products:req
+	.byte SCR_OP_CURRENCYMARTDECORATION
+	.byte \currency
+	.4byte \products
+	.endm
+
+	.set _mart_inline_prices, 0
+
+	@ Flags a product list as having manually inlined prices.
+	.macro martinlineprices
+	.set _mart_inline_prices, 1
+	.2byte MART_LIST_INLINE_PRICES
+	.endm
+
+	@ A product in a list with inlined prices.
+	.macro martitem item:req, price:req
+	.if _mart_inline_prices == 0
+		.error "martitem requires martinlineprices at the start of the list"
+	.endif
+	.2byte \item
+	.2byte \price
+	.endm
+
+	@ Used as the endpoint for a martinlineprices product list
+	.macro martlistend
+	.set _mart_inline_prices, 0
+	pokemartlistend
+	.endm
+
 	@ Starts up the slot machine minigame. id is a SLOT_MACHINE_* value that influences probabilities of certain reel outcomes.
 	.macro playslotmachine id:req
 	.byte SCR_OP_PLAYSLOTMACHINE

@@ -8,15 +8,20 @@ BattleFrontier_ExchangeServiceCorner_MapScripts::
 
 BattleFrontier_ExchangeServiceCorner_EventScript_ClerkWelcome::
 	msgbox BattleFrontier_ExchangeServiceCorner_Text_WelcomePleaseChoosePrize, MSGBOX_DEFAULT
+.if SWSH_SHOP_BP_MART == FALSE
 	special ShowBattlePointsWindow
+.endif
 	return
 
 BattleFrontier_ExchangeServiceCorner_EventScript_ClerkGoodbye::
 	msgbox BattleFrontier_ExchangeServiceCorner_Text_ThankYouVisitWithPoints, MSGBOX_DEFAULT
+.if SWSH_SHOP_BP_MART == FALSE
 	special CloseBattlePointsWindow
+.endif
 	release
 	end
 
+.if SWSH_SHOP_BP_MART == FALSE
 BattleFrontier_ExchangeServiceCorner_EventScript_TryPurchasePrize::
 	specialvar VAR_TEMP_1, GetFrontierBattlePoints
 	goto_if_ge VAR_TEMP_1, VAR_0x8008, BattleFrontier_ExchangeServiceCorner_EventScript_TryGivePrize
@@ -70,14 +75,37 @@ BattleFrontier_ExchangeServiceCorner_EventScript_BagFull::
 	special CloseBattlePointsWindow
 	release
 	end
+.endif @ SWSH_SHOP_BP_MART
 
 BattleFrontier_ExchangeServiceCorner_EventScript_DecorClerk1::
 	lock
 	faceplayer
-	setvar VAR_TEMP_2, EXCHANGE_CORNER_DECOR1_CLERK
 	call BattleFrontier_ExchangeServiceCorner_EventScript_ClerkWelcome
+.if SWSH_SHOP_BP_MART
+	currencymartdecoration MART_CURRENCY_BATTLE_POINTS, BattleFrontier_ExchangeServiceCorner_Mart_Decor1
+	goto BattleFrontier_ExchangeServiceCorner_EventScript_ClerkGoodbye
+.else
+	setvar VAR_TEMP_2, EXCHANGE_CORNER_DECOR1_CLERK
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_ChooseDecor1
+.endif
 	end
+
+.if SWSH_SHOP_BP_MART
+	.align 2
+BattleFrontier_ExchangeServiceCorner_Mart_Decor1:
+	martinlineprices
+	martitem DECOR_KISS_POSTER,     16
+	martitem DECOR_KISS_CUSHION,    32
+	martitem DECOR_SMOOCHUM_DOLL,   32
+	martitem DECOR_TOGEPI_DOLL,     48
+	martitem DECOR_MEOWTH_DOLL,     48
+	martitem DECOR_CLEFAIRY_DOLL,   48
+	martitem DECOR_DITTO_DOLL,      48
+	martitem DECOR_CYNDAQUIL_DOLL,  80
+	martitem DECOR_CHIKORITA_DOLL,  80
+	martitem DECOR_TOTODILE_DOLL,   80
+	martlistend
+.else
 
 BattleFrontier_ExchangeServiceCorner_EventScript_ChooseDecor1::
 	setvar VAR_0x8004, SCROLL_MULTI_BF_EXCHANGE_CORNER_DECOR_VENDOR_1
@@ -145,14 +173,32 @@ BattleFrontier_ExchangeServiceCorner_EventScript_ChikoritaDoll::
 BattleFrontier_ExchangeServiceCorner_EventScript_TotodileDoll::
 	setitemandprice DECOR_TOTODILE_DOLL, 80
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_PurchaseDecor1
+.endif @ SWSH_SHOP_BP_MART
 
 BattleFrontier_ExchangeServiceCorner_EventScript_DecorClerk2::
 	lock
 	faceplayer
-	setvar VAR_TEMP_2, EXCHANGE_CORNER_DECOR2_CLERK
 	call BattleFrontier_ExchangeServiceCorner_EventScript_ClerkWelcome
+.if SWSH_SHOP_BP_MART
+	currencymartdecoration MART_CURRENCY_BATTLE_POINTS, BattleFrontier_ExchangeServiceCorner_Mart_Decor2
+	goto BattleFrontier_ExchangeServiceCorner_EventScript_ClerkGoodbye
+.else
+	setvar VAR_TEMP_2, EXCHANGE_CORNER_DECOR2_CLERK
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_ChooseDecor2
+.endif
 	end
+
+.if SWSH_SHOP_BP_MART
+	.align 2
+BattleFrontier_ExchangeServiceCorner_Mart_Decor2:
+	martinlineprices
+	martitem DECOR_LAPRAS_DOLL,    128
+	martitem DECOR_SNORLAX_DOLL,   128
+	martitem DECOR_VENUSAUR_DOLL,  256
+	martitem DECOR_CHARIZARD_DOLL, 256
+	martitem DECOR_BLASTOISE_DOLL, 256
+	martlistend
+.else
 
 BattleFrontier_ExchangeServiceCorner_EventScript_ChooseDecor2::
 	setvar VAR_0x8004, SCROLL_MULTI_BF_EXCHANGE_CORNER_DECOR_VENDOR_2
@@ -195,14 +241,33 @@ BattleFrontier_ExchangeServiceCorner_EventScript_CharizardDoll::
 BattleFrontier_ExchangeServiceCorner_EventScript_BlastoiseDoll::
 	setitemandprice DECOR_BLASTOISE_DOLL, 256
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_PurchaseDecor2
+.endif @ SWSH_SHOP_BP_MART
 
 BattleFrontier_ExchangeServiceCorner_EventScript_VitaminClerk::
 	lock
 	faceplayer
-	setvar VAR_TEMP_2, EXCHANGE_CORNER_VITAMIN_CLERK
 	call BattleFrontier_ExchangeServiceCorner_EventScript_ClerkWelcome
+.if SWSH_SHOP_BP_MART
+	currencymart MART_CURRENCY_BATTLE_POINTS, BattleFrontier_ExchangeServiceCorner_Mart_Vitamins
+	goto BattleFrontier_ExchangeServiceCorner_EventScript_ClerkGoodbye
+.else
+	setvar VAR_TEMP_2, EXCHANGE_CORNER_VITAMIN_CLERK
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_ChooseVitamin
+.endif
 	end
+
+.if SWSH_SHOP_BP_MART
+	.align 2
+BattleFrontier_ExchangeServiceCorner_Mart_Vitamins:
+	martinlineprices
+	martitem ITEM_PROTEIN,   1
+	martitem ITEM_CALCIUM,   1
+	martitem ITEM_IRON,      1
+	martitem ITEM_ZINC,      1
+	martitem ITEM_CARBOS,    1
+	martitem ITEM_HP_UP,     1
+	martlistend
+.else
 
 BattleFrontier_ExchangeServiceCorner_EventScript_ChooseVitamin::
 	setvar VAR_0x8004, SCROLL_MULTI_BF_EXCHANGE_CORNER_VITAMIN_VENDOR
@@ -251,14 +316,36 @@ BattleFrontier_ExchangeServiceCorner_EventScript_HPUp::
 	setitemandprice ITEM_HP_UP, 1
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_PurchaseVitamin
 
+.endif @ SWSH_SHOP_BP_MART
 
 BattleFrontier_ExchangeServiceCorner_EventScript_HoldItemClerk::
 	lock
 	faceplayer
-	setvar VAR_TEMP_2, EXCHANGE_CORNER_HOLD_ITEM_CLERK
 	call BattleFrontier_ExchangeServiceCorner_EventScript_ClerkWelcome
+.if SWSH_SHOP_BP_MART
+	currencymart MART_CURRENCY_BATTLE_POINTS, BattleFrontier_ExchangeServiceCorner_Mart_HoldItems
+	goto BattleFrontier_ExchangeServiceCorner_EventScript_ClerkGoodbye
+.else
+	setvar VAR_TEMP_2, EXCHANGE_CORNER_HOLD_ITEM_CLERK
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_ChooseHoldItem
+.endif
 	end
+
+.if SWSH_SHOP_BP_MART
+	.align 2
+BattleFrontier_ExchangeServiceCorner_Mart_HoldItems:
+	martinlineprices
+	martitem ITEM_LEFTOVERS,      48
+	martitem ITEM_WHITE_HERB,     48
+	martitem ITEM_QUICK_CLAW,     48
+	martitem ITEM_MENTAL_HERB,    48
+	martitem ITEM_BRIGHT_POWDER,  64
+	martitem ITEM_CHOICE_BAND,    64
+	martitem ITEM_KINGS_ROCK,     64
+	martitem ITEM_FOCUS_BAND,     64
+	martitem ITEM_SCOPE_LENS,     64
+	martlistend
+.else
 
 BattleFrontier_ExchangeServiceCorner_EventScript_ChooseHoldItem::
 	setvar VAR_0x8004, SCROLL_MULTI_BF_EXCHANGE_CORNER_HOLD_ITEM_VENDOR
@@ -321,6 +408,7 @@ BattleFrontier_ExchangeServiceCorner_EventScript_FocusBand::
 BattleFrontier_ExchangeServiceCorner_EventScript_ScopeLens::
 	setitemandprice ITEM_SCOPE_LENS, 64
 	goto BattleFrontier_ExchangeServiceCorner_EventScript_PurchaseHoldItem
+.endif @ SWSH_SHOP_BP_MART
 
 BattleFrontier_ExchangeServiceCorner_EventScript_Man::
 	msgbox BattleFrontier_ExchangeServiceCorner_Text_GoGetYourOwnDoll, MSGBOX_NPC

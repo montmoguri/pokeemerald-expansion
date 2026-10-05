@@ -520,18 +520,16 @@ void PrintQuantityFrameCount(u8 spriteId, u16 quantity)
                                        QUANTITY_COUNT_TOP, 0, 0, sQuantityTextColor, 0, gStringVar1);
 }
 
-void PrintQuantityFrameTotal(u8 spriteId, u32 total)
+void PrintQuantityFrameTotal(u8 spriteId, const u8 *str)
 {
     if (spriteId == SPRITE_NONE)
         return;
 
-    ConvertMoneyToCommaString(gStringVar1, total);
-    StringExpandPlaceholders(gStringVar4, gText_PokedollarVar1);
     FillSpriteRectColor(spriteId, 0, QUANTITY_COUNT_TOP, QUANTITY_TOTAL_RIGHT,
                         GetFontAttribute(FONT_NARROW, FONTATTR_MAX_LETTER_HEIGHT), QUANTITY_FILL_INDEX);
     AddSpriteTextPrinterParameterized6(spriteId, FONT_NARROW,
-                                       GetStringRightAlignXOffset(FONT_NARROW, gStringVar4, QUANTITY_TOTAL_RIGHT),
-                                       QUANTITY_COUNT_TOP, 0, 0, sQuantityTextColor, 0, gStringVar4);
+                                       GetStringRightAlignXOffset(FONT_NARROW, str, QUANTITY_TOTAL_RIGHT),
+                                       QUANTITY_COUNT_TOP, 0, 0, sQuantityTextColor, 0, str);
 }
 
 #define CURSOR_BOB_RANGE    3
