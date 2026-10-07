@@ -2388,7 +2388,7 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
     for (i = 0; i < ITEM_ICON_SLOT_COUNT; i++)
     {
         if (sShopData->itemSpriteIds[i] != SPRITE_NONE)
-            gSprites[sShopData->itemSpriteIds[i]].y2 = y + ITEM_ICON_Y_OFFSET;
+            gSprites[sShopData->itemSpriteIds[i]].y = y;
     }
 }
 
@@ -2502,7 +2502,8 @@ static void BuyMenuAddItemIcon(u32 itemId, u8 iconSlot, s16 spriteY)
 
         sprite = &gSprites[spriteId];
         sprite->x2 = ITEM_ICON_X;
-        sprite->y2 = spriteY + ITEM_ICON_Y_OFFSET;
+        sprite->y = spriteY;
+        sprite->y2 = ITEM_ICON_Y_OFFSET;
         sprite->subpriority = SUBPRIORITY_ITEM_ICON;
         sprite->oam.affineMode = ST_OAM_AFFINE_NORMAL;
         sprite->affineAnims = sAffineAnims_ItemIcon;
@@ -2511,11 +2512,12 @@ static void BuyMenuAddItemIcon(u32 itemId, u8 iconSlot, s16 spriteY)
     }
     else
     {
-        spriteId = AddDecorationIconObject(itemId, ITEM_ICON_X - 4, spriteY + ITEM_ICON_Y_OFFSET - 4, 1,
+        spriteId = AddDecorationIconObject(itemId, ITEM_ICON_X - 4, ITEM_ICON_Y_OFFSET - 4, 1,
                                            iconSlot + TAG_ITEM_ICON_BASE, iconSlot + TAG_ITEM_ICON_BASE);
         if (spriteId == MAX_SPRITES)
             return;
 
+        gSprites[spriteId].y = spriteY;
         gSprites[spriteId].subpriority = SUBPRIORITY_ITEM_ICON;
         BuyMenuUntintItemIcon(&gSprites[spriteId], iconSlot);
     }
