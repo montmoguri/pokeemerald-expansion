@@ -339,6 +339,7 @@ static const u32 sShopMenu_Tilemap[]    = INCGFX_U32("graphics/shop/swsh/menu.bi
 static const u32 sHoverSlot_Gfx[]       = INCGFX_U32("graphics/shop/swsh/hover_slot.png", ".4bpp.smol");
 static const u32 sScrollThumb_Gfx[]     = INCGFX_U32("graphics/shop/swsh/scroll_thumb.png", ".4bpp.smol");
 static const u32 sInBag_Gfx[]           = INCGFX_U32("graphics/shop/swsh/in_bag.png", ".4bpp.smol");
+static const u32 sInStore_Gfx[]         = INCGFX_U32("graphics/shop/swsh/in_store.png", ".4bpp.smol");
 static const u32 sShopDesign_Gfx[]      = INCGFX_U32("graphics/shop/swsh/shop_design.png", ".4bpp.smol", "-mwidth 8 -mheight 8");
 
 static const u16 sShopUI_Pal[]          = INCGFX_U16("graphics/shop/swsh/hover_slot.png", ".gbapal");
@@ -470,6 +471,13 @@ static const struct OamData sOamData_InBag =
 static const struct CompressedSpriteSheet sSpriteSheet_InBag =
 {
     .data = sInBag_Gfx,
+    .size = (16 * 32) / 2,
+    .tag = TAG_IN_BAG,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_InStore =
+{
+    .data = sInStore_Gfx,
     .size = (16 * 32) / 2,
     .tag = TAG_IN_BAG,
 };
@@ -1503,23 +1511,39 @@ static void BuyMenuPrintItemDescription(u32 itemId)
     CopyWindowToVram(WIN_ITEM_DESCRIPTION, COPYWIN_GFX);
 }
 
+static u32 CountTotalDecorationQuantityInStore(u32 decor)
+{
+    u32 category = gDecorations[decor].category;
+    u32 count = 0;
+
+    for (u32 i = 0; i < gDecorationInventories[category].size; i++)
+    {
+        if (gDecorationInventories[category].items[i] == decor)
+            count++;
+    }
+
+    return count;
+}
+
 #define QUANTITY_IN_BAG_RIGHT_PAD  4
 
 static void BuyMenuPrintQuantityInBag(u32 itemId)
 {
     u8 textRight = sShopBuyMenuWindowTemplates[WIN_QUANTITY_IN_BAG].width * 8 - QUANTITY_IN_BAG_RIGHT_PAD;
+    u32 quantity;
 
     FillWindowPixelBuffer(WIN_QUANTITY_IN_BAG, PIXEL_FILL(0));
 
     if (sMartInfo.martType == MART_TYPE_NORMAL)
-    {
-        ConvertIntToDecimalStringN(gStringVar1, CountTotalItemQuantityInBag(itemId),
-                                   STR_CONV_MODE_RIGHT_ALIGN, MAX_ITEM_DIGITS);
-        StringExpandPlaceholders(gStringVar4, gText_xVar1);
-        BuyMenuPrint(WIN_QUANTITY_IN_BAG, LIST_FONT, gStringVar4,
-                     GetStringRightAlignXOffset(LIST_FONT, gStringVar4, textRight), 0, 0, 0,
-                     TEXT_SKIP_DRAW, COLORID_IN_BAG);
-    }
+        quantity = CountTotalItemQuantityInBag(itemId);
+    else
+        quantity = CountTotalDecorationQuantityInStore(itemId);
+
+    ConvertIntToDecimalStringN(gStringVar1, quantity, STR_CONV_MODE_RIGHT_ALIGN, MAX_ITEM_DIGITS);
+    StringExpandPlaceholders(gStringVar4, gText_xVar1);
+    BuyMenuPrint(WIN_QUANTITY_IN_BAG, LIST_FONT, gStringVar4,
+                 GetStringRightAlignXOffset(LIST_FONT, gStringVar4, textRight), 0, 0, 0,
+                 TEXT_SKIP_DRAW, COLORID_IN_BAG);
 
     CopyWindowToVram(WIN_QUANTITY_IN_BAG, COPYWIN_GFX);
 }
@@ -2399,7 +2423,10 @@ static void BuyMenuLoadSpriteGfx(void)
     LoadCompressedSpriteSheet(&sSpriteSheet_ScrollThumb);
     LoadCompressedSpriteSheet(&gSpriteSheet_QuantityFrameSwSh);
     LoadCompressedSpriteSheet(&gSpriteSheet_SpinnerArrowSwSh);
-    LoadCompressedSpriteSheet(&sSpriteSheet_InBag);
+    if (sMartInfo.martType == MART_TYPE_NORMAL)
+        LoadCompressedSpriteSheet(&sSpriteSheet_InBag);
+    else
+        LoadCompressedSpriteSheet(&sSpriteSheet_InStore);
     LoadCompressedSpriteSheet(&sSpriteSheet_ShopDesign);
 #if SWSH_SHOP_TM_INFO || SWSH_SHOP_BERRY_STAT
     LoadCompressedSpriteSheet(&sSpriteSheet_InfoPrompt);
