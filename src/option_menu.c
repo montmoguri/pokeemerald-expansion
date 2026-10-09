@@ -9,6 +9,7 @@
 #include "scanline_effect.h"
 #include "sprite.h"
 #include "strings.h"
+#include "swsh_option_menu.h"
 #include "task.h"
 #include "text.h"
 #include "text_window.h"
@@ -167,6 +168,12 @@ static void VBlankCB(void)
 
 void CB2_InitOptionMenu(void)
 {
+    if (SWSH_OPTION_MENU)
+    {
+        SetMainCallback2(CB2_InitOptionMenu_SwSh);
+        return;
+    }
+
     switch (gMain.state)
     {
     default:
