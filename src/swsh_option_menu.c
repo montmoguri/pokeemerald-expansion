@@ -40,12 +40,26 @@ struct SwShOption
     const u8 *const *choices;               // NULL when using getLabel
     u8 choiceCount;
     void (*getLabel)(u8 *dest, u32 value);  // optional, prints one label that updates instead choices (see Frame_GetLabel)
+    void (*drawTilemap)(u32 tilemapTop);    // optional, draws BG1 tiles over the row's cells (see Frame_DrawPreview)
 };
 
 enum
 {
     WIN_LIST,
     WIN_DESCRIPTION,
+};
+
+enum
+{
+    FRAME_TILE_TOP_LEFT,
+    FRAME_TILE_TOP,
+    FRAME_TILE_TOP_RIGHT,
+    FRAME_TILE_LEFT,
+    FRAME_TILE_CENTER,
+    FRAME_TILE_RIGHT,
+    FRAME_TILE_BOTTOM_LEFT,
+    FRAME_TILE_BOTTOM,
+    FRAME_TILE_BOTTOM_RIGHT,
 };
 
 enum
@@ -76,6 +90,12 @@ enum
 #define DESCRIPTION_HEIGHT          4
 #define DESCRIPTION_BASE_BLOCK      (LIST_BASE_BLOCK + LIST_WIDTH * LIST_HEIGHT)
 #define DESCRIPTION_BUFFER_SIZE     128
+
+#define FRAME_TILES                 9
+#define FRAME_BASE_BLOCK            (DESCRIPTION_BASE_BLOCK + DESCRIPTION_WIDTH * DESCRIPTION_HEIGHT)
+#define FRAME_PALETTE_NUM           2
+#define FRAME_PREVIEW_TILEMAP_LEFT  19
+#define FRAME_PREVIEW_WIDTH         8
 
 #define CHOICE_X                    88
 #define CHOICE_SPAN                 102
@@ -131,6 +151,7 @@ static void OptionMenu_DrawScrollTrack(void);
 static void OptionMenu_CreateSprites(void);
 static void OptionMenu_FreeResources(void);
 static void OptionList_PrintAll(void);
+static void OptionList_DrawTilemaps(void);
 static void OptionMenu_PrintDescription(void);
 static void OptionList_Move(bool32 movingDown, bool32 allowWrap);
 static void OptionList_ChangeValue(bool32 increment);
@@ -139,6 +160,8 @@ static void SpriteCB_ScrollThumb(struct Sprite *sprite);
 static void Task_OptionMenu(u8 taskId);
 static void Task_OptionMenuFadeOut(u8 taskId);
 static void Frame_GetLabel(u8 *dest, u32 value);
+static void Frame_LoadGfx(u32 frameType);
+static void Frame_DrawPreview(u32 tilemapTop);
 static u32 GetOptionValue(enum SwShOptionId optionId);
 static void SetOptionValue(enum SwShOptionId optionId, u32 value);
 
@@ -227,6 +250,7 @@ static const struct SwShOption sOptions[OPTION_COUNT] =
         .description = COMPOUND_STRING("Choose the decorative frame for non-dialogue text windows"),
         .choiceCount = WINDOW_FRAMES_COUNT,
         .getLabel = Frame_GetLabel,
+        .drawTilemap = Frame_DrawPreview,
     },
 };
 
@@ -432,6 +456,7 @@ void CB2_InitOptionMenu_SwSh(void)
         OptionMenu_DrawScrollTrack();
         OptionMenu_CreateSprites();
         OptionList_PrintAll();
+        OptionList_DrawTilemaps();
         OptionMenu_PrintDescription();
         ScheduleBgCopyTilemapToVram(1);
         ScheduleBgCopyTilemapToVram(2);
@@ -493,6 +518,7 @@ static void OptionMenu_LoadGraphics(void)
     DecompressDataWithHeaderWram(sOptionMenu_BG2Map, sOptionMenu->bg2TilemapBuffer);
     DecompressDataWithHeaderWram(sOptionMenu_BG3Map, sOptionMenu->bg3TilemapBuffer);
     LoadPalette(sOptionMenu_Pal, BG_PLTT_ID(0), sizeof(sOptionMenu_Pal));
+    Frame_LoadGfx(GetOptionValue(OPTION_FRAME));
     LoadCompressedSpriteSheet(&sSpriteSheet_Cursor);
     LoadCompressedSpriteSheet(&sSpriteSheet_HoverSlot);
     LoadCompressedSpriteSheet(&sSpriteSheet_ScrollThumb);
@@ -554,6 +580,7 @@ static void SetOptionValue(enum SwShOptionId optionId, u32 value)
         break;
     case OPTION_FRAME:
         gSaveBlock2Ptr->optionsWindowFrameType = value;
+        Frame_LoadGfx(value);
         break;
     default:
         break;
@@ -564,6 +591,29 @@ static void Frame_GetLabel(u8 *dest, u32 value)
 {
     dest = StringCopy(dest, COMPOUND_STRING("Type "));
     ConvertIntToDecimalStringN(dest, value + 1, STR_CONV_MODE_LEFT_ALIGN, 2);
+}
+
+static void Frame_LoadGfx(u32 frameType)
+{
+    const struct TilesPal *frame = GetWindowFrameTilesPal(frameType);
+
+    LoadBgTiles(1, frame->tiles, FRAME_TILES * TILE_SIZE_4BPP, FRAME_BASE_BLOCK);
+    LoadPalette(frame->pal, BG_PLTT_ID(FRAME_PALETTE_NUM), PLTT_SIZE_4BPP);
+}
+
+// skip the middle row in frame demo
+static void Frame_DrawPreview(u32 tilemapTop)
+{
+    u32 left = FRAME_PREVIEW_TILEMAP_LEFT;
+    u32 right = FRAME_PREVIEW_TILEMAP_LEFT + FRAME_PREVIEW_WIDTH - 1;
+    u32 bottom = tilemapTop + 1;
+
+    FillBgTilemapBufferRect(1, FRAME_BASE_BLOCK + FRAME_TILE_TOP_LEFT, left, tilemapTop, 1, 1, FRAME_PALETTE_NUM);
+    FillBgTilemapBufferRect(1, FRAME_BASE_BLOCK + FRAME_TILE_TOP, left + 1, tilemapTop, FRAME_PREVIEW_WIDTH - 2, 1, FRAME_PALETTE_NUM);
+    FillBgTilemapBufferRect(1, FRAME_BASE_BLOCK + FRAME_TILE_TOP_RIGHT, right, tilemapTop, 1, 1, FRAME_PALETTE_NUM);
+    FillBgTilemapBufferRect(1, FRAME_BASE_BLOCK + FRAME_TILE_BOTTOM_LEFT, left, bottom, 1, 1, FRAME_PALETTE_NUM);
+    FillBgTilemapBufferRect(1, FRAME_BASE_BLOCK + FRAME_TILE_BOTTOM, left + 1, bottom, FRAME_PREVIEW_WIDTH - 2, 1, FRAME_PALETTE_NUM);
+    FillBgTilemapBufferRect(1, FRAME_BASE_BLOCK + FRAME_TILE_BOTTOM_RIGHT, right, bottom, 1, 1, FRAME_PALETTE_NUM);
 }
 
 static void OptionList_Print(const u8 *str, u32 x, u32 y, u32 colorId)
@@ -636,6 +686,21 @@ static void OptionList_PrintAll(void)
     for (row = 0; row < OPTIONS_SHOWN; row++)
         OptionList_PrintRow(row);
     CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
+}
+
+static void OptionList_DrawTilemaps(void)
+{
+    u32 row;
+
+    PutWindowTilemap(WIN_LIST);
+    for (row = 0; row < OPTIONS_SHOWN && sOptionMenu->scrollOffset + row < OPTION_COUNT; row++)
+    {
+        const struct SwShOption *option = &sOptions[sOptionMenu->scrollOffset + row];
+
+        if (option->drawTilemap != NULL)
+            option->drawTilemap(LIST_TILEMAP_TOP + row * OPTION_ROW_HEIGHT / 8);
+    }
+    ScheduleBgCopyTilemapToVram(1);
 }
 
 static void OptionMenu_PrintDescription(void)
@@ -890,6 +955,8 @@ static void OptionList_Move(bool32 movingDown, bool32 allowWrap)
         OptionList_PrintRow(oldAbs - sOptionMenu->scrollOffset);
     OptionList_PrintRow(sOptionMenu->selectedRow);
     CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
+    if (sOptionMenu->scrollOffset != oldScroll)
+        OptionList_DrawTilemaps();
 
     OptionMenu_PrintDescription();
     OptionList_AnimateCursor(abs);
