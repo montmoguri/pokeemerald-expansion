@@ -5473,13 +5473,16 @@ static void BagMenu_DrawPartySlotInfo(void)
 
     for (slot = 0; slot < PARTY_SIZE; slot++)
     {
+        if (!BagMenu_PartyInfoSlotShown(slot))
+            ClearWindowTilemap(WIN_PARTY_INFO_0 + slot);
+    }
+
+    for (slot = 0; slot < PARTY_SIZE; slot++)
+    {
         u8 windowId = WIN_PARTY_INFO_0 + slot;
 
         if (!BagMenu_PartyInfoSlotShown(slot))
-        {
-            ClearWindowTilemap(windowId);
             continue;
-        }
         SetWindowAttribute(windowId, WINDOW_PALETTE_NUM, PARTY_INFO_PAL_NORMAL);
         BagMenu_PrintPartySlotInfo(slot);
         if (!BagMenu_PartyInfoSlotHiddenByHPBar(slot))
