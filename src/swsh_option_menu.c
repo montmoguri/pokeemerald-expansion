@@ -36,6 +36,7 @@ enum SwShOptionId
 struct SwShOption
 {
     const u8 *name;
+    const u8 *description;                  // optional, description of what the options do
     const u8 *const *choices;               // NULL when using getLabel
     u8 choiceCount;
     void (*getLabel)(u8 *dest, u32 value);  // optional, prints one label that updates instead choices (see Frame_GetLabel)
@@ -44,6 +45,7 @@ struct SwShOption
 enum
 {
     WIN_LIST,
+    WIN_DESCRIPTION,
 };
 
 enum
@@ -53,6 +55,7 @@ enum
     COLORID_NOT_CHOSEN,
     COLORID_CHOSEN_FOCUSED,
     COLORID_NOT_CHOSEN_FOCUSED,
+    COLORID_DESCRIPTION,
 };
 
 #define OPTIONS_SHOWN               6
@@ -65,6 +68,14 @@ enum
 #define LIST_WIDTH                  24
 #define LIST_HEIGHT                 (OPTIONS_SHOWN * OPTION_ROW_HEIGHT / 8)
 #define LIST_BASE_BLOCK             1
+
+#define DESCRIPTION_FONT            FONT_SHORT_NARROW
+#define DESCRIPTION_TILEMAP_LEFT    5
+#define DESCRIPTION_TILEMAP_TOP     16
+#define DESCRIPTION_WIDTH           20
+#define DESCRIPTION_HEIGHT          4
+#define DESCRIPTION_BASE_BLOCK      (LIST_BASE_BLOCK + LIST_WIDTH * LIST_HEIGHT)
+#define DESCRIPTION_BUFFER_SIZE     128
 
 #define CHOICE_X                    88
 #define CHOICE_SPAN                 102
@@ -98,6 +109,7 @@ struct OptionMenu
     u8 bg1TilemapBuffer[BG_SCREEN_SIZE];
     u8 bg2TilemapBuffer[BG_SCREEN_SIZE];
     u8 bg3TilemapBuffer[BG_SCREEN_SIZE];
+    u8 descriptionBuffer[DESCRIPTION_BUFFER_SIZE];
     u16 scrollOffset;
     u16 selectedRow;
     u8 cursorSpriteId;
@@ -119,6 +131,7 @@ static void OptionMenu_DrawScrollTrack(void);
 static void OptionMenu_CreateSprites(void);
 static void OptionMenu_FreeResources(void);
 static void OptionList_PrintAll(void);
+static void OptionMenu_PrintDescription(void);
 static void OptionList_Move(bool32 movingDown, bool32 allowWrap);
 static void OptionList_ChangeValue(bool32 increment);
 static void SpriteCB_Cursor(struct Sprite *sprite);
@@ -176,36 +189,42 @@ static const struct SwShOption sOptions[OPTION_COUNT] =
     [OPTION_TEXT_SPEED] =
     {
         .name = COMPOUND_STRING("Text Speed"),
+        .description = COMPOUND_STRING("Choose text speed to control how quickly messages appear"),
         .choices = sTextSpeedChoices,
         .choiceCount = ARRAY_COUNT(sTextSpeedChoices),
     },
     [OPTION_BATTLE_SCENE] =
     {
         .name = COMPOUND_STRING("Battle Scene"),
+        .description = COMPOUND_STRING("Choose whether to see move animations during battles"),
         .choices = sBattleSceneChoices,
         .choiceCount = ARRAY_COUNT(sBattleSceneChoices),
     },
     [OPTION_BATTLE_STYLE] =
     {
         .name = COMPOUND_STRING("Battle Style"),
+        .description = COMPOUND_STRING("Choose whether to switch Pokémon after an opponent faints"),
         .choices = sBattleStyleChoices,
         .choiceCount = ARRAY_COUNT(sBattleStyleChoices),
     },
     [OPTION_SOUND] =
     {
         .name = COMPOUND_STRING("Sound"),
+        .description = COMPOUND_STRING("Choose audio output to suit headphones or GBA speaker"),
         .choices = sSoundChoices,
         .choiceCount = ARRAY_COUNT(sSoundChoices),
     },
     [OPTION_BUTTON_MODE] =
     {
         .name = COMPOUND_STRING("Button Mode"),
+        .description = COMPOUND_STRING("Choose how the L and R buttons function"),
         .choices = sButtonModeChoices,
         .choiceCount = ARRAY_COUNT(sButtonModeChoices),
     },
     [OPTION_FRAME] =
     {
         .name = COMPOUND_STRING("Frame"),
+        .description = COMPOUND_STRING("Choose the decorative frame for non-dialogue text windows"),
         .choiceCount = WINDOW_FRAMES_COUNT,
         .getLabel = Frame_GetLabel,
     },
@@ -218,6 +237,7 @@ static const u8 sTextColors[][3] =
     [COLORID_NOT_CHOSEN]         = {0, 7, 8},
     [COLORID_CHOSEN_FOCUSED]     = {0, 1, 3},
     [COLORID_NOT_CHOSEN_FOCUSED] = {0, 6, 3},
+    [COLORID_DESCRIPTION]        = {0, 1, 3},
 };
 
 static const struct BgTemplate sOptionMenuBgTemplates[] =
@@ -262,6 +282,16 @@ static const struct WindowTemplate sOptionMenuWindowTemplates[] =
         .height = LIST_HEIGHT,
         .paletteNum = TEXT_PALETTE_NUM,
         .baseBlock = LIST_BASE_BLOCK,
+    },
+    [WIN_DESCRIPTION] =
+    {
+        .bg = 1,
+        .tilemapLeft = DESCRIPTION_TILEMAP_LEFT,
+        .tilemapTop = DESCRIPTION_TILEMAP_TOP,
+        .width = DESCRIPTION_WIDTH,
+        .height = DESCRIPTION_HEIGHT,
+        .paletteNum = TEXT_PALETTE_NUM,
+        .baseBlock = DESCRIPTION_BASE_BLOCK,
     },
     DUMMY_WIN_TEMPLATE,
 };
@@ -402,6 +432,7 @@ void CB2_InitOptionMenu_SwSh(void)
         OptionMenu_DrawScrollTrack();
         OptionMenu_CreateSprites();
         OptionList_PrintAll();
+        OptionMenu_PrintDescription();
         ScheduleBgCopyTilemapToVram(1);
         ScheduleBgCopyTilemapToVram(2);
         ScheduleBgCopyTilemapToVram(3);
@@ -451,7 +482,9 @@ static void OptionMenu_InitWindows(void)
     InitWindows(sOptionMenuWindowTemplates);
     DeactivateAllTextPrinters();
     FillWindowPixelBuffer(WIN_LIST, PIXEL_FILL(0));
+    FillWindowPixelBuffer(WIN_DESCRIPTION, PIXEL_FILL(0));
     PutWindowTilemap(WIN_LIST);
+    PutWindowTilemap(WIN_DESCRIPTION);
 }
 
 static void OptionMenu_LoadGraphics(void)
@@ -603,6 +636,28 @@ static void OptionList_PrintAll(void)
     for (row = 0; row < OPTIONS_SHOWN; row++)
         OptionList_PrintRow(row);
     CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
+}
+
+static void OptionMenu_PrintDescription(void)
+{
+    const u8 *description = sOptions[sOptionMenu->scrollOffset + sOptionMenu->selectedRow].description;
+
+    FillWindowPixelBuffer(WIN_DESCRIPTION, PIXEL_FILL(0));
+    if (description == NULL)
+    {
+        HideBg(2);
+    }
+    else
+    {
+        u8 fontId = FormatDescriptionByWidth(sOptionMenu->descriptionBuffer, DESCRIPTION_BUFFER_SIZE, DESCRIPTION_WIDTH * 8,
+                                             DESCRIPTION_FONT, description,
+                                             GetFontAttribute(DESCRIPTION_FONT, FONTATTR_LETTER_SPACING));
+
+        ShowBg(2);
+        AddTextPrinterParameterized4(WIN_DESCRIPTION, fontId, 0, 0, 0, 0, sTextColors[COLORID_DESCRIPTION],
+                                     TEXT_SKIP_DRAW, sOptionMenu->descriptionBuffer);
+    }
+    CopyWindowToVram(WIN_DESCRIPTION, COPYWIN_GFX);
 }
 
 static s16 OptionList_RowSpriteY(u32 row)
@@ -836,6 +891,7 @@ static void OptionList_Move(bool32 movingDown, bool32 allowWrap)
     OptionList_PrintRow(sOptionMenu->selectedRow);
     CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
 
+    OptionMenu_PrintDescription();
     OptionList_AnimateCursor(abs);
 }
 
