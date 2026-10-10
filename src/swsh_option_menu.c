@@ -152,7 +152,7 @@ static void OptionMenu_CreateSprites(void);
 static void OptionMenu_FreeResources(void);
 static void OptionList_PrintAll(void);
 static void OptionList_DrawTilemaps(void);
-static void OptionMenu_PrintDescription(void);
+static void OptionMenu_PrintDescription(s8 speed);
 static void OptionList_Move(bool32 movingDown, bool32 allowWrap);
 static void OptionList_ChangeValue(bool32 increment);
 static void SpriteCB_Cursor(struct Sprite *sprite);
@@ -457,7 +457,7 @@ void CB2_InitOptionMenu_SwSh(void)
         OptionMenu_CreateSprites();
         OptionList_PrintAll();
         OptionList_DrawTilemaps();
-        OptionMenu_PrintDescription();
+        OptionMenu_PrintDescription(TEXT_SKIP_DRAW);
         ScheduleBgCopyTilemapToVram(1);
         ScheduleBgCopyTilemapToVram(2);
         ScheduleBgCopyTilemapToVram(3);
@@ -473,6 +473,7 @@ void CB2_InitOptionMenu_SwSh(void)
 static void CB2_OptionMenu(void)
 {
     RunTasks();
+    RunTextPrinters();
     AdvanceComfyAnimations();
     AnimateSprites();
     BuildOamBuffer();
@@ -703,10 +704,11 @@ static void OptionList_DrawTilemaps(void)
     ScheduleBgCopyTilemapToVram(1);
 }
 
-static void OptionMenu_PrintDescription(void)
+static void OptionMenu_PrintDescription(s8 speed)
 {
     const u8 *description = sOptions[sOptionMenu->scrollOffset + sOptionMenu->selectedRow].description;
 
+    DeactivateSingleTextPrinter(WIN_DESCRIPTION, WINDOW_TEXT_PRINTER);
     FillWindowPixelBuffer(WIN_DESCRIPTION, PIXEL_FILL(0));
     if (description == NULL)
     {
@@ -720,7 +722,7 @@ static void OptionMenu_PrintDescription(void)
 
         ShowBg(2);
         AddTextPrinterParameterized4(WIN_DESCRIPTION, fontId, 0, 0, 0, 0, sTextColors[COLORID_DESCRIPTION],
-                                     TEXT_SKIP_DRAW, sOptionMenu->descriptionBuffer);
+                                     speed, sOptionMenu->descriptionBuffer);
     }
     CopyWindowToVram(WIN_DESCRIPTION, COPYWIN_GFX);
 }
@@ -958,7 +960,7 @@ static void OptionList_Move(bool32 movingDown, bool32 allowWrap)
     if (sOptionMenu->scrollOffset != oldScroll)
         OptionList_DrawTilemaps();
 
-    OptionMenu_PrintDescription();
+    OptionMenu_PrintDescription(TEXT_SKIP_DRAW);
     OptionList_AnimateCursor(abs);
 }
 
@@ -977,6 +979,8 @@ static void OptionList_ChangeValue(bool32 increment)
 
     OptionList_PrintRow(sOptionMenu->selectedRow);
     CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
+    if (optionId == OPTION_TEXT_SPEED)
+        OptionMenu_PrintDescription(GetPlayerTextSpeedDelay());
 }
 
 static void Task_OptionMenu(u8 taskId)
@@ -1025,6 +1029,7 @@ static void OptionMenu_FreeResources(void)
     FreeSpritePaletteByTag(TAG_SWSH_OPTION_UI_PAL);
     FreeSpritePaletteByTag(TAG_SWSH_UI_PAL);
     ReleaseComfyAnims();
+    DeactivateSingleTextPrinter(WIN_DESCRIPTION, WINDOW_TEXT_PRINTER);
     FreeAllWindowBuffers();
     Free(sOptionMenu);
     sOptionMenu = NULL;
