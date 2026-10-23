@@ -170,7 +170,9 @@ struct BagMenu
 #if SWSH_BAG_IN_BAG_USE
     const struct YesNoFuncTable *partyYesNoFuncs;
     bool8 partyGiveMode;
-    bool8 partyBlendActive;
+    u8 partyMonIconDimmed; // bit per slot
+    u8 partyMonIconPalIndex[PARTY_SIZE];
+    u8 partySlotBgPal[PARTY_SIZE];
     u16 partyGiveSwapItem;
     u8 heldItemIconSpriteId;
     u16 heldItemPalIndex;
