@@ -17,6 +17,7 @@
 #include "scanline_effect.h"
 #include "sound.h"
 #include "sprite.h"
+#include "string_util.h"
 #include "strings.h"
 #include "task.h"
 #include "text.h"
@@ -25,50 +26,103 @@
 #include "constants/rgb.h"
 #include "constants/songs.h"
 
-#define HALL_OF_FAME_MAX_TEAMS  30
-#define SAVE_MESSAGE_FRAMES     32
-#define EXIT_FADE_FRAMES        16
-#define EXIT_BGM_FADE_SPEED     4
-#define FADE_COEFF_MAX          16
-
-#define INTRO_FADE_IN_FRAMES    48
-#define INTRO_POST_ANIM_FRAMES  120
-#define INTRO_FADE_OUT_FRAMES   16
-#define INTRO_BG2_BLEND_EVA     10
-#define INTRO_BG2_BLEND_EVB     6
-#define TYPE_BG_SCROLL_SPEED    64
-
-#define BACK_SLIDE_FRAMES       60
-#define FRONT_SLIDE_FRAMES      48
-#define FRONT_LANDING_X         172
-#define FRONT_LANDING_Y         78
-#define FRONT_SUBPRIORITY       0
-#define MON_OBJ_PRIORITY        2
-#define PAL_SLOT_BACK_PIC       0
-
-#define NUM_RESERVED_OBJ_PALETTES 8
-
-#define sSpecies                data[0]
-#define sDontFlip               data[1]
-
-#define TILEMAP_PALETTE_SHIFT   12
-#define TILEMAP_TILE_MASK       0x0FFF
-
-#define PAL_HOF_MAIN            0
-#define PAL_HOF_TYPE_BG         1
-#define INTRO_BG_PALETTES       ((1 << PAL_HOF_MAIN) | (1 << PAL_HOF_TYPE_BG))
-
-#define SAVE_MESSAGE_LEFT       2
-#define SAVE_MESSAGE_TOP        15
-#define SAVE_MESSAGE_WIDTH      27
-#define SAVE_MESSAGE_HEIGHT     4
-#define SAVE_MESSAGE_BASE_BLOCK 0x194
+// Save
+#define HALL_OF_FAME_MAX_TEAMS      30
+#define SAVE_MESSAGE_FRAMES         32
 
 STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_DATA_SIZE * NUM_HOF_SECTORS, HallOfFameSwShFreeSpace);
+
+// Palettes
+#define PAL_HOF_MAIN                0
+#define PAL_HOF_TYPE_BG             1
+#define INTRO_BG_PALETTES           ((1 << PAL_HOF_MAIN) | (1 << PAL_HOF_TYPE_BG))
+#define PAL_SLOT_BACK_PIC           0
+#define NUM_RESERVED_OBJ_PALETTES   8
+#define FADE_COEFF_MAX              16
+
+// BGs
+#define TILEMAP_PALETTE_SHIFT       12
+#define TILEMAP_TILE_MASK           0x0FFF
+#define TYPE_BG_SCROLL_SPEED        64
+#define INTRO_BG2_BLEND_EVA         10
+#define INTRO_BG2_BLEND_EVB         6
+
+// Intro timing
+#define BACK_SLIDE_FRAMES           60
+#define FRONT_SLIDE_FRAMES          48
+#define INTRO_FADE_IN_FRAMES        48
+#define BANNER_FLASH_FRAMES         8
+#define INTRO_POST_ANIM_FRAMES      120
+#define INTRO_FADE_OUT_FRAMES       16
+
+// Exit
+#define EXIT_FADE_FRAMES            16
+#define EXIT_BGM_FADE_SPEED         4
+
+// Mon sprites
+#define MON_OBJ_PRIORITY            2
+#define FRONT_LANDING_X             172
+#define FRONT_LANDING_Y             78
+#define FRONT_SUBPRIORITY           0
+#define SHADOW_SUBPRIORITY          (FRONT_SUBPRIORITY + 1)
+#define SHADOW_OFFSET_X             5
+#define SHADOW_OFFSET_Y             2
+#define TAG_MON_SHADOW              55140
+#define MON_SHADOW_COLOR            RGB(15, 15, 15)
+
+// Front pic sprite data
+#define sSpecies                    data[0]
+#define sDontFlip                   data[1]
+
+// Shadow sprite data
+#define sOwnTileNum                 data[0]
+#define sFrontSpriteId              data[1]
+
+// Windows
+#define SAVE_MESSAGE_LEFT           2
+#define SAVE_MESSAGE_TOP            15
+#define SAVE_MESSAGE_WIDTH          27
+#define SAVE_MESSAGE_HEIGHT         4
+#define SAVE_MESSAGE_BASE_BLOCK     0x194
+
+#define INTRO_TITLE_LEFT            3
+#define INTRO_TITLE_TOP             2
+#define INTRO_TITLE_WIDTH           19
+#define INTRO_TITLE_HEIGHT          2
+#define INTRO_TITLE_BASE_BLOCK      1
+
+#define INTRO_NICKNAME_LEFT         10
+#define INTRO_NICKNAME_TOP          15
+#define INTRO_NICKNAME_WIDTH        10
+#define INTRO_NICKNAME_HEIGHT       3
+#define INTRO_NICKNAME_BASE_BLOCK   (INTRO_TITLE_BASE_BLOCK + INTRO_TITLE_WIDTH * INTRO_TITLE_HEIGHT)
+
+#define INTRO_LEVEL_LEFT            24
+#define INTRO_LEVEL_TOP             15
+#define INTRO_LEVEL_WIDTH           5
+#define INTRO_LEVEL_HEIGHT          3
+#define INTRO_LEVEL_BASE_BLOCK      (INTRO_NICKNAME_BASE_BLOCK + INTRO_NICKNAME_WIDTH * INTRO_NICKNAME_HEIGHT)
+
+#define INTRO_TEXT_TITLE_Y          1
+#define INTRO_TEXT_INFO_Y           5
+
+STATIC_ASSERT(INTRO_LEVEL_BASE_BLOCK + INTRO_LEVEL_WIDTH * INTRO_LEVEL_HEIGHT <= SAVE_MESSAGE_BASE_BLOCK, HallOfFameSwShWindowBaseBlocks);
 
 enum
 {
     WIN_SAVE_MESSAGE,
+    WIN_INTRO_TITLE,
+    WIN_INTRO_NICKNAME,
+    WIN_INTRO_LEVEL,
+};
+
+enum
+{
+    HOF_COLOR_TRANSPARENT,
+    HOF_COLOR_WHITE,
+    HOF_COLOR_LIGHT_GRAY,
+    HOF_COLOR_DARK_GRAY,
+    HOF_COLOR_BLACK,
 };
 
 enum
@@ -82,6 +136,7 @@ struct HallOfFameSwSh
 {
     struct HallofFameTeam team;
     u8 bg0TilemapBuffer[BG_SCREEN_SIZE];
+    u8 bg1TilemapBuffer[BG_SCREEN_SIZE];
     u8 bg2TilemapBuffer[BG_SCREEN_SIZE];
     u16 bg3TilemapBuffer[BG_SCREEN_SIZE / 2];
     u32 fadePalettes;
@@ -96,6 +151,8 @@ struct HallOfFameSwSh
     u8 introFade;
     u8 backSpriteId;
     u8 frontSpriteId;
+    u8 shadowSpriteId;
+    u8 flashTimer;
     bool8 createdGfxManager;
 };
 
@@ -114,6 +171,8 @@ static void Task_HofSwSh_IntroHold(u8 taskId);
 static void Task_HofSwSh_IntroFadeOut(u8 taskId);
 static void Task_HofSwSh_Exit(u8 taskId);
 
+static const u8 sTextColors[] = {HOF_COLOR_TRANSPARENT, HOF_COLOR_WHITE, HOF_COLOR_DARK_GRAY};
+
 static const struct BgTemplate sBgTemplates[] =
 {
     {
@@ -123,6 +182,15 @@ static const struct BgTemplate sBgTemplates[] =
         .screenSize = 0,
         .paletteMode = 0,
         .priority = 0,
+        .baseTile = 0
+    },
+    {
+        .bg = 1,
+        .charBaseIndex = 0,
+        .mapBaseIndex = 30,
+        .screenSize = 0,
+        .paletteMode = 0,
+        .priority = 1,
         .baseTile = 0
     },
     {
@@ -156,6 +224,36 @@ static const struct WindowTemplate sWindowTemplates[] =
         .height = SAVE_MESSAGE_HEIGHT,
         .paletteNum = DLG_WINDOW_PALETTE_NUM,
         .baseBlock = SAVE_MESSAGE_BASE_BLOCK
+    },
+    [WIN_INTRO_TITLE] =
+    {
+        .bg = 0,
+        .tilemapLeft = INTRO_TITLE_LEFT,
+        .tilemapTop = INTRO_TITLE_TOP,
+        .width = INTRO_TITLE_WIDTH,
+        .height = INTRO_TITLE_HEIGHT,
+        .paletteNum = PAL_HOF_MAIN,
+        .baseBlock = INTRO_TITLE_BASE_BLOCK
+    },
+    [WIN_INTRO_NICKNAME] =
+    {
+        .bg = 0,
+        .tilemapLeft = INTRO_NICKNAME_LEFT,
+        .tilemapTop = INTRO_NICKNAME_TOP,
+        .width = INTRO_NICKNAME_WIDTH,
+        .height = INTRO_NICKNAME_HEIGHT,
+        .paletteNum = PAL_HOF_MAIN,
+        .baseBlock = INTRO_NICKNAME_BASE_BLOCK
+    },
+    [WIN_INTRO_LEVEL] =
+    {
+        .bg = 0,
+        .tilemapLeft = INTRO_LEVEL_LEFT,
+        .tilemapTop = INTRO_LEVEL_TOP,
+        .width = INTRO_LEVEL_WIDTH,
+        .height = INTRO_LEVEL_HEIGHT,
+        .paletteNum = PAL_HOF_MAIN,
+        .baseBlock = INTRO_LEVEL_BASE_BLOCK
     },
     DUMMY_WIN_TEMPLATE
 };
@@ -259,6 +357,20 @@ static bool32 UpdateSlide(void)
     return !gComfyAnims[sHof->slideAnimId].completed;
 }
 
+static void StartBannerFlash(void)
+{
+    FillPalette(RGB_WHITE, BG_PLTT_ID(PAL_HOF_MAIN) + HOF_COLOR_DARK_GRAY, PLTT_SIZEOF(2));
+    sHof->flashTimer = BANNER_FLASH_FRAMES;
+}
+
+static void UpdateBannerFlash(void)
+{
+    if (sHof->flashTimer && --sHof->flashTimer == 0)
+    {
+        LoadPalette(&sHallOfFameTiles_Pal[HOF_COLOR_DARK_GRAY], BG_PLTT_ID(PAL_HOF_MAIN) + HOF_COLOR_DARK_GRAY, PLTT_SIZEOF(2));
+    }
+}
+
 static void VBlankCB_HallOfFameSwSh(void)
 {
     LoadOam();
@@ -295,6 +407,7 @@ static bool32 InitHallOfFameScreen(void)
         sHof->slideAnimId = INVALID_COMFY_ANIM;
         sHof->backSpriteId = SPRITE_NONE;
         sHof->frontSpriteId = SPRITE_NONE;
+        sHof->shadowSpriteId = SPRITE_NONE;
         sHof->fadeCoeff = FADE_COEFF_MAX;
         gMain.state++;
         break;
@@ -318,6 +431,7 @@ static bool32 InitHallOfFameScreen(void)
         ResetBgsAndClearDma3BusyFlags(0);
         InitBgsFromTemplates(0, sBgTemplates, ARRAY_COUNT(sBgTemplates));
         SetBgTilemapBuffer(0, sHof->bg0TilemapBuffer);
+        SetBgTilemapBuffer(1, sHof->bg1TilemapBuffer);
         SetBgTilemapBuffer(2, sHof->bg2TilemapBuffer);
         SetBgTilemapBuffer(3, sHof->bg3TilemapBuffer);
         ResetAllBgsCoordinates();
@@ -334,6 +448,8 @@ static bool32 InitHallOfFameScreen(void)
         LoadPalette(sHallOfFameTiles_Pal, BG_PLTT_ID(PAL_HOF_MAIN), PLTT_SIZE_4BPP);
         SetBackdropFromColor(RGB_BLACK);
         BlendPalettes(1 << PAL_HOF_MAIN, FADE_COEFF_MAX, RGB_BLACK);
+        DecompressDataWithHeaderWram(sIntroBg1_Tilemap, sHof->bg1TilemapBuffer);
+        CopyBgTilemapBufferToVram(1);
         DecompressDataWithHeaderWram(sIntroBg2_Tilemap, sHof->bg2TilemapBuffer);
         CopyBgTilemapBufferToVram(2);
         SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG3);
@@ -362,6 +478,63 @@ static void DestroyBackSprite(void)
     }
 }
 
+static void SpriteCB_MonShadow(struct Sprite *sprite)
+{
+    struct Sprite *front = &gSprites[sprite->sFrontSpriteId];
+
+    sprite->oam.tileNum = front->oam.tileNum;
+    sprite->oam.affineMode = front->oam.affineMode;
+    sprite->oam.matrixNum = front->oam.matrixNum;
+    sprite->x2 = front->x2;
+    sprite->y2 = front->y2;
+    sprite->centerToCornerVecX = front->centerToCornerVecX;
+    sprite->centerToCornerVecY = front->centerToCornerVecY;
+    sprite->hFlip = front->hFlip;
+    sprite->x = front->x + SHADOW_OFFSET_X;
+    sprite->y = front->y + SHADOW_OFFSET_Y;
+}
+
+static void CreateShadowSprite(void)
+{
+    struct SpriteTemplate template = gMultiuseSpriteTemplate;
+    struct Sprite *front = &gSprites[sHof->frontSpriteId];
+    struct Sprite *sprite;
+    u8 palette;
+
+    template.anims = gDummySpriteAnimTable;
+    template.affineAnims = gDummySpriteAffineAnimTable;
+    template.paletteTag = TAG_NONE;
+    template.callback = SpriteCB_MonShadow;
+    sHof->shadowSpriteId = CreateSprite(&template, front->x + SHADOW_OFFSET_X, front->y + SHADOW_OFFSET_Y, SHADOW_SUBPRIORITY);
+
+    sprite = &gSprites[sHof->shadowSpriteId];
+    FreeSpriteOamMatrix(sprite);
+
+    sprite->affineAnimBeginning = FALSE;
+    sprite->affineAnimPaused = TRUE;
+    palette = AllocSpritePalette(TAG_MON_SHADOW);
+    FillPalette(MON_SHADOW_COLOR, OBJ_PLTT_ID(palette), PLTT_SIZE_4BPP);
+    sprite->oam.paletteNum = palette;
+    sprite->oam.priority = MON_OBJ_PRIORITY;
+    sprite->sOwnTileNum = sprite->oam.tileNum;
+    sprite->sFrontSpriteId = sHof->frontSpriteId;
+}
+
+static void DestroyShadowSprite(void)
+{
+    if (sHof->shadowSpriteId != SPRITE_NONE)
+    {
+        struct Sprite *sprite = &gSprites[sHof->shadowSpriteId];
+
+        sprite->oam.tileNum = sprite->sOwnTileNum;
+        sprite->oam.affineMode = ST_OAM_AFFINE_OFF;
+        sprite->oam.matrixNum = 0;
+        DestroySprite(sprite);
+        FreeSpritePaletteByTag(TAG_MON_SHADOW);
+        sHof->shadowSpriteId = SPRITE_NONE;
+    }
+}
+
 static void DestroyFrontSprite(void)
 {
     if (sHof->frontSpriteId != SPRITE_NONE)
@@ -375,16 +548,19 @@ static void DestroyFrontSprite(void)
 static void FreeHallOfFame(void)
 {
     DestroyBackSprite();
+    DestroyShadowSprite();
     DestroyFrontSprite();
     if (sHof->createdGfxManager)
     {
         DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
     }
     HideBg(0);
+    HideBg(1);
     HideBg(2);
     HideBg(3);
     FreeAllWindowBuffers();
     UnsetBgTilemapBuffer(0);
+    UnsetBgTilemapBuffer(1);
     UnsetBgTilemapBuffer(2);
     UnsetBgTilemapBuffer(3);
     ResetBgsAndClearDma3BusyFlags(0);
@@ -545,6 +721,60 @@ static void CreateFrontSprite(void)
     sprite->hFlip = IsMonSpriteNotFlipped(mon->species);
 }
 
+static void PrintIntroText(void)
+{
+    struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
+
+    FillWindowPixelBuffer(WIN_INTRO_TITLE, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
+    FillWindowPixelBuffer(WIN_INTRO_NICKNAME, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
+    FillWindowPixelBuffer(WIN_INTRO_LEVEL, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
+
+    AddTextPrinterParameterized3(WIN_INTRO_TITLE, FONT_SHORT, 0, INTRO_TEXT_TITLE_Y, sTextColors, TEXT_SKIP_DRAW, COMPOUND_STRING("Welcome to the Hall of Fame!"));
+
+    StringCopyN(gStringVar1, mon->nickname, POKEMON_NAME_LENGTH);
+    gStringVar1[POKEMON_NAME_LENGTH] = EOS;
+    AddTextPrinterParameterized3(WIN_INTRO_NICKNAME, FONT_SHORT, 0, INTRO_TEXT_INFO_Y, sTextColors, TEXT_SKIP_DRAW, gStringVar1);
+
+    ConvertIntToDecimalStringN(StringCopy(gStringVar2, COMPOUND_STRING("{LV}. ")), mon->lvl, STR_CONV_MODE_LEFT_ALIGN, 3);
+    AddTextPrinterParameterized3(WIN_INTRO_LEVEL, FONT_SHORT, 0, INTRO_TEXT_INFO_Y, sTextColors, TEXT_SKIP_DRAW, gStringVar2);
+
+    PutWindowTilemap(WIN_INTRO_TITLE);
+    PutWindowTilemap(WIN_INTRO_NICKNAME);
+    PutWindowTilemap(WIN_INTRO_LEVEL);
+    CopyWindowToVram(WIN_INTRO_TITLE, COPYWIN_FULL);
+    CopyWindowToVram(WIN_INTRO_NICKNAME, COPYWIN_FULL);
+    CopyWindowToVram(WIN_INTRO_LEVEL, COPYWIN_FULL);
+}
+
+static void LandFrontSprite(void)
+{
+    struct Sprite *sprite = &gSprites[sHof->frontSpriteId];
+
+    CreateShadowSprite();
+    ShowBg(1);
+    StartBannerFlash();
+    PrintIntroText();
+
+    sprite->sDontFlip = !sprite->hFlip;
+    PlayCry_Normal(sprite->sSpecies, 0);
+    PokemonSummaryDoMonAnimation(sprite, sprite->sSpecies, FALSE);
+}
+
+static void ClearIntroMon(void)
+{
+    u32 i;
+
+    DestroyShadowSprite();
+    DestroyFrontSprite();
+    HideBg(1);
+    for (i = WIN_INTRO_TITLE; i <= WIN_INTRO_LEVEL; i++)
+    {
+        FillWindowPixelBuffer(i, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
+        ClearWindowTilemap(i);
+        CopyWindowToVram(i, COPYWIN_FULL);
+    }
+}
+
 static void Task_HofSwSh_IntroSetup(u8 taskId)
 {
     struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
@@ -595,15 +825,14 @@ static void Task_HofSwSh_IntroFrontSlide(u8 taskId)
         return;
     }
 
-    sprite->sDontFlip = !sprite->hFlip;
-    PlayCry_Normal(sprite->sSpecies, 0);
-    PokemonSummaryDoMonAnimation(sprite, sprite->sSpecies, FALSE);
+    LandFrontSprite();
     gTasks[taskId].func = Task_HofSwSh_IntroWaitAnim;
 }
 
 static void Task_HofSwSh_IntroWaitAnim(u8 taskId)
 {
     UpdateIntroFadeIn();
+    UpdateBannerFlash();
     if (gSprites[sHof->frontSpriteId].callback != SpriteCallbackDummy)
     {
         return;
@@ -616,6 +845,7 @@ static void Task_HofSwSh_IntroWaitAnim(u8 taskId)
 static void Task_HofSwSh_IntroHold(u8 taskId)
 {
     UpdateIntroFadeIn();
+    UpdateBannerFlash();
     if (gTasks[taskId].tFrameCount)
     {
         gTasks[taskId].tFrameCount--;
@@ -628,12 +858,13 @@ static void Task_HofSwSh_IntroHold(u8 taskId)
 
 static void Task_HofSwSh_IntroFadeOut(u8 taskId)
 {
+    UpdateBannerFlash();
     if (UpdateFade())
     {
         return;
     }
 
-    DestroyFrontSprite();
+    ClearIntroMon();
     sHof->monId++;
     if (sHof->monId < PARTY_SIZE && sHof->team.mon[sHof->monId].species != SPECIES_NONE)
     {

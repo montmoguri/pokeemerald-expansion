@@ -104,3 +104,4 @@ static const struct Wallpaper sTypeWallpapers[NUMBER_OF_MON_TYPES] =
 static const u32 sHallOfFameTiles_Gfx[]       = INCGFX_U32("graphics/hall_of_fame/tiles.png", ".4bpp.smol");
 static const u16 sHallOfFameTiles_Pal[]       = INCGFX_U16("graphics/hall_of_fame/tiles.png", ".gbapal");
 static const u32 sIntroBg2_Tilemap[]          = INCGFX_U32("graphics/hall_of_fame/intro_bg2.bin", ".smolTM");
+static const u32 sIntroBg1_Tilemap[]          = INCGFX_U32("graphics/hall_of_fame/intro_bg1.bin", ".smolTM");
