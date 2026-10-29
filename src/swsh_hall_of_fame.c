@@ -2,6 +2,7 @@
 #include "swsh_hall_of_fame.h"
 #include "hall_of_fame.h"
 #include "bg.h"
+#include "battle.h"
 #include "comfy_anim.h"
 #include "credits.h"
 #include "decompress.h"
@@ -30,12 +31,25 @@
 #define EXIT_BGM_FADE_SPEED     4
 #define FADE_COEFF_MAX          16
 
-#define INTRO_FADE_IN_FRAMES    16
-#define INTRO_HOLD_FRAMES       120
+#define INTRO_FADE_IN_FRAMES    48
+#define INTRO_POST_ANIM_FRAMES  120
 #define INTRO_FADE_OUT_FRAMES   16
 #define INTRO_BG2_BLEND_EVA     10
 #define INTRO_BG2_BLEND_EVB     6
 #define TYPE_BG_SCROLL_SPEED    64
+
+#define BACK_SLIDE_FRAMES       60
+#define FRONT_SLIDE_FRAMES      48
+#define FRONT_LANDING_X         172
+#define FRONT_LANDING_Y         78
+#define FRONT_SUBPRIORITY       0
+#define MON_OBJ_PRIORITY        2
+#define PAL_SLOT_BACK_PIC       0
+
+#define NUM_RESERVED_OBJ_PALETTES 8
+
+#define sSpecies                data[0]
+#define sDontFlip               data[1]
 
 #define TILEMAP_PALETTE_SHIFT   12
 #define TILEMAP_TILE_MASK       0x0FFF
@@ -57,6 +71,13 @@ enum
     WIN_SAVE_MESSAGE,
 };
 
+enum
+{
+    INTRO_FADE_PENDING,
+    INTRO_FADE_RUNNING,
+    INTRO_FADE_DONE,
+};
+
 struct HallOfFameSwSh
 {
     struct HallofFameTeam team;
@@ -66,9 +87,16 @@ struct HallOfFameSwSh
     u32 fadePalettes;
     u32 fadeColor;
     u32 fadeAnimId;
+    u32 slideAnimId;
+    s16 slideX;
+    s16 slideTo;
     u8 fadeCoeff;
     bool8 dontSaveData;
     u8 monId;
+    u8 introFade;
+    u8 backSpriteId;
+    u8 frontSpriteId;
+    bool8 createdGfxManager;
 };
 
 static EWRAM_DATA struct HallOfFameSwSh *sHof = NULL;
@@ -79,8 +107,9 @@ static void Task_HofSwSh_TrySave(u8 taskId);
 static void Task_HofSwSh_WaitSaveMessage(u8 taskId);
 static void Task_HofSwSh_StartExit(u8 taskId);
 static void Task_HofSwSh_IntroSetup(u8 taskId);
-static void Task_HofSwSh_IntroWaitGfx(u8 taskId);
-static void Task_HofSwSh_IntroFadeIn(u8 taskId);
+static void Task_HofSwSh_IntroBackSlide(u8 taskId);
+static void Task_HofSwSh_IntroFrontSlide(u8 taskId);
+static void Task_HofSwSh_IntroWaitAnim(u8 taskId);
 static void Task_HofSwSh_IntroHold(u8 taskId);
 static void Task_HofSwSh_IntroFadeOut(u8 taskId);
 static void Task_HofSwSh_Exit(u8 taskId);
@@ -188,6 +217,48 @@ static bool32 UpdateFade(void)
     return !gComfyAnims[sHof->fadeAnimId].completed;
 }
 
+static void UpdateIntroFadeIn(void)
+{
+    if (sHof->introFade == INTRO_FADE_RUNNING && !UpdateFade())
+    {
+        sHof->introFade = INTRO_FADE_DONE;
+    }
+}
+
+static void StartSlide(s32 from, s32 to, u32 frames, ComfyAnimEasingFunc easing)
+{
+    struct ComfyAnimEasingConfig config =
+    {
+        .durationFrames = frames,
+        .from = Q_24_8(from),
+        .to = Q_24_8(to),
+        .easingFunc = easing,
+    };
+
+    sHof->slideTo = to;
+    if (sHof->slideAnimId == INVALID_COMFY_ANIM)
+    {
+        sHof->slideAnimId = CreateComfyAnim_Easing(&config);
+    }
+    else
+    {
+        InitComfyAnim_Easing(&config, &gComfyAnims[sHof->slideAnimId]);
+    }
+    sHof->slideX = from;
+}
+
+static bool32 UpdateSlide(void)
+{
+    if (sHof->slideAnimId == INVALID_COMFY_ANIM)
+    {
+        sHof->slideX = sHof->slideTo;
+        return FALSE;
+    }
+
+    sHof->slideX = ReadComfyAnimValueSmooth(&gComfyAnims[sHof->slideAnimId]);
+    return !gComfyAnims[sHof->slideAnimId].completed;
+}
+
 static void VBlankCB_HallOfFameSwSh(void)
 {
     LoadOam();
@@ -221,6 +292,9 @@ static bool32 InitHallOfFameScreen(void)
         ResetPaletteFade();
         sHof = AllocZeroed(sizeof(*sHof));
         sHof->fadeAnimId = INVALID_COMFY_ANIM;
+        sHof->slideAnimId = INVALID_COMFY_ANIM;
+        sHof->backSpriteId = SPRITE_NONE;
+        sHof->frontSpriteId = SPRITE_NONE;
         sHof->fadeCoeff = FADE_COEFF_MAX;
         gMain.state++;
         break;
@@ -231,6 +305,12 @@ static bool32 InitHallOfFameScreen(void)
         ResetTempTileDataBuffers();
         ResetAllPicSprites();
         FreeAllSpritePalettes();
+        gReservedSpritePaletteCount = NUM_RESERVED_OBJ_PALETTES;
+        if (gMonSpritesGfxPtr == NULL)
+        {
+            CreateMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A, MON_SPR_GFX_MODE_NORMAL);
+            sHof->createdGfxManager = TRUE;
+        }
         ReleaseComfyAnims();
         gMain.state++;
         break;
@@ -273,8 +353,33 @@ static bool32 InitHallOfFameScreen(void)
     return TRUE;
 }
 
+static void DestroyBackSprite(void)
+{
+    if (sHof->backSpriteId != SPRITE_NONE)
+    {
+        FreeAndDestroyMonPicSprite(sHof->backSpriteId);
+        sHof->backSpriteId = SPRITE_NONE;
+    }
+}
+
+static void DestroyFrontSprite(void)
+{
+    if (sHof->frontSpriteId != SPRITE_NONE)
+    {
+        StopPokemonAnimationDelayTask();
+        DestroySpriteAndFreeResources(&gSprites[sHof->frontSpriteId]);
+        sHof->frontSpriteId = SPRITE_NONE;
+    }
+}
+
 static void FreeHallOfFame(void)
 {
+    DestroyBackSprite();
+    DestroyFrontSprite();
+    if (sHof->createdGfxManager)
+    {
+        DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
+    }
     HideBg(0);
     HideBg(2);
     HideBg(3);
@@ -422,37 +527,95 @@ static void Task_HofSwSh_WaitSaveMessage(u8 taskId)
     }
 }
 
+static void CreateFrontSprite(void)
+{
+    struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
+    struct Sprite *sprite;
+
+    HandleLoadSpecialPokePic(TRUE, MonSpritesGfxManager_GetSpritePtr(MON_SPR_GFX_MANAGER_A, B_POSITION_OPPONENT_LEFT), mon->species, mon->personality);
+    LoadSpritePaletteWithTag(GetMonSpritePalFromSpeciesAndPersonality(mon->species, mon->isShiny, mon->personality), mon->species);
+    SetMultiuseSpriteTemplateToPokemon(mon->species, B_POSITION_OPPONENT_LEFT);
+    sHof->frontSpriteId = CreateSprite(&gMultiuseSpriteTemplate, -(MON_PIC_WIDTH / 2), FRONT_LANDING_Y, FRONT_SUBPRIORITY);
+
+    sprite = &gSprites[sHof->frontSpriteId];
+    FreeSpriteOamMatrix(sprite);
+    sprite->callback = SpriteCallbackDummy;
+    sprite->oam.priority = MON_OBJ_PRIORITY;
+    sprite->sSpecies = mon->species;
+    sprite->hFlip = IsMonSpriteNotFlipped(mon->species);
+}
+
 static void Task_HofSwSh_IntroSetup(u8 taskId)
 {
-    LoadTypeWallpaper(GetSpeciesType(sHof->team.mon[sHof->monId].species, 0));
+    struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
+
+    LoadTypeWallpaper(GetSpeciesType(mon->species, 0));
     BlendPalettes(INTRO_BG_PALETTES, FADE_COEFF_MAX, RGB_BLACK);
-    gTasks[taskId].func = Task_HofSwSh_IntroWaitGfx;
+    sHof->introFade = INTRO_FADE_PENDING;
+
+    sHof->backSpriteId = CreateMonPicSprite(mon->species, mon->isShiny, mon->personality, FALSE, DISPLAY_WIDTH + MON_PIC_WIDTH / 2, DISPLAY_HEIGHT - MON_PIC_HEIGHT / 2 + gSpeciesInfo[mon->species].backPicYOffset, PAL_SLOT_BACK_PIC, TAG_NONE);
+    gSprites[sHof->backSpriteId].oam.priority = MON_OBJ_PRIORITY;
+    StartSlide(DISPLAY_WIDTH + MON_PIC_WIDTH / 2, -(MON_PIC_WIDTH / 2), BACK_SLIDE_FRAMES, ComfyAnimEasing_Linear);
+    gTasks[taskId].func = Task_HofSwSh_IntroBackSlide;
 }
 
-static void Task_HofSwSh_IntroWaitGfx(u8 taskId)
+static void Task_HofSwSh_IntroBackSlide(u8 taskId)
 {
-    if (FreeTempTileDataBuffersIfPossible())
+    bool32 sliding = UpdateSlide();
+
+    gSprites[sHof->backSpriteId].x = sHof->slideX;
+
+    if (sHof->introFade == INTRO_FADE_PENDING && !sliding && !FreeTempTileDataBuffersIfPossible())
+    {
+        StartFade(INTRO_BG_PALETTES, 0, INTRO_FADE_IN_FRAMES, RGB_BLACK);
+        sHof->introFade = INTRO_FADE_RUNNING;
+    }
+    UpdateIntroFadeIn();
+
+    if (sliding || sHof->introFade == INTRO_FADE_PENDING)
     {
         return;
     }
 
-    StartFade(INTRO_BG_PALETTES, 0, INTRO_FADE_IN_FRAMES, RGB_BLACK);
-    gTasks[taskId].func = Task_HofSwSh_IntroFadeIn;
+    DestroyBackSprite();
+    CreateFrontSprite();
+    StartSlide(-(MON_PIC_WIDTH / 2), FRONT_LANDING_X, FRONT_SLIDE_FRAMES, ComfyAnimEasing_EaseOutCubic);
+    gTasks[taskId].func = Task_HofSwSh_IntroFrontSlide;
 }
 
-static void Task_HofSwSh_IntroFadeIn(u8 taskId)
+static void Task_HofSwSh_IntroFrontSlide(u8 taskId)
 {
-    if (UpdateFade())
+    struct Sprite *sprite = &gSprites[sHof->frontSpriteId];
+    bool32 sliding = UpdateSlide();
+
+    sprite->x = sHof->slideX;
+    UpdateIntroFadeIn();
+    if (sliding)
     {
         return;
     }
 
-    gTasks[taskId].tFrameCount = INTRO_HOLD_FRAMES;
+    sprite->sDontFlip = !sprite->hFlip;
+    PlayCry_Normal(sprite->sSpecies, 0);
+    PokemonSummaryDoMonAnimation(sprite, sprite->sSpecies, FALSE);
+    gTasks[taskId].func = Task_HofSwSh_IntroWaitAnim;
+}
+
+static void Task_HofSwSh_IntroWaitAnim(u8 taskId)
+{
+    UpdateIntroFadeIn();
+    if (gSprites[sHof->frontSpriteId].callback != SpriteCallbackDummy)
+    {
+        return;
+    }
+
+    gTasks[taskId].tFrameCount = INTRO_POST_ANIM_FRAMES;
     gTasks[taskId].func = Task_HofSwSh_IntroHold;
 }
 
 static void Task_HofSwSh_IntroHold(u8 taskId)
 {
+    UpdateIntroFadeIn();
     if (gTasks[taskId].tFrameCount)
     {
         gTasks[taskId].tFrameCount--;
@@ -470,6 +633,7 @@ static void Task_HofSwSh_IntroFadeOut(u8 taskId)
         return;
     }
 
+    DestroyFrontSprite();
     sHof->monId++;
     if (sHof->monId < PARTY_SIZE && sHof->team.mon[sHof->monId].species != SPECIES_NONE)
     {
@@ -501,3 +665,5 @@ static void Task_HofSwSh_Exit(u8 taskId)
 }
 
 #undef tFrameCount
+#undef sSpecies
+#undef sDontFlip
