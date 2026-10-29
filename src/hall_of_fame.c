@@ -1,5 +1,6 @@
 #include "global.h"
 #include "hall_of_fame.h"
+#include "swsh_hall_of_fame.h"
 #include "task.h"
 #include "palette.h"
 #include "sprite.h"
@@ -408,6 +409,12 @@ static void AllocateHoFTeams(void)
 
 void CB2_DoHallOfFameScreen(void)
 {
+    if (SWSH_HALL_OF_FAME)
+    {
+        CB2_DoHallOfFameScreen_SwSh();
+        return;
+    }
+
     if (!InitHallOfFameScreen())
     {
         u8 taskId = CreateTask(Task_Hof_InitMonData, 0);
@@ -418,6 +425,12 @@ void CB2_DoHallOfFameScreen(void)
 
 void CB2_DoHallOfFameScreenDontSaveData(void)
 {
+    if (SWSH_HALL_OF_FAME)
+    {
+        CB2_DoHallOfFameScreenDontSaveData_SwSh();
+        return;
+    }
+
     if (!InitHallOfFameScreen())
     {
         u8 taskId = CreateTask(Task_Hof_InitMonData, 0);
