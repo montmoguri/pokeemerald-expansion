@@ -105,3 +105,5 @@ static const u32 sHallOfFameTiles_Gfx[]       = INCGFX_U32("graphics/hall_of_fam
 static const u16 sHallOfFameTiles_Pal[]       = INCGFX_U16("graphics/hall_of_fame/tiles.png", ".gbapal");
 static const u32 sIntroBg2_Tilemap[]          = INCGFX_U32("graphics/hall_of_fame/intro_bg2.bin", ".smolTM");
 static const u32 sIntroBg1_Tilemap[]          = INCGFX_U32("graphics/hall_of_fame/intro_bg1.bin", ".smolTM");
+static const u32 sAssembleBg2_Tilemap[]       = INCGFX_U32("graphics/hall_of_fame/assemble_bg2.bin", ".smolTM");
+static const u32 sAssembleBg1_Tilemap[]       = INCGFX_U32("graphics/hall_of_fame/assemble_bg1.bin", ".smolTM");

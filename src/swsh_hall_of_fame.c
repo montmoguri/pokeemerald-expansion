@@ -7,6 +7,7 @@
 #include "credits.h"
 #include "decompress.h"
 #include "gpu_regs.h"
+#include "international_string_util.h"
 #include "main.h"
 #include "malloc.h"
 #include "menu.h"
@@ -37,6 +38,8 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 #define PAL_HOF_TYPE_BG             1
 #define INTRO_BG_PALETTES           ((1 << PAL_HOF_MAIN) | (1 << PAL_HOF_TYPE_BG))
 #define PAL_SLOT_BACK_PIC           0
+#define PAL_SLOT_TRAINER_PIC        6
+#define PAL_BANK_COLORS             (PLTT_SIZE_4BPP / sizeof(u16))
 #define NUM_RESERVED_OBJ_PALETTES   8
 #define FADE_COEFF_MAX              16
 
@@ -55,6 +58,13 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 #define INTRO_POST_ANIM_FRAMES      120
 #define INTRO_FADE_OUT_FRAMES       16
 
+// Assemble timing
+#define ASSEMBLE_SLIDE_FRAMES       30
+#define ASSEMBLE_SLIDE_STAGGER      12
+#define ASSEMBLE_TO_WHITE_FRAMES    16
+#define ASSEMBLE_FROM_WHITE_FRAMES  16
+#define CONFETTI_DELAY_FRAMES       60
+
 // Exit
 #define EXIT_FADE_FRAMES            16
 #define EXIT_BGM_FADE_SPEED         4
@@ -69,6 +79,12 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 #define SHADOW_OFFSET_Y             2
 #define TAG_MON_SHADOW              55140
 #define MON_SHADOW_COLOR            RGB(15, 15, 15)
+
+// Assemble sprites
+#define ASSEMBLE_TRAINER_X          120
+#define ASSEMBLE_TRAINER_Y          88
+#define ASSEMBLE_TRAINER_SUBPRIORITY 0
+#define TAG_MON_SILHOUETTE          55141
 
 // Front pic sprite data
 #define sSpecies                    data[0]
@@ -106,7 +122,22 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 #define INTRO_TEXT_TITLE_Y          1
 #define INTRO_TEXT_INFO_Y           5
 
-STATIC_ASSERT(INTRO_LEVEL_BASE_BLOCK + INTRO_LEVEL_WIDTH * INTRO_LEVEL_HEIGHT <= SAVE_MESSAGE_BASE_BLOCK, HallOfFameSwShWindowBaseBlocks);
+#define CHAMPION_TITLE_LEFT         3
+#define CHAMPION_TITLE_TOP          1
+#define CHAMPION_TITLE_WIDTH        23
+#define CHAMPION_TITLE_HEIGHT       2
+#define CHAMPION_TITLE_BASE_BLOCK   (INTRO_LEVEL_BASE_BLOCK + INTRO_LEVEL_WIDTH * INTRO_LEVEL_HEIGHT)
+
+#define CHAMPION_INFO_LEFT          4
+#define CHAMPION_INFO_TOP           17
+#define CHAMPION_INFO_WIDTH         24
+#define CHAMPION_INFO_HEIGHT        2
+#define CHAMPION_INFO_BASE_BLOCK    (CHAMPION_TITLE_BASE_BLOCK + CHAMPION_TITLE_WIDTH * CHAMPION_TITLE_HEIGHT)
+
+#define CHAMPION_TEXT_Y             1
+#define CHAMPION_ID_X               68
+
+STATIC_ASSERT(CHAMPION_INFO_BASE_BLOCK + CHAMPION_INFO_WIDTH * CHAMPION_INFO_HEIGHT <= SAVE_MESSAGE_BASE_BLOCK, HallOfFameSwShWindowBaseBlocks);
 
 enum
 {
@@ -114,6 +145,8 @@ enum
     WIN_INTRO_TITLE,
     WIN_INTRO_NICKNAME,
     WIN_INTRO_LEVEL,
+    WIN_CHAMPION_TITLE,
+    WIN_CHAMPION_INFO,
 };
 
 enum
@@ -143,6 +176,7 @@ struct HallOfFameSwSh
     u32 fadeColor;
     u32 fadeAnimId;
     u32 slideAnimId;
+    u32 assembleAnimIds[PARTY_SIZE];
     s16 slideX;
     s16 slideTo;
     u8 fadeCoeff;
@@ -152,6 +186,9 @@ struct HallOfFameSwSh
     u8 backSpriteId;
     u8 frontSpriteId;
     u8 shadowSpriteId;
+    u8 assembleSpriteIds[PARTY_SIZE];
+    u8 trainerSpriteId;
+    u8 silhouettePalette;
     u8 flashTimer;
     bool8 createdGfxManager;
 };
@@ -169,6 +206,12 @@ static void Task_HofSwSh_IntroFrontSlide(u8 taskId);
 static void Task_HofSwSh_IntroWaitAnim(u8 taskId);
 static void Task_HofSwSh_IntroHold(u8 taskId);
 static void Task_HofSwSh_IntroFadeOut(u8 taskId);
+static void Task_HofSwSh_AssembleSetup(u8 taskId);
+static void Task_HofSwSh_AssembleCreateSprites(u8 taskId);
+static void Task_HofSwSh_AssembleSlide(u8 taskId);
+static void Task_HofSwSh_AssembleToWhite(u8 taskId);
+static void Task_HofSwSh_AssembleFromWhite(u8 taskId);
+static void Task_HofSwSh_AssembleHold(u8 taskId);
 static void Task_HofSwSh_Exit(u8 taskId);
 
 static const u8 sTextColors[] = {HOF_COLOR_TRANSPARENT, HOF_COLOR_WHITE, HOF_COLOR_DARK_GRAY};
@@ -255,7 +298,42 @@ static const struct WindowTemplate sWindowTemplates[] =
         .paletteNum = PAL_HOF_MAIN,
         .baseBlock = INTRO_LEVEL_BASE_BLOCK
     },
+    [WIN_CHAMPION_TITLE] =
+    {
+        .bg = 0,
+        .tilemapLeft = CHAMPION_TITLE_LEFT,
+        .tilemapTop = CHAMPION_TITLE_TOP,
+        .width = CHAMPION_TITLE_WIDTH,
+        .height = CHAMPION_TITLE_HEIGHT,
+        .paletteNum = PAL_HOF_MAIN,
+        .baseBlock = CHAMPION_TITLE_BASE_BLOCK
+    },
+    [WIN_CHAMPION_INFO] =
+    {
+        .bg = 0,
+        .tilemapLeft = CHAMPION_INFO_LEFT,
+        .tilemapTop = CHAMPION_INFO_TOP,
+        .width = CHAMPION_INFO_WIDTH,
+        .height = CHAMPION_INFO_HEIGHT,
+        .paletteNum = PAL_HOF_MAIN,
+        .baseBlock = CHAMPION_INFO_BASE_BLOCK
+    },
     DUMMY_WIN_TEMPLATE
+};
+
+static const struct
+{
+    s16 x;
+    s16 y;
+    bool8 hFlip;
+} sAssembleMonPositions[PARTY_SIZE] =
+{
+    {  93, 80, FALSE },
+    { 146, 80, TRUE  },
+    {  66, 72, FALSE },
+    { 173, 72, TRUE  },
+    {  39, 64, FALSE },
+    { 200, 64, TRUE  },
 };
 
 #include "data/swsh_hall_of_fame.h"
@@ -392,6 +470,8 @@ static void CB2_HallOfFameSwSh(void)
 
 static bool32 InitHallOfFameScreen(void)
 {
+    u32 i;
+
     switch (gMain.state)
     {
     case 0:
@@ -405,6 +485,12 @@ static bool32 InitHallOfFameScreen(void)
         sHof = AllocZeroed(sizeof(*sHof));
         sHof->fadeAnimId = INVALID_COMFY_ANIM;
         sHof->slideAnimId = INVALID_COMFY_ANIM;
+        for (i = 0; i < PARTY_SIZE; i++)
+        {
+            sHof->assembleAnimIds[i] = INVALID_COMFY_ANIM;
+            sHof->assembleSpriteIds[i] = SPRITE_NONE;
+        }
+        sHof->trainerSpriteId = SPRITE_NONE;
         sHof->backSpriteId = SPRITE_NONE;
         sHof->frontSpriteId = SPRITE_NONE;
         sHof->shadowSpriteId = SPRITE_NONE;
@@ -545,8 +631,29 @@ static void DestroyFrontSprite(void)
     }
 }
 
+static void DestroyAssembleSprites(void)
+{
+    u32 i;
+
+    for (i = 0; i < PARTY_SIZE; i++)
+    {
+        if (sHof->assembleSpriteIds[i] != SPRITE_NONE)
+        {
+            FreeAndDestroyMonPicSprite(sHof->assembleSpriteIds[i]);
+            sHof->assembleSpriteIds[i] = SPRITE_NONE;
+        }
+    }
+    if (sHof->trainerSpriteId != SPRITE_NONE)
+    {
+        FreeAndDestroyTrainerPicSprite(sHof->trainerSpriteId);
+        sHof->trainerSpriteId = SPRITE_NONE;
+    }
+    FreeSpritePaletteByTag(TAG_MON_SILHOUETTE);
+}
+
 static void FreeHallOfFame(void)
 {
+    DestroyAssembleSprites();
     DestroyBackSprite();
     DestroyShadowSprite();
     DestroyFrontSprite();
@@ -589,6 +696,7 @@ void CB2_DoHallOfFameScreenDontSaveData_SwSh(void)
 }
 
 #define tFrameCount data[0]
+#define tSpriteIndex data[1]
 
 static void Task_HofSwSh_InitTeam(u8 taskId)
 {
@@ -872,8 +980,198 @@ static void Task_HofSwSh_IntroFadeOut(u8 taskId)
     }
     else
     {
-        gTasks[taskId].func = Task_HofSwSh_StartExit;
+        gTasks[taskId].func = Task_HofSwSh_AssembleSetup;
     }
+}
+
+static s16 GetAssembleStartX(u32 i)
+{
+    return sAssembleMonPositions[i].hFlip ? -(MON_PIC_WIDTH / 2) : DISPLAY_WIDTH + MON_PIC_WIDTH / 2;
+}
+
+static void Task_HofSwSh_AssembleSetup(u8 taskId)
+{
+    FillPalette(RGB_BLACK, 0, PLTT_SIZE);
+    sHof->fadeCoeff = 0;
+    HideBg(2);
+    HideBg(3);
+
+    sHof->silhouettePalette = AllocSpritePalette(TAG_MON_SILHOUETTE);
+    FillPalette(RGB_WHITE, OBJ_PLTT_ID(sHof->silhouettePalette), PLTT_SIZE_4BPP);
+    gTasks[taskId].tSpriteIndex = 0;
+    gTasks[taskId].func = Task_HofSwSh_AssembleCreateSprites;
+}
+
+static void StartAssembleSlide(u32 i)
+{
+    struct ComfyAnimEasingConfig config =
+    {
+        .durationFrames = ASSEMBLE_SLIDE_FRAMES,
+        .from = Q_24_8(GetAssembleStartX(i)),
+        .to = Q_24_8(sAssembleMonPositions[i].x),
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    };
+
+    sHof->assembleAnimIds[i] = CreateComfyAnim_Easing(&config);
+}
+
+static bool32 UpdateAssembleSlides(u32 frame)
+{
+    u32 i;
+    bool32 sliding = FALSE;
+
+    for (i = 0; i < PARTY_SIZE && sHof->assembleSpriteIds[i] != SPRITE_NONE; i++)
+    {
+        struct Sprite *sprite = &gSprites[sHof->assembleSpriteIds[i]];
+
+        if (frame < i * ASSEMBLE_SLIDE_STAGGER)
+        {
+            sliding = TRUE;
+            continue;
+        }
+        if (frame == i * ASSEMBLE_SLIDE_STAGGER)
+        {
+            StartAssembleSlide(i);
+        }
+
+        if (sHof->assembleAnimIds[i] == INVALID_COMFY_ANIM)
+        {
+            sprite->x = sAssembleMonPositions[i].x;
+            continue;
+        }
+
+        sprite->x = ReadComfyAnimValueSmooth(&gComfyAnims[sHof->assembleAnimIds[i]]);
+        if (!gComfyAnims[sHof->assembleAnimIds[i]].completed)
+        {
+            sliding = TRUE;
+        }
+    }
+    return sliding;
+}
+
+static void Task_HofSwSh_AssembleCreateSprites(u8 taskId)
+{
+    u32 i = gTasks[taskId].tSpriteIndex;
+    struct HallofFameMon *mon = &sHof->team.mon[i];
+    struct Sprite *sprite;
+
+    if (i >= PARTY_SIZE || mon->species == SPECIES_NONE)
+    {
+        gTasks[taskId].tFrameCount = 0;
+        gTasks[taskId].func = Task_HofSwSh_AssembleSlide;
+        return;
+    }
+
+    sHof->assembleSpriteIds[i] = CreateMonPicSprite(mon->species, mon->isShiny, mon->personality, TRUE, GetAssembleStartX(i), sAssembleMonPositions[i].y, i, TAG_NONE);
+    sprite = &gSprites[sHof->assembleSpriteIds[i]];
+    sprite->oam.paletteNum = sHof->silhouettePalette;
+    sprite->oam.priority = MON_OBJ_PRIORITY;
+    sprite->subpriority = ASSEMBLE_TRAINER_SUBPRIORITY + 1 + i;
+    sprite->hFlip = sAssembleMonPositions[i].hFlip;
+    gTasks[taskId].tSpriteIndex++;
+}
+
+static void Task_HofSwSh_AssembleSlide(u8 taskId)
+{
+    if (UpdateAssembleSlides(gTasks[taskId].tFrameCount++))
+    {
+        return;
+    }
+
+    StartFade(PALETTES_ALL, FADE_COEFF_MAX, ASSEMBLE_TO_WHITE_FRAMES, RGB_WHITE);
+    gTasks[taskId].func = Task_HofSwSh_AssembleToWhite;
+}
+
+static void RevealAssemble(void)
+{
+    u32 i;
+    struct Sprite *sprite;
+
+    for (i = 0; i < PARTY_SIZE && sHof->assembleSpriteIds[i] != SPRITE_NONE; i++)
+    {
+        gSprites[sHof->assembleSpriteIds[i]].oam.paletteNum = i;
+    }
+    FreeSpritePaletteByTag(TAG_MON_SILHOUETTE);
+
+    sHof->trainerSpriteId = CreateTrainerPicSprite(PlayerGenderToFrontTrainerPicId(gSaveBlock2Ptr->playerGender), TRUE, ASSEMBLE_TRAINER_X, ASSEMBLE_TRAINER_Y, PAL_SLOT_TRAINER_PIC, TAG_NONE);
+    sprite = &gSprites[sHof->trainerSpriteId];
+    sprite->oam.priority = MON_OBJ_PRIORITY;
+    sprite->subpriority = ASSEMBLE_TRAINER_SUBPRIORITY;
+
+    LoadPalette(sHallOfFameTiles_Pal, BG_PLTT_ID(PAL_HOF_MAIN), PLTT_SIZE_4BPP);
+    SetBackdropFromColor(RGB_BLACK);
+    LoadPalette(&sHallOfFameTiles_Pal[PAL_BANK_COLORS], BG_PLTT_ID(PAL_HOF_TYPE_BG), PLTT_SIZE_4BPP);
+
+    DecompressDataWithHeaderWram(sAssembleBg2_Tilemap, sHof->bg2TilemapBuffer);
+    CopyBgTilemapBufferToVram(2);
+    ShowBg(2);
+    SetGpuReg(REG_OFFSET_BLDCNT, 0);
+    DecompressDataWithHeaderWram(sAssembleBg1_Tilemap, sHof->bg1TilemapBuffer);
+    CopyBgTilemapBufferToVram(1);
+}
+
+static void Task_HofSwSh_AssembleToWhite(u8 taskId)
+{
+    if (UpdateFade())
+    {
+        return;
+    }
+
+    RevealAssemble();
+    StartFade(PALETTES_ALL, 0, ASSEMBLE_FROM_WHITE_FRAMES, RGB_WHITE);
+    gTasks[taskId].func = Task_HofSwSh_AssembleFromWhite;
+}
+
+static void PrintChampionText(void)
+{
+    u32 hours = gSaveBlock2Ptr->playTimeHours;
+    u16 trainerId = (gSaveBlock2Ptr->playerTrainerId[1] << 8) | gSaveBlock2Ptr->playerTrainerId[0];
+    u8 *str;
+
+    FillWindowPixelBuffer(WIN_CHAMPION_TITLE, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
+    FillWindowPixelBuffer(WIN_CHAMPION_INFO, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
+
+    AddTextPrinterParameterized3(WIN_CHAMPION_TITLE, FONT_SHORT, 0, CHAMPION_TEXT_Y, sTextColors, TEXT_SKIP_DRAW, COMPOUND_STRING("League Champion! Congratulations!"));
+    AddTextPrinterParameterized3(WIN_CHAMPION_INFO, FONT_SHORT, 0, CHAMPION_TEXT_Y, sTextColors, TEXT_SKIP_DRAW, gSaveBlock2Ptr->playerName);
+
+    ConvertIntToDecimalStringN(StringCopy(gStringVar1, COMPOUND_STRING("ID {NO}. ")), trainerId, STR_CONV_MODE_LEADING_ZEROS, 5);
+    AddTextPrinterParameterized3(WIN_CHAMPION_INFO, FONT_SHORT, CHAMPION_ID_X, CHAMPION_TEXT_Y, sTextColors, TEXT_SKIP_DRAW, gStringVar1);
+
+    str = ConvertIntToDecimalStringN(gStringVar2, hours, STR_CONV_MODE_LEADING_ZEROS, hours >= 100 ? 3 : 2);
+    *str++ = CHAR_COLON;
+    ConvertIntToDecimalStringN(str, gSaveBlock2Ptr->playTimeMinutes, STR_CONV_MODE_LEADING_ZEROS, 2);
+    AddTextPrinterParameterized3(WIN_CHAMPION_INFO, FONT_SHORT, GetStringRightAlignXOffset(FONT_SHORT, gStringVar2, CHAMPION_INFO_WIDTH * TILE_WIDTH), CHAMPION_TEXT_Y, sTextColors, TEXT_SKIP_DRAW, gStringVar2);
+
+    PutWindowTilemap(WIN_CHAMPION_TITLE);
+    PutWindowTilemap(WIN_CHAMPION_INFO);
+    CopyWindowToVram(WIN_CHAMPION_TITLE, COPYWIN_FULL);
+    CopyWindowToVram(WIN_CHAMPION_INFO, COPYWIN_FULL);
+}
+
+static void Task_HofSwSh_AssembleFromWhite(u8 taskId)
+{
+    if (UpdateFade())
+    {
+        return;
+    }
+
+    ShowBg(1);
+    StartBannerFlash();
+    PrintChampionText();
+    gTasks[taskId].tFrameCount = CONFETTI_DELAY_FRAMES;
+    gTasks[taskId].func = Task_HofSwSh_AssembleHold;
+}
+
+static void Task_HofSwSh_AssembleHold(u8 taskId)
+{
+    UpdateBannerFlash();
+    if (gTasks[taskId].tFrameCount)
+    {
+        gTasks[taskId].tFrameCount--;
+        return;
+    }
+
+    gTasks[taskId].func = Task_HofSwSh_StartExit;
 }
 
 static void Task_HofSwSh_StartExit(u8 taskId)
@@ -896,5 +1194,6 @@ static void Task_HofSwSh_Exit(u8 taskId)
 }
 
 #undef tFrameCount
+#undef tSpriteIndex
 #undef sSpecies
 #undef sDontFlip
