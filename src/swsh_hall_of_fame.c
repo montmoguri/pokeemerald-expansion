@@ -4,6 +4,7 @@
 #include "bg.h"
 #include "comfy_anim.h"
 #include "credits.h"
+#include "decompress.h"
 #include "gpu_regs.h"
 #include "main.h"
 #include "malloc.h"
@@ -29,6 +30,20 @@
 #define EXIT_BGM_FADE_SPEED     4
 #define FADE_COEFF_MAX          16
 
+#define INTRO_FADE_IN_FRAMES    16
+#define INTRO_HOLD_FRAMES       120
+#define INTRO_FADE_OUT_FRAMES   16
+#define INTRO_BG2_BLEND_EVA     10
+#define INTRO_BG2_BLEND_EVB     6
+#define TYPE_BG_SCROLL_SPEED    64
+
+#define TILEMAP_PALETTE_SHIFT   12
+#define TILEMAP_TILE_MASK       0x0FFF
+
+#define PAL_HOF_MAIN            0
+#define PAL_HOF_TYPE_BG         1
+#define INTRO_BG_PALETTES       ((1 << PAL_HOF_MAIN) | (1 << PAL_HOF_TYPE_BG))
+
 #define SAVE_MESSAGE_LEFT       2
 #define SAVE_MESSAGE_TOP        15
 #define SAVE_MESSAGE_WIDTH      27
@@ -46,10 +61,14 @@ struct HallOfFameSwSh
 {
     struct HallofFameTeam team;
     u8 bg0TilemapBuffer[BG_SCREEN_SIZE];
+    u8 bg2TilemapBuffer[BG_SCREEN_SIZE];
+    u16 bg3TilemapBuffer[BG_SCREEN_SIZE / 2];
     u32 fadePalettes;
     u32 fadeColor;
     u32 fadeAnimId;
+    u8 fadeCoeff;
     bool8 dontSaveData;
+    u8 monId;
 };
 
 static EWRAM_DATA struct HallOfFameSwSh *sHof = NULL;
@@ -59,6 +78,11 @@ static void Task_HofSwSh_InsertTeam(u8 taskId);
 static void Task_HofSwSh_TrySave(u8 taskId);
 static void Task_HofSwSh_WaitSaveMessage(u8 taskId);
 static void Task_HofSwSh_StartExit(u8 taskId);
+static void Task_HofSwSh_IntroSetup(u8 taskId);
+static void Task_HofSwSh_IntroWaitGfx(u8 taskId);
+static void Task_HofSwSh_IntroFadeIn(u8 taskId);
+static void Task_HofSwSh_IntroHold(u8 taskId);
+static void Task_HofSwSh_IntroFadeOut(u8 taskId);
 static void Task_HofSwSh_Exit(u8 taskId);
 
 static const struct BgTemplate sBgTemplates[] =
@@ -70,6 +94,24 @@ static const struct BgTemplate sBgTemplates[] =
         .screenSize = 0,
         .paletteMode = 0,
         .priority = 0,
+        .baseTile = 0
+    },
+    {
+        .bg = 2,
+        .charBaseIndex = 0,
+        .mapBaseIndex = 29,
+        .screenSize = 0,
+        .paletteMode = 0,
+        .priority = 2,
+        .baseTile = 0
+    },
+    {
+        .bg = 3,
+        .charBaseIndex = 1,
+        .mapBaseIndex = 28,
+        .screenSize = 0,
+        .paletteMode = 0,
+        .priority = 3,
         .baseTile = 0
     },
 };
@@ -89,12 +131,29 @@ static const struct WindowTemplate sWindowTemplates[] =
     DUMMY_WIN_TEMPLATE
 };
 
-static void StartFade(u32 palettes, u32 fromCoeff, u32 toCoeff, u32 frames, u32 color)
+#include "data/swsh_hall_of_fame.h"
+
+static void LoadTypeWallpaper(enum Type type)
+{
+    u32 i;
+
+    DecompressAndCopyTileDataToVram(3, sTypeWallpapers[type].tiles, 0, 0, 0);
+    DecompressDataWithHeaderWram(sTypeWallpapers[type].tilemap, sHof->bg3TilemapBuffer);
+
+    for (i = 0; i < BG_SCREEN_SIZE / 2; i++)
+    {
+        sHof->bg3TilemapBuffer[i] = (sHof->bg3TilemapBuffer[i] & TILEMAP_TILE_MASK) | (PAL_HOF_TYPE_BG << TILEMAP_PALETTE_SHIFT);
+    }
+    CopyBgTilemapBufferToVram(3);
+    LoadPalette(sTypeWallpapers[type].palette, BG_PLTT_ID(PAL_HOF_TYPE_BG), PLTT_SIZE_4BPP);
+}
+
+static void StartFade(u32 palettes, u32 toCoeff, u32 frames, u32 color)
 {
     struct ComfyAnimEasingConfig config =
     {
         .durationFrames = frames,
-        .from = Q_24_8(fromCoeff),
+        .from = Q_24_8(sHof->fadeCoeff),
         .to = Q_24_8(toCoeff),
         .easingFunc = ComfyAnimEasing_Linear,
     };
@@ -110,11 +169,11 @@ static void StartFade(u32 palettes, u32 fromCoeff, u32 toCoeff, u32 frames, u32 
         InitComfyAnim_Easing(&config, &gComfyAnims[sHof->fadeAnimId]);
     }
 
-    BlendPalettes(palettes, fromCoeff, color);
     if (sHof->fadeAnimId == INVALID_COMFY_ANIM)
     {
-        BlendPalettes(palettes, toCoeff, color);
+        sHof->fadeCoeff = toCoeff;
     }
+    BlendPalettes(palettes, sHof->fadeCoeff, color);
 }
 
 static bool32 UpdateFade(void)
@@ -124,7 +183,8 @@ static bool32 UpdateFade(void)
         return FALSE;
     }
 
-    BlendPalettes(sHof->fadePalettes, ReadComfyAnimValueSmooth(&gComfyAnims[sHof->fadeAnimId]), sHof->fadeColor);
+    sHof->fadeCoeff = ReadComfyAnimValueSmooth(&gComfyAnims[sHof->fadeAnimId]);
+    BlendPalettes(sHof->fadePalettes, sHof->fadeCoeff, sHof->fadeColor);
     return !gComfyAnims[sHof->fadeAnimId].completed;
 }
 
@@ -138,6 +198,8 @@ static void VBlankCB_HallOfFameSwSh(void)
 static void CB2_HallOfFameSwSh(void)
 {
     RunTasks();
+    ChangeBgX(3, TYPE_BG_SCROLL_SPEED, BG_COORD_ADD);
+    ChangeBgY(3, TYPE_BG_SCROLL_SPEED, BG_COORD_ADD);
     AdvanceComfyAnimations();
     RunTextPrinters();
     AnimateSprites();
@@ -159,6 +221,7 @@ static bool32 InitHallOfFameScreen(void)
         ResetPaletteFade();
         sHof = AllocZeroed(sizeof(*sHof));
         sHof->fadeAnimId = INVALID_COMFY_ANIM;
+        sHof->fadeCoeff = FADE_COEFF_MAX;
         gMain.state++;
         break;
     case 1:
@@ -175,14 +238,33 @@ static bool32 InitHallOfFameScreen(void)
         ResetBgsAndClearDma3BusyFlags(0);
         InitBgsFromTemplates(0, sBgTemplates, ARRAY_COUNT(sBgTemplates));
         SetBgTilemapBuffer(0, sHof->bg0TilemapBuffer);
+        SetBgTilemapBuffer(2, sHof->bg2TilemapBuffer);
+        SetBgTilemapBuffer(3, sHof->bg3TilemapBuffer);
         ResetAllBgsCoordinates();
         InitWindows(sWindowTemplates);
         InitTextBoxGfxAndPrinters();
-        SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_1D_MAP | DISPCNT_OBJ_ON);
-        ShowBg(0);
+        DecompressAndCopyTileDataToVram(2, sHallOfFameTiles_Gfx, 0, 0, 0);
         gMain.state++;
         break;
     case 3:
+        if (FreeTempTileDataBuffersIfPossible())
+        {
+            break;
+        }
+        LoadPalette(sHallOfFameTiles_Pal, BG_PLTT_ID(PAL_HOF_MAIN), PLTT_SIZE_4BPP);
+        SetBackdropFromColor(RGB_BLACK);
+        BlendPalettes(1 << PAL_HOF_MAIN, FADE_COEFF_MAX, RGB_BLACK);
+        DecompressDataWithHeaderWram(sIntroBg2_Tilemap, sHof->bg2TilemapBuffer);
+        CopyBgTilemapBufferToVram(2);
+        SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG3);
+        SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(INTRO_BG2_BLEND_EVA, INTRO_BG2_BLEND_EVB));
+        SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_1D_MAP | DISPCNT_OBJ_ON);
+        ShowBg(0);
+        ShowBg(2);
+        ShowBg(3);
+        gMain.state++;
+        break;
+    case 4:
         SetVBlankCallback(VBlankCB_HallOfFameSwSh);
         SetMainCallback2(CB2_HallOfFameSwSh);
         PlayBGM(MUS_HALL_OF_FAME);
@@ -194,8 +276,12 @@ static bool32 InitHallOfFameScreen(void)
 static void FreeHallOfFame(void)
 {
     HideBg(0);
+    HideBg(2);
+    HideBg(3);
     FreeAllWindowBuffers();
     UnsetBgTilemapBuffer(0);
+    UnsetBgTilemapBuffer(2);
+    UnsetBgTilemapBuffer(3);
     ResetBgsAndClearDma3BusyFlags(0);
     ReleaseComfyAnims();
     SetGpuReg(REG_OFFSET_BLDCNT, 0);
@@ -256,7 +342,7 @@ static void Task_HofSwSh_InitTeam(u8 taskId)
 
     if (sHof->dontSaveData)
     {
-        gTasks[taskId].func = Task_HofSwSh_StartExit;
+        gTasks[taskId].func = Task_HofSwSh_IntroSetup;
     }
     else
     {
@@ -332,6 +418,65 @@ static void Task_HofSwSh_WaitSaveMessage(u8 taskId)
     else
     {
         ClearDialogWindowAndFrame(WIN_SAVE_MESSAGE, TRUE);
+        gTasks[taskId].func = Task_HofSwSh_IntroSetup;
+    }
+}
+
+static void Task_HofSwSh_IntroSetup(u8 taskId)
+{
+    LoadTypeWallpaper(GetSpeciesType(sHof->team.mon[sHof->monId].species, 0));
+    BlendPalettes(INTRO_BG_PALETTES, FADE_COEFF_MAX, RGB_BLACK);
+    gTasks[taskId].func = Task_HofSwSh_IntroWaitGfx;
+}
+
+static void Task_HofSwSh_IntroWaitGfx(u8 taskId)
+{
+    if (FreeTempTileDataBuffersIfPossible())
+    {
+        return;
+    }
+
+    StartFade(INTRO_BG_PALETTES, 0, INTRO_FADE_IN_FRAMES, RGB_BLACK);
+    gTasks[taskId].func = Task_HofSwSh_IntroFadeIn;
+}
+
+static void Task_HofSwSh_IntroFadeIn(u8 taskId)
+{
+    if (UpdateFade())
+    {
+        return;
+    }
+
+    gTasks[taskId].tFrameCount = INTRO_HOLD_FRAMES;
+    gTasks[taskId].func = Task_HofSwSh_IntroHold;
+}
+
+static void Task_HofSwSh_IntroHold(u8 taskId)
+{
+    if (gTasks[taskId].tFrameCount)
+    {
+        gTasks[taskId].tFrameCount--;
+        return;
+    }
+
+    StartFade(PALETTES_ALL, FADE_COEFF_MAX, INTRO_FADE_OUT_FRAMES, RGB_BLACK);
+    gTasks[taskId].func = Task_HofSwSh_IntroFadeOut;
+}
+
+static void Task_HofSwSh_IntroFadeOut(u8 taskId)
+{
+    if (UpdateFade())
+    {
+        return;
+    }
+
+    sHof->monId++;
+    if (sHof->monId < PARTY_SIZE && sHof->team.mon[sHof->monId].species != SPECIES_NONE)
+    {
+        gTasks[taskId].func = Task_HofSwSh_IntroSetup;
+    }
+    else
+    {
         gTasks[taskId].func = Task_HofSwSh_StartExit;
     }
 }
@@ -339,7 +484,7 @@ static void Task_HofSwSh_WaitSaveMessage(u8 taskId)
 static void Task_HofSwSh_StartExit(u8 taskId)
 {
     FadeOutBGM(EXIT_BGM_FADE_SPEED);
-    StartFade(PALETTES_ALL, 0, FADE_COEFF_MAX, EXIT_FADE_FRAMES, RGB_BLACK);
+    StartFade(PALETTES_ALL, FADE_COEFF_MAX, EXIT_FADE_FRAMES, RGB_BLACK);
     gTasks[taskId].func = Task_HofSwSh_Exit;
 }
 
