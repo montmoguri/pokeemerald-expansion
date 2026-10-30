@@ -189,6 +189,7 @@ enum
 struct HallOfFameSwSh
 {
     struct HallofFameTeam team;
+    enum Species displaySpecies[PARTY_SIZE];
     u8 bg0TilemapBuffer[BG_SCREEN_SIZE];
     u8 bg1TilemapBuffer[BG_SCREEN_SIZE];
     u8 bg2TilemapBuffer[BG_SCREEN_SIZE];
@@ -724,6 +725,72 @@ void CB2_DoHallOfFameScreenDontSaveData_SwSh(void)
 #define tFrameCount data[0]
 #define tSpriteIndex data[1]
 
+static const enum FormChanges sMegaFormChanges[] =
+{
+    FORM_CHANGE_BATTLE_MEGA_EVOLUTION_ITEM,
+    FORM_CHANGE_BATTLE_MEGA_EVOLUTION_MOVE,
+    FORM_CHANGE_BATTLE_PRIMAL_REVERSION,
+};
+
+static enum Species GetMegaSpecies(struct FormChangeContext ctx)
+{
+    u32 i;
+
+    if (!SWSH_HOF_SHOW_MEGA)
+    {
+        return ctx.currentSpecies;
+    }
+
+    for (i = 0; i < ARRAY_COUNT(sMegaFormChanges); i++)
+    {
+        ctx.method = sMegaFormChanges[i];
+        enum Species species = GetFormChangeTargetSpecies_Internal(ctx);
+        if (species != ctx.currentSpecies)
+        {
+            return species;
+        }
+    }
+    return ctx.currentSpecies;
+}
+
+static enum Species GetGmaxSpecies(struct FormChangeContext ctx)
+{
+    if (!SWSH_HOF_SHOW_GMAX)
+    {
+        return ctx.currentSpecies;
+    }
+
+    ctx.method = FORM_CHANGE_BATTLE_GIGANTAMAX;
+    return GetFormChangeTargetSpecies_Internal(ctx);
+}
+
+static enum Species GetDisplaySpecies(struct Pokemon *mon)
+{
+    u32 i;
+    struct FormChangeContext ctx =
+    {
+        .currentSpecies = GetMonData(mon, MON_DATA_SPECIES_OR_EGG),
+        .heldItem = GetMonData(mon, MON_DATA_HELD_ITEM),
+        .gmaxFactor = GetMonData(mon, MON_DATA_GIGANTAMAX_FACTOR),
+    };
+
+    for (i = 0; i < MAX_MON_MOVES; i++)
+        ctx.moves[i] = GetMonData(mon, MON_DATA_MOVE1 + i);
+
+    enum Species mega = GetMegaSpecies(ctx);
+    enum Species gmax = GetGmaxSpecies(ctx);
+
+    if (SWSH_HOF_FORM_PRIORITY == SWSH_HOF_FORM_GMAX && gmax != ctx.currentSpecies)
+    {
+        return gmax;
+    }
+    if (mega != ctx.currentSpecies)
+    {
+        return mega;
+    }
+    return gmax;
+}
+
 static void Task_HofSwSh_InitTeam(u8 taskId)
 {
     u32 i, j;
@@ -740,6 +807,7 @@ static void Task_HofSwSh_InitTeam(u8 taskId)
             sHof->team.mon[i].isShiny = GetMonData(mon, MON_DATA_IS_SHINY);
             sHof->team.mon[i].personality = GetMonData(mon, MON_DATA_PERSONALITY);
             sHof->team.mon[i].lvl = GetMonData(mon, MON_DATA_LEVEL);
+            sHof->displaySpecies[i] = GetDisplaySpecies(mon);
             GetMonData(mon, MON_DATA_NICKNAME, nickname);
             for (j = 0; j < POKEMON_NAME_LENGTH; j++)
                 sHof->team.mon[i].nickname[j] = nickname[j];
@@ -747,6 +815,7 @@ static void Task_HofSwSh_InitTeam(u8 taskId)
         else
         {
             sHof->team.mon[i].species = SPECIES_NONE;
+            sHof->displaySpecies[i] = SPECIES_NONE;
             sHof->team.mon[i].tid = 0;
             sHof->team.mon[i].isShiny = FALSE;
             sHof->team.mon[i].personality = 0;
@@ -840,19 +909,20 @@ static void Task_HofSwSh_WaitSaveMessage(u8 taskId)
 static void CreateFrontSprite(void)
 {
     struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
+    enum Species species = sHof->displaySpecies[sHof->monId];
     struct Sprite *sprite;
 
-    HandleLoadSpecialPokePic(TRUE, MonSpritesGfxManager_GetSpritePtr(MON_SPR_GFX_MANAGER_A, B_POSITION_OPPONENT_LEFT), mon->species, mon->personality);
-    LoadSpritePaletteWithTag(GetMonSpritePalFromSpeciesAndPersonality(mon->species, mon->isShiny, mon->personality), mon->species);
-    SetMultiuseSpriteTemplateToPokemon(mon->species, B_POSITION_OPPONENT_LEFT);
+    HandleLoadSpecialPokePic(TRUE, MonSpritesGfxManager_GetSpritePtr(MON_SPR_GFX_MANAGER_A, B_POSITION_OPPONENT_LEFT), species, mon->personality);
+    LoadSpritePaletteWithTag(GetMonSpritePalFromSpeciesAndPersonality(species, mon->isShiny, mon->personality), species);
+    SetMultiuseSpriteTemplateToPokemon(species, B_POSITION_OPPONENT_LEFT);
     sHof->frontSpriteId = CreateSprite(&gMultiuseSpriteTemplate, -(MON_PIC_WIDTH / 2), FRONT_LANDING_Y, FRONT_SUBPRIORITY);
 
     sprite = &gSprites[sHof->frontSpriteId];
     FreeSpriteOamMatrix(sprite);
     sprite->callback = SpriteCallbackDummy;
     sprite->oam.priority = MON_OBJ_PRIORITY;
-    sprite->sSpecies = mon->species;
-    sprite->hFlip = IsMonSpriteNotFlipped(mon->species);
+    sprite->sSpecies = species;
+    sprite->hFlip = IsMonSpriteNotFlipped(species);
 }
 
 static void PrintIntroText(void)
@@ -912,12 +982,13 @@ static void ClearIntroMon(void)
 static void Task_HofSwSh_IntroSetup(u8 taskId)
 {
     struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
+    enum Species species = sHof->displaySpecies[sHof->monId];
 
-    LoadTypeWallpaper(GetSpeciesType(mon->species, 0));
+    LoadTypeWallpaper(GetSpeciesType(species, 0));
     BlendPalettes(INTRO_BG_PALETTES, FADE_COEFF_MAX, RGB_BLACK);
     sHof->introFade = INTRO_FADE_PENDING;
 
-    sHof->backSpriteId = CreateMonPicSprite(mon->species, mon->isShiny, mon->personality, FALSE, DISPLAY_WIDTH + MON_PIC_WIDTH / 2, DISPLAY_HEIGHT - MON_PIC_HEIGHT / 2 + gSpeciesInfo[mon->species].backPicYOffset, PAL_SLOT_BACK_PIC, TAG_NONE);
+    sHof->backSpriteId = CreateMonPicSprite(species, mon->isShiny, mon->personality, FALSE, DISPLAY_WIDTH + MON_PIC_WIDTH / 2, DISPLAY_HEIGHT - MON_PIC_HEIGHT / 2 + gSpeciesInfo[species].backPicYOffset, PAL_SLOT_BACK_PIC, TAG_NONE);
     gSprites[sHof->backSpriteId].oam.priority = MON_OBJ_PRIORITY;
     StartSlide(DISPLAY_WIDTH + MON_PIC_WIDTH / 2, -(MON_PIC_WIDTH / 2), BACK_SLIDE_FRAMES, ComfyAnimEasing_EaseInOutCubic);
     gTasks[taskId].func = Task_HofSwSh_IntroBackSlide;
@@ -1088,7 +1159,7 @@ static void Task_HofSwSh_AssembleCreateSprites(u8 taskId)
         return;
     }
 
-    sHof->assembleSpriteIds[i] = CreateMonPicSprite(mon->species, mon->isShiny, mon->personality, TRUE, GetAssembleStartX(i), sAssembleMonPositions[i].y, i, TAG_NONE);
+    sHof->assembleSpriteIds[i] = CreateMonPicSprite(sHof->displaySpecies[i], mon->isShiny, mon->personality, TRUE, GetAssembleStartX(i), sAssembleMonPositions[i].y, i, TAG_NONE);
     sprite = &gSprites[sHof->assembleSpriteIds[i]];
     sprite->oam.paletteNum = sHof->silhouettePalette;
     sprite->oam.priority = MON_OBJ_PRIORITY;
