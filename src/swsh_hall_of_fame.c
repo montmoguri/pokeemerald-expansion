@@ -377,14 +377,14 @@ static void LoadTypeWallpaper(enum Type type)
     LoadPalette(sTypeWallpapers[type].palette, BG_PLTT_ID(PAL_HOF_TYPE_BG), PLTT_SIZE_4BPP);
 }
 
-static void StartFade(u32 palettes, u32 toCoeff, u32 frames, u32 color)
+static void StartFade(u32 palettes, u32 toCoeff, u32 frames, u32 color, ComfyAnimEasingFunc easing)
 {
     struct ComfyAnimEasingConfig config =
     {
         .durationFrames = frames,
         .from = Q_24_8(sHof->fadeCoeff),
         .to = Q_24_8(toCoeff),
-        .easingFunc = ComfyAnimEasing_Linear,
+        .easingFunc = easing,
     };
 
     sHof->fadePalettes = palettes;
@@ -919,7 +919,7 @@ static void Task_HofSwSh_IntroSetup(u8 taskId)
 
     sHof->backSpriteId = CreateMonPicSprite(mon->species, mon->isShiny, mon->personality, FALSE, DISPLAY_WIDTH + MON_PIC_WIDTH / 2, DISPLAY_HEIGHT - MON_PIC_HEIGHT / 2 + gSpeciesInfo[mon->species].backPicYOffset, PAL_SLOT_BACK_PIC, TAG_NONE);
     gSprites[sHof->backSpriteId].oam.priority = MON_OBJ_PRIORITY;
-    StartSlide(DISPLAY_WIDTH + MON_PIC_WIDTH / 2, -(MON_PIC_WIDTH / 2), BACK_SLIDE_FRAMES, ComfyAnimEasing_Linear);
+    StartSlide(DISPLAY_WIDTH + MON_PIC_WIDTH / 2, -(MON_PIC_WIDTH / 2), BACK_SLIDE_FRAMES, ComfyAnimEasing_EaseInOutCubic);
     gTasks[taskId].func = Task_HofSwSh_IntroBackSlide;
 }
 
@@ -931,7 +931,7 @@ static void Task_HofSwSh_IntroBackSlide(u8 taskId)
 
     if (sHof->introFade == INTRO_FADE_PENDING && !sliding && !FreeTempTileDataBuffersIfPossible())
     {
-        StartFade(INTRO_BG_PALETTES, 0, INTRO_FADE_IN_FRAMES, RGB_BLACK);
+        StartFade(INTRO_BG_PALETTES, 0, INTRO_FADE_IN_FRAMES, RGB_BLACK, ComfyAnimEasing_EaseInCubic);
         sHof->introFade = INTRO_FADE_RUNNING;
     }
     UpdateIntroFadeIn();
@@ -986,7 +986,7 @@ static void Task_HofSwSh_IntroHold(u8 taskId)
         return;
     }
 
-    StartFade(PALETTES_ALL, FADE_COEFF_MAX, INTRO_FADE_OUT_FRAMES, RGB_BLACK);
+    StartFade(PALETTES_ALL, FADE_COEFF_MAX, INTRO_FADE_OUT_FRAMES, RGB_BLACK, ComfyAnimEasing_Linear);
     gTasks[taskId].func = Task_HofSwSh_IntroFadeOut;
 }
 
@@ -1104,7 +1104,7 @@ static void Task_HofSwSh_AssembleSlide(u8 taskId)
         return;
     }
 
-    StartFade(PALETTES_ALL, FADE_COEFF_MAX, ASSEMBLE_TO_WHITE_FRAMES, RGB_WHITE);
+    StartFade(PALETTES_ALL, FADE_COEFF_MAX, ASSEMBLE_TO_WHITE_FRAMES, RGB_WHITE, ComfyAnimEasing_Linear);
     gTasks[taskId].func = Task_HofSwSh_AssembleToWhite;
 }
 
@@ -1144,7 +1144,7 @@ static void Task_HofSwSh_AssembleToWhite(u8 taskId)
     }
 
     RevealAssemble();
-    StartFade(PALETTES_ALL, 0, ASSEMBLE_FROM_WHITE_FRAMES, RGB_WHITE);
+    StartFade(PALETTES_ALL, 0, ASSEMBLE_FROM_WHITE_FRAMES, RGB_WHITE, ComfyAnimEasing_Linear);
     gTasks[taskId].func = Task_HofSwSh_AssembleFromWhite;
 }
 
@@ -1253,7 +1253,7 @@ static void Task_HofSwSh_PostConfettiHold(u8 taskId)
 static void Task_HofSwSh_StartExit(u8 taskId)
 {
     FadeOutBGM(EXIT_BGM_FADE_SPEED);
-    StartFade(PALETTES_ALL, FADE_COEFF_MAX, EXIT_FADE_FRAMES, RGB_BLACK);
+    StartFade(PALETTES_ALL, FADE_COEFF_MAX, EXIT_FADE_FRAMES, RGB_BLACK, ComfyAnimEasing_Linear);
     gTasks[taskId].func = Task_HofSwSh_Exit;
 }
 
