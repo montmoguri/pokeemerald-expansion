@@ -7,6 +7,7 @@
 #include "credits.h"
 #include "decompress.h"
 #include "gpu_regs.h"
+#include "graphics.h"
 #include "international_string_util.h"
 #include "main.h"
 #include "malloc.h"
@@ -14,6 +15,7 @@
 #include "menu_helpers.h"
 #include "palette.h"
 #include "pokemon.h"
+#include "random.h"
 #include "save.h"
 #include "scanline_effect.h"
 #include "sound.h"
@@ -22,6 +24,7 @@
 #include "strings.h"
 #include "task.h"
 #include "text.h"
+#include "trig.h"
 #include "trainer_pokemon_sprites.h"
 #include "window.h"
 #include "constants/rgb.h"
@@ -82,9 +85,23 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 
 // Assemble sprites
 #define ASSEMBLE_TRAINER_X          120
-#define ASSEMBLE_TRAINER_Y          88
+#define ASSEMBLE_TRAINER_Y          92
 #define ASSEMBLE_TRAINER_SUBPRIORITY 0
 #define TAG_MON_SILHOUETTE          55141
+
+// Confetti
+#define TAG_CONFETTI                1001
+#define CONFETTI_SHEET_SIZE         0x220
+#define CONFETTI_FRAMES             400
+#define CONFETTI_SPAWN_INTERVAL     4
+#define CONFETTI_FALL_FRAMES        110
+#define CONFETTI_OFFSCREEN_Y        120
+#define CONFETTI_SWAY_BASE          8
+#define CONFETTI_SWAY_RANGE         4
+#define CONFETTI_SINE_STEP          4
+#define CONFETTI_EXTRA_Y_ODDS       4
+#define CONFETTI_MAX_SPAWN_Y        8
+#define CONFETTI_SINE_SCALE         256
 
 // Front pic sprite data
 #define sSpecies                    data[0]
@@ -93,6 +110,10 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 // Shadow sprite data
 #define sOwnTileNum                 data[0]
 #define sFrontSpriteId              data[1]
+
+// Confetti sprite data
+#define sSineIdx                    data[0]
+#define sExtraY                     data[1]
 
 // Windows
 #define SAVE_MESSAGE_LEFT           2
@@ -212,6 +233,9 @@ static void Task_HofSwSh_AssembleSlide(u8 taskId);
 static void Task_HofSwSh_AssembleToWhite(u8 taskId);
 static void Task_HofSwSh_AssembleFromWhite(u8 taskId);
 static void Task_HofSwSh_AssembleHold(u8 taskId);
+static void Task_HofSwSh_Confetti(u8 taskId);
+static void Task_HofSwSh_PostConfettiHold(u8 taskId);
+static void SpriteCB_Confetti(struct Sprite *sprite);
 static void Task_HofSwSh_Exit(u8 taskId);
 
 static const u8 sTextColors[] = {HOF_COLOR_TRANSPARENT, HOF_COLOR_WHITE, HOF_COLOR_DARK_GRAY};
@@ -328,12 +352,12 @@ static const struct
     bool8 hFlip;
 } sAssembleMonPositions[PARTY_SIZE] =
 {
-    {  93, 80, FALSE },
-    { 146, 80, TRUE  },
-    {  66, 72, FALSE },
-    { 173, 72, TRUE  },
+    {  93, 88, FALSE },
+    { 147, 88, TRUE  },
+    {  64, 80, FALSE },
+    { 176, 80, TRUE  },
     {  39, 64, FALSE },
-    { 200, 64, TRUE  },
+    { 201, 64, TRUE  },
 };
 
 #include "data/swsh_hall_of_fame.h"
@@ -654,6 +678,8 @@ static void DestroyAssembleSprites(void)
 static void FreeHallOfFame(void)
 {
     DestroyAssembleSprites();
+    FreeSpriteTilesByTag(TAG_CONFETTI);
+    FreeSpritePaletteByTag(TAG_CONFETTI);
     DestroyBackSprite();
     DestroyShadowSprite();
     DestroyFrontSprite();
@@ -1171,7 +1197,57 @@ static void Task_HofSwSh_AssembleHold(u8 taskId)
         return;
     }
 
-    gTasks[taskId].func = Task_HofSwSh_StartExit;
+    LoadCompressedSpriteSheet(&sSpriteSheet_Confetti);
+    LoadSpritePalette(&sSpritePalette_Confetti);
+    PlaySE(SE_APPLAUSE);
+    gTasks[taskId].tFrameCount = CONFETTI_FRAMES;
+    gTasks[taskId].func = Task_HofSwSh_Confetti;
+}
+
+static void SpriteCB_Confetti(struct Sprite *sprite)
+{
+    if (sprite->y2 > CONFETTI_OFFSCREEN_Y)
+    {
+        DestroySprite(sprite);
+        return;
+    }
+
+    sprite->y2 += 1 + sprite->sExtraY;
+    sprite->x2 = ((Random() % CONFETTI_SWAY_RANGE) + CONFETTI_SWAY_BASE) * gSineTable[(u8)sprite->sSineIdx] / CONFETTI_SINE_SCALE;
+    sprite->sSineIdx += CONFETTI_SINE_STEP;
+}
+
+static void CreateConfettiSprite(void)
+{
+    s16 x = Random() % DISPLAY_WIDTH;
+    s16 y = -(Random() % CONFETTI_MAX_SPAWN_Y);
+    struct Sprite *sprite = &gSprites[CreateSprite(&sSpriteTemplate_Confetti, x, y, 0)];
+
+    StartSpriteAnim(sprite, Random() % ARRAY_COUNT(sAnims_Confetti));
+    sprite->sExtraY = (Random() % CONFETTI_EXTRA_Y_ODDS) ? 0 : 1;
+}
+
+static void Task_HofSwSh_Confetti(u8 taskId)
+{
+    if (!gTasks[taskId].tFrameCount)
+    {
+        gTasks[taskId].func = Task_HofSwSh_PostConfettiHold;
+        return;
+    }
+
+    gTasks[taskId].tFrameCount--;
+    if (gTasks[taskId].tFrameCount % CONFETTI_SPAWN_INTERVAL == 0 && gTasks[taskId].tFrameCount > CONFETTI_FALL_FRAMES)
+    {
+        CreateConfettiSprite();
+    }
+}
+
+static void Task_HofSwSh_PostConfettiHold(u8 taskId)
+{
+    if (JOY_NEW(A_BUTTON | B_BUTTON))
+    {
+        gTasks[taskId].func = Task_HofSwSh_StartExit;
+    }
 }
 
 static void Task_HofSwSh_StartExit(u8 taskId)
@@ -1197,3 +1273,7 @@ static void Task_HofSwSh_Exit(u8 taskId)
 #undef tSpriteIndex
 #undef sSpecies
 #undef sDontFlip
+#undef sOwnTileNum
+#undef sFrontSpriteId
+#undef sSineIdx
+#undef sExtraY

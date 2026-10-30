@@ -107,3 +107,165 @@ static const u32 sIntroBg2_Tilemap[]          = INCGFX_U32("graphics/hall_of_fam
 static const u32 sIntroBg1_Tilemap[]          = INCGFX_U32("graphics/hall_of_fame/intro_bg1.bin", ".smolTM");
 static const u32 sAssembleBg2_Tilemap[]       = INCGFX_U32("graphics/hall_of_fame/assemble_bg2.bin", ".smolTM");
 static const u32 sAssembleBg1_Tilemap[]       = INCGFX_U32("graphics/hall_of_fame/assemble_bg1.bin", ".smolTM");
+
+static const struct CompressedSpriteSheet sSpriteSheet_Confetti =
+{
+    .data = gConfetti_Gfx,
+    .size = CONFETTI_SHEET_SIZE,
+    .tag = TAG_CONFETTI
+};
+
+static const struct SpritePalette sSpritePalette_Confetti =
+{
+    .data = gConfetti_Pal,
+    .tag = TAG_CONFETTI
+};
+
+static const struct OamData sOamData_Confetti =
+{
+    .y = 0,
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .mosaic = FALSE,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(8x8),
+    .x = 0,
+    .matrixNum = 0,
+    .size = SPRITE_SIZE(8x8),
+    .tileNum = 0,
+    .priority = 0,
+    .paletteNum = 0,
+    .affineParam = 0,
+};
+
+static const union AnimCmd sAnim_PinkConfettiA[] =
+{
+    ANIMCMD_FRAME(0, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_RedConfettiA[] =
+{
+    ANIMCMD_FRAME(1, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_BlueConfettiA[] =
+{
+    ANIMCMD_FRAME(2, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_RedConfettiB[] =
+{
+    ANIMCMD_FRAME(3, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_BlueConfettiB[] =
+{
+    ANIMCMD_FRAME(4, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_YellowConfettiA[] =
+{
+    ANIMCMD_FRAME(5, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_WhiteConfettiA[] =
+{
+    ANIMCMD_FRAME(6, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_GreenConfettiA[] =
+{
+    ANIMCMD_FRAME(7, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_PinkConfettiB[] =
+{
+    ANIMCMD_FRAME(8, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_BlueConfettiC[] =
+{
+    ANIMCMD_FRAME(9, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_YellowConfettiB[] =
+{
+    ANIMCMD_FRAME(10, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_WhiteConfettiB[] =
+{
+    ANIMCMD_FRAME(11, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_GreenConfettiB[] =
+{
+    ANIMCMD_FRAME(12, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_PinkConfettiC[] =
+{
+    ANIMCMD_FRAME(13, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_RedConfettiC[] =
+{
+    ANIMCMD_FRAME(14, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_YellowConfettiC[] =
+{
+    ANIMCMD_FRAME(15, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnim_WhiteConfettiC[] =
+{
+    ANIMCMD_FRAME(16, 30),
+    ANIMCMD_END
+};
+
+static const union AnimCmd *const sAnims_Confetti[] =
+{
+    sAnim_PinkConfettiA,
+    sAnim_RedConfettiA,
+    sAnim_BlueConfettiA,
+    sAnim_RedConfettiB,
+    sAnim_BlueConfettiB,
+    sAnim_YellowConfettiA,
+    sAnim_WhiteConfettiA,
+    sAnim_GreenConfettiA,
+    sAnim_PinkConfettiB,
+    sAnim_BlueConfettiC,
+    sAnim_YellowConfettiB,
+    sAnim_WhiteConfettiB,
+    sAnim_GreenConfettiB,
+    sAnim_PinkConfettiC,
+    sAnim_RedConfettiC,
+    sAnim_YellowConfettiC,
+    sAnim_WhiteConfettiC
+};
+
+static const struct SpriteTemplate sSpriteTemplate_Confetti =
+{
+    .tileTag = TAG_CONFETTI,
+    .paletteTag = TAG_CONFETTI,
+    .oam = &sOamData_Confetti,
+    .anims = sAnims_Confetti,
+    .callback = SpriteCB_Confetti
+};
