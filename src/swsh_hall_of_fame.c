@@ -203,6 +203,9 @@ struct HallOfFameSwSh
     s16 slideTo;
     u8 fadeCoeff;
     bool8 dontSaveData;
+    u8 introMonIds[PARTY_SIZE];
+    u8 numIntroMons;
+    u8 numTeamMons;
     u8 monId;
     u8 introFade;
     u8 backSpriteId;
@@ -807,10 +810,15 @@ static void Task_HofSwSh_InitTeam(u8 taskId)
             sHof->team.mon[i].isShiny = GetMonData(mon, MON_DATA_IS_SHINY);
             sHof->team.mon[i].personality = GetMonData(mon, MON_DATA_PERSONALITY);
             sHof->team.mon[i].lvl = GetMonData(mon, MON_DATA_LEVEL);
-            sHof->displaySpecies[i] = GetDisplaySpecies(mon);
             GetMonData(mon, MON_DATA_NICKNAME, nickname);
             for (j = 0; j < POKEMON_NAME_LENGTH; j++)
                 sHof->team.mon[i].nickname[j] = nickname[j];
+            sHof->displaySpecies[i] = GetDisplaySpecies(mon);
+            sHof->numTeamMons++;
+            if (sHof->team.mon[i].species != SPECIES_EGG)
+            {
+                sHof->introMonIds[sHof->numIntroMons++] = i;
+            }
         }
         else
         {
@@ -908,8 +916,9 @@ static void Task_HofSwSh_WaitSaveMessage(u8 taskId)
 
 static void CreateFrontSprite(void)
 {
-    struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
-    enum Species species = sHof->displaySpecies[sHof->monId];
+    u32 monId = sHof->introMonIds[sHof->monId];
+    struct HallofFameMon *mon = &sHof->team.mon[monId];
+    enum Species species = sHof->displaySpecies[monId];
     struct Sprite *sprite;
 
     HandleLoadSpecialPokePic(TRUE, MonSpritesGfxManager_GetSpritePtr(MON_SPR_GFX_MANAGER_A, B_POSITION_OPPONENT_LEFT), species, mon->personality);
@@ -922,12 +931,11 @@ static void CreateFrontSprite(void)
     sprite->callback = SpriteCallbackDummy;
     sprite->oam.priority = MON_OBJ_PRIORITY;
     sprite->sSpecies = species;
-    sprite->hFlip = IsMonSpriteNotFlipped(species);
 }
 
 static void PrintIntroText(void)
 {
-    struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
+    struct HallofFameMon *mon = &sHof->team.mon[sHof->introMonIds[sHof->monId]];
 
     FillWindowPixelBuffer(WIN_INTRO_TITLE, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
     FillWindowPixelBuffer(WIN_INTRO_NICKNAME, PIXEL_FILL(HOF_COLOR_TRANSPARENT));
@@ -959,7 +967,7 @@ static void LandFrontSprite(void)
     StartBannerFlash();
     PrintIntroText();
 
-    sprite->sDontFlip = !sprite->hFlip;
+    sprite->sDontFlip = TRUE;
     PlayCry_Normal(sprite->sSpecies, 0);
     PokemonSummaryDoMonAnimation(sprite, sprite->sSpecies, FALSE);
 }
@@ -981,8 +989,9 @@ static void ClearIntroMon(void)
 
 static void Task_HofSwSh_IntroSetup(u8 taskId)
 {
-    struct HallofFameMon *mon = &sHof->team.mon[sHof->monId];
-    enum Species species = sHof->displaySpecies[sHof->monId];
+    u32 monId = sHof->introMonIds[sHof->monId];
+    struct HallofFameMon *mon = &sHof->team.mon[monId];
+    enum Species species = sHof->displaySpecies[monId];
 
     LoadTypeWallpaper(GetSpeciesType(species, 0));
     BlendPalettes(INTRO_BG_PALETTES, FADE_COEFF_MAX, RGB_BLACK);
@@ -1071,7 +1080,7 @@ static void Task_HofSwSh_IntroFadeOut(u8 taskId)
 
     ClearIntroMon();
     sHof->monId++;
-    if (sHof->monId < PARTY_SIZE && sHof->team.mon[sHof->monId].species != SPECIES_NONE)
+    if (sHof->monId < sHof->numIntroMons)
     {
         gTasks[taskId].func = Task_HofSwSh_IntroSetup;
     }
@@ -1117,7 +1126,7 @@ static bool32 UpdateAssembleSlides(u32 frame)
     u32 i;
     bool32 sliding = FALSE;
 
-    for (i = 0; i < PARTY_SIZE && sHof->assembleSpriteIds[i] != SPRITE_NONE; i++)
+    for (i = 0; i < sHof->numTeamMons; i++)
     {
         struct Sprite *sprite = &gSprites[sHof->assembleSpriteIds[i]];
 
@@ -1149,22 +1158,25 @@ static bool32 UpdateAssembleSlides(u32 frame)
 static void Task_HofSwSh_AssembleCreateSprites(u8 taskId)
 {
     u32 i = gTasks[taskId].tSpriteIndex;
-    struct HallofFameMon *mon = &sHof->team.mon[i];
+    struct HallofFameMon *mon;
+    enum Species species;
     struct Sprite *sprite;
 
-    if (i >= PARTY_SIZE || mon->species == SPECIES_NONE)
+    if (i >= sHof->numTeamMons)
     {
         gTasks[taskId].tFrameCount = 0;
         gTasks[taskId].func = Task_HofSwSh_AssembleSlide;
         return;
     }
 
-    sHof->assembleSpriteIds[i] = CreateMonPicSprite(sHof->displaySpecies[i], mon->isShiny, mon->personality, TRUE, GetAssembleStartX(i), sAssembleMonPositions[i].y, i, TAG_NONE);
+    mon = &sHof->team.mon[i];
+    species = sHof->displaySpecies[i];
+    sHof->assembleSpriteIds[i] = CreateMonPicSprite(species, mon->isShiny, mon->personality, TRUE, GetAssembleStartX(i), sAssembleMonPositions[i].y, i, TAG_NONE);
     sprite = &gSprites[sHof->assembleSpriteIds[i]];
     sprite->oam.paletteNum = sHof->silhouettePalette;
     sprite->oam.priority = MON_OBJ_PRIORITY;
     sprite->subpriority = ASSEMBLE_TRAINER_SUBPRIORITY + 1 + i;
-    sprite->hFlip = sAssembleMonPositions[i].hFlip;
+    sprite->hFlip = sAssembleMonPositions[i].hFlip && !IsMonSpriteNotFlipped(species);
     gTasks[taskId].tSpriteIndex++;
 }
 
@@ -1184,7 +1196,7 @@ static void RevealAssemble(void)
     u32 i;
     struct Sprite *sprite;
 
-    for (i = 0; i < PARTY_SIZE && sHof->assembleSpriteIds[i] != SPRITE_NONE; i++)
+    for (i = 0; i < sHof->numTeamMons; i++)
     {
         gSprites[sHof->assembleSpriteIds[i]].oam.paletteNum = i;
     }
