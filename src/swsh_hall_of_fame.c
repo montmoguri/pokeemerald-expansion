@@ -190,10 +190,11 @@ struct HallOfFameSwSh
 {
     struct HallofFameTeam team;
     enum Species displaySpecies[PARTY_SIZE];
-    u8 bg0TilemapBuffer[BG_SCREEN_SIZE];
-    u8 bg1TilemapBuffer[BG_SCREEN_SIZE];
-    u8 bg2TilemapBuffer[BG_SCREEN_SIZE];
+    u16 bg0TilemapBuffer[BG_SCREEN_SIZE / 2];
+    u16 bg1TilemapBuffer[BG_SCREEN_SIZE / 2];
+    u16 bg2TilemapBuffer[BG_SCREEN_SIZE / 2];
     u16 bg3TilemapBuffer[BG_SCREEN_SIZE / 2];
+    struct SpriteTemplate shadowTemplate;
     u32 fadePalettes;
     u32 fadeColor;
     u32 fadeAnimId;
@@ -609,16 +610,17 @@ static void SpriteCB_MonShadow(struct Sprite *sprite)
 
 static void CreateShadowSprite(void)
 {
-    struct SpriteTemplate template = gMultiuseSpriteTemplate;
+    struct SpriteTemplate *template = &sHof->shadowTemplate;
     struct Sprite *front = &gSprites[sHof->frontSpriteId];
     struct Sprite *sprite;
     u8 palette;
 
-    template.anims = gDummySpriteAnimTable;
-    template.affineAnims = gDummySpriteAffineAnimTable;
-    template.paletteTag = TAG_NONE;
-    template.callback = SpriteCB_MonShadow;
-    sHof->shadowSpriteId = CreateSprite(&template, front->x + SHADOW_OFFSET_X, front->y + SHADOW_OFFSET_Y, SHADOW_SUBPRIORITY);
+    *template = gMultiuseSpriteTemplate;
+    template->anims = gDummySpriteAnimTable;
+    template->affineAnims = gDummySpriteAffineAnimTable;
+    template->paletteTag = TAG_NONE;
+    template->callback = SpriteCB_MonShadow;
+    sHof->shadowSpriteId = CreateSprite(template, front->x + SHADOW_OFFSET_X, front->y + SHADOW_OFFSET_Y, SHADOW_SUBPRIORITY);
 
     sprite = &gSprites[sHof->shadowSpriteId];
     FreeSpriteOamMatrix(sprite);
@@ -857,13 +859,17 @@ static void Task_HofSwSh_InsertTeam(u8 taskId)
     else
     {
         if (LoadGameSave(SAVE_HALL_OF_FAME) != SAVE_STATUS_OK)
+        {
             memset(gHoFSaveBuffer, 0, SECTOR_SIZE * NUM_HOF_SECTORS);
+        }
     }
 
     for (i = 0; i < HALL_OF_FAME_MAX_TEAMS; i++, lastSavedTeam++)
     {
         if (lastSavedTeam->mon[0].species == SPECIES_NONE)
+        {
             break;
+        }
     }
     if (i >= HALL_OF_FAME_MAX_TEAMS)
     {
@@ -1104,6 +1110,11 @@ static void Task_HofSwSh_AssembleSetup(u8 taskId)
 
     ReleaseComfyAnim(sHof->slideAnimId);
     sHof->slideAnimId = INVALID_COMFY_ANIM;
+    if (sHof->createdGfxManager)
+    {
+        DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
+        sHof->createdGfxManager = FALSE;
+    }
 
     sHof->silhouettePalette = AllocSpritePalette(TAG_MON_SILHOUETTE);
     FillPalette(RGB_WHITE, OBJ_PLTT_ID(sHof->silhouettePalette), PLTT_SIZE_4BPP);

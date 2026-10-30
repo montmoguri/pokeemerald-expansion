@@ -5,7 +5,6 @@
 #include "clock.h"
 #include "coins.h"
 #include "credits.h"
-#include "hall_of_fame.h"
 #include "credits_frlg.h"
 #include "data.h"
 #include "daycare.h"
@@ -1971,12 +1970,6 @@ static void DebugAction_Util_WatchCredits(u8 taskId)
 {
     Debug_DestroyMenu_Full(taskId);
     SetMainCallback2(CB2_StartCreditsSequence);
-}
-
-void DebugNative_HallOfFameNoSave(void);
-void DebugNative_HallOfFameNoSave(void)
-{
-    SetMainCallback2(CB2_DoHallOfFameScreenDontSaveData);
 }
 
 static void DebugAction_Player_Name(u8 taskId)
