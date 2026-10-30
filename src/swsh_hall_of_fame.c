@@ -538,7 +538,6 @@ static bool32 InitHallOfFameScreen(void)
             CreateMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A, MON_SPR_GFX_MODE_NORMAL);
             sHof->createdGfxManager = TRUE;
         }
-        ReleaseComfyAnims();
         gMain.state++;
         break;
     case 2:
@@ -701,7 +700,8 @@ static void FreeHallOfFame(void)
     UnsetBgTilemapBuffer(2);
     UnsetBgTilemapBuffer(3);
     ResetBgsAndClearDma3BusyFlags(0);
-    ReleaseComfyAnims();
+    ReleaseComfyAnim(sHof->fadeAnimId);
+    ReleaseComfyAnim(sHof->slideAnimId);
     SetGpuReg(REG_OFFSET_BLDCNT, 0);
     TRY_FREE_AND_SET_NULL(gHoFSaveBuffer);
     TRY_FREE_AND_SET_NULL(sHof);
@@ -1102,6 +1102,9 @@ static void Task_HofSwSh_AssembleSetup(u8 taskId)
     HideBg(2);
     HideBg(3);
 
+    ReleaseComfyAnim(sHof->slideAnimId);
+    sHof->slideAnimId = INVALID_COMFY_ANIM;
+
     sHof->silhouettePalette = AllocSpritePalette(TAG_MON_SILHOUETTE);
     FillPalette(RGB_WHITE, OBJ_PLTT_ID(sHof->silhouettePalette), PLTT_SIZE_4BPP);
     gTasks[taskId].tSpriteIndex = 0;
@@ -1147,7 +1150,12 @@ static bool32 UpdateAssembleSlides(u32 frame)
         }
 
         sprite->x = ReadComfyAnimValueSmooth(&gComfyAnims[sHof->assembleAnimIds[i]]);
-        if (!gComfyAnims[sHof->assembleAnimIds[i]].completed)
+        if (gComfyAnims[sHof->assembleAnimIds[i]].completed)
+        {
+            ReleaseComfyAnim(sHof->assembleAnimIds[i]);
+            sHof->assembleAnimIds[i] = INVALID_COMFY_ANIM;
+        }
+        else
         {
             sliding = TRUE;
         }
