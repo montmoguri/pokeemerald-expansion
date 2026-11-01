@@ -947,12 +947,6 @@ static const struct SpriteTemplate sSpriteTemplate_MessageWindow =
     .anims = sSpriteAnimTable_MessageWindow,
 };
 
-static const struct SpritePalette sSpritePal_PartyMonShadow =
-{
-    .data = gMonShadowSwSh_Pal,
-    .tag = TAG_MON_SHADOW
-};
-
 const struct SpriteTemplate gSpriteTemplate_StatusIcons =
 {
     .tileTag = TAG_SWSH_STATUS_ICONS,
