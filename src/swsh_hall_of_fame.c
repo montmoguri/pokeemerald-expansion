@@ -22,6 +22,7 @@
 #include "sprite.h"
 #include "string_util.h"
 #include "strings.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text.h"
 #include "trig.h"
@@ -77,11 +78,6 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 #define FRONT_LANDING_X             172
 #define FRONT_LANDING_Y             78
 #define FRONT_SUBPRIORITY           0
-#define SHADOW_SUBPRIORITY          (FRONT_SUBPRIORITY + 1)
-#define SHADOW_OFFSET_X             5
-#define SHADOW_OFFSET_Y             2
-#define TAG_MON_SHADOW              55140
-#define MON_SHADOW_COLOR            RGB(15, 15, 15)
 
 // Assemble sprites
 #define ASSEMBLE_TRAINER_X          120
@@ -106,10 +102,6 @@ STATIC_ASSERT(sizeof(struct HallofFameTeam) * HALL_OF_FAME_MAX_TEAMS <= SECTOR_D
 // Front pic sprite data
 #define sSpecies                    data[0]
 #define sDontFlip                   data[1]
-
-// Shadow sprite data
-#define sOwnTileNum                 data[0]
-#define sFrontSpriteId              data[1]
 
 // Confetti sprite data
 #define sSineIdx                    data[0]
@@ -194,7 +186,6 @@ struct HallOfFameSwSh
     u16 bg1TilemapBuffer[BG_SCREEN_SIZE / 2];
     u16 bg2TilemapBuffer[BG_SCREEN_SIZE / 2];
     u16 bg3TilemapBuffer[BG_SCREEN_SIZE / 2];
-    struct SpriteTemplate shadowTemplate;
     u32 fadePalettes;
     u32 fadeColor;
     u32 fadeAnimId;
@@ -592,60 +583,11 @@ static void DestroyBackSprite(void)
     }
 }
 
-static void SpriteCB_MonShadow(struct Sprite *sprite)
-{
-    struct Sprite *front = &gSprites[sprite->sFrontSpriteId];
-
-    sprite->oam.tileNum = front->oam.tileNum;
-    sprite->oam.affineMode = front->oam.affineMode;
-    sprite->oam.matrixNum = front->oam.matrixNum;
-    sprite->x2 = front->x2;
-    sprite->y2 = front->y2;
-    sprite->centerToCornerVecX = front->centerToCornerVecX;
-    sprite->centerToCornerVecY = front->centerToCornerVecY;
-    sprite->hFlip = front->hFlip;
-    sprite->x = front->x + SHADOW_OFFSET_X;
-    sprite->y = front->y + SHADOW_OFFSET_Y;
-}
-
-static void CreateShadowSprite(void)
-{
-    struct SpriteTemplate *template = &sHof->shadowTemplate;
-    struct Sprite *front = &gSprites[sHof->frontSpriteId];
-    struct Sprite *sprite;
-    u8 palette;
-
-    *template = gMultiuseSpriteTemplate;
-    template->anims = gDummySpriteAnimTable;
-    template->affineAnims = gDummySpriteAffineAnimTable;
-    template->paletteTag = TAG_NONE;
-    template->callback = SpriteCB_MonShadow;
-    sHof->shadowSpriteId = CreateSprite(template, front->x + SHADOW_OFFSET_X, front->y + SHADOW_OFFSET_Y, SHADOW_SUBPRIORITY);
-
-    sprite = &gSprites[sHof->shadowSpriteId];
-    FreeSpriteOamMatrix(sprite);
-
-    sprite->affineAnimBeginning = FALSE;
-    sprite->affineAnimPaused = TRUE;
-    palette = AllocSpritePalette(TAG_MON_SHADOW);
-    FillPalette(MON_SHADOW_COLOR, OBJ_PLTT_ID(palette), PLTT_SIZE_4BPP);
-    sprite->oam.paletteNum = palette;
-    sprite->oam.priority = MON_OBJ_PRIORITY;
-    sprite->sOwnTileNum = sprite->oam.tileNum;
-    sprite->sFrontSpriteId = sHof->frontSpriteId;
-}
-
 static void DestroyShadowSprite(void)
 {
     if (sHof->shadowSpriteId != SPRITE_NONE)
     {
-        struct Sprite *sprite = &gSprites[sHof->shadowSpriteId];
-
-        sprite->oam.tileNum = sprite->sOwnTileNum;
-        sprite->oam.affineMode = ST_OAM_AFFINE_OFF;
-        sprite->oam.matrixNum = 0;
-        DestroySprite(sprite);
-        FreeSpritePaletteByTag(TAG_MON_SHADOW);
+        DestroyMonShadowSprite(sHof->shadowSpriteId);
         sHof->shadowSpriteId = SPRITE_NONE;
     }
 }
@@ -968,7 +910,7 @@ static void LandFrontSprite(void)
 {
     struct Sprite *sprite = &gSprites[sHof->frontSpriteId];
 
-    CreateShadowSprite();
+    sHof->shadowSpriteId = CreateMonShadowSprite(sHof->frontSpriteId, FALSE);
     ShowBg(1);
     StartBannerFlash();
     PrintIntroText();
@@ -1375,7 +1317,5 @@ static void Task_HofSwSh_Exit(u8 taskId)
 #undef tSpriteIndex
 #undef sSpecies
 #undef sDontFlip
-#undef sOwnTileNum
-#undef sFrontSpriteId
 #undef sSineIdx
 #undef sExtraY
