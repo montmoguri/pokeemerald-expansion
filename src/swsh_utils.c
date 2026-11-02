@@ -6,6 +6,7 @@
 #include "main.h"
 #include "malloc.h"
 #include "money.h"
+#include "palette.h"
 #include "sprite.h"
 #include "string_util.h"
 #include "strings.h"
@@ -14,6 +15,7 @@
 #include "text.h"
 #include "constants/battle.h"
 #include "constants/characters.h"
+#include "constants/rgb.h"
 
 /*
 Mont note:
@@ -581,3 +583,73 @@ void UpdateCursorBob(struct Sprite *sprite, u32 animId)
 #undef CURSOR_BOB_RANGE
 #undef CURSOR_BOB_FRAMES
 #undef sBobTarget
+
+#define MON_SHADOW_OFFSET_X     5
+#define MON_SHADOW_OFFSET_Y     2
+#define MON_SHADOW_COLOR        RGB(15, 15, 15)
+#define sFrontSpriteId          data[0]
+
+static const struct OamData sOamData_MonShadow =
+{
+    .shape = SPRITE_SHAPE(64x64),
+    .size = SPRITE_SIZE(64x64),
+};
+
+static void SpriteCB_MonShadow(struct Sprite *sprite)
+{
+    struct Sprite *front = &gSprites[sprite->sFrontSpriteId];
+
+    sprite->oam.tileNum = front->oam.tileNum;
+    sprite->oam.affineMode = front->oam.affineMode;
+    sprite->oam.matrixNum = front->oam.matrixNum;
+    sprite->oam.mosaic = front->oam.mosaic;
+    sprite->invisible = front->invisible;
+    sprite->x = front->x + MON_SHADOW_OFFSET_X;
+    sprite->y = front->y + MON_SHADOW_OFFSET_Y;
+    sprite->x2 = front->x2;
+    sprite->y2 = front->y2;
+    sprite->centerToCornerVecX = front->centerToCornerVecX;
+    sprite->centerToCornerVecY = front->centerToCornerVecY;
+}
+
+static const struct SpriteTemplate sSpriteTemplate_MonShadow =
+{
+    .tileTag = TAG_SWSH_MON_SHADOW,
+    .paletteTag = TAG_SWSH_MON_SHADOW,
+    .oam = &sOamData_MonShadow,
+    .callback = SpriteCB_MonShadow,
+};
+
+u8 CreateMonShadowSprite(u8 frontSpriteId, bool32 blend)
+{
+    struct Sprite *front = &gSprites[frontSpriteId];
+    struct Sprite *sprite;
+    u32 palette;
+    u8 spriteId;
+
+    FreeSpritePaletteByTag(TAG_SWSH_MON_SHADOW);
+    palette = AllocSpritePalette(TAG_SWSH_MON_SHADOW);
+    FillPalette(blend ? MON_SHADOW_BLEND_COLOR : MON_SHADOW_COLOR, OBJ_PLTT_ID(palette), PLTT_SIZE_4BPP);
+
+    spriteId = CreateSprite(&sSpriteTemplate_MonShadow, 0, 0, front->subpriority + 1);
+    sprite = &gSprites[spriteId];
+    sprite->sFrontSpriteId = frontSpriteId;
+    sprite->oam.priority = front->oam.priority;
+    if (blend)
+    {
+        sprite->oam.objMode = ST_OAM_OBJ_BLEND;
+    }
+    SpriteCB_MonShadow(sprite);
+    return spriteId;
+}
+
+void DestroyMonShadowSprite(u8 spriteId)
+{
+    DestroySprite(&gSprites[spriteId]);
+    FreeSpritePaletteByTag(TAG_SWSH_MON_SHADOW);
+}
+
+#undef MON_SHADOW_OFFSET_X
+#undef MON_SHADOW_OFFSET_Y
+#undef MON_SHADOW_COLOR
+#undef sFrontSpriteId
