@@ -30,6 +30,9 @@ enum StatusIcon
 #define TAG_SWSH_QUANTITY_FRAME         55301
 #define TAG_SWSH_SPINNER_ARROW          55302
 #define TAG_SWSH_STATUS_ICONS           55303
+#define TAG_SWSH_MON_SHADOW             55140   // palette plus (unloaded) tile tag
+
+#define MON_SHADOW_BLEND_COLOR          RGB(5, 5, 5)
 
 #define QUANTITY_FRAME_SPRITES_COUNT    2
 
@@ -71,5 +74,7 @@ void PrintQuantityFrameCount(u8 spriteId, u16 quantity);
 void PrintQuantityFrameTotal(u8 spriteId, const u8 *str);
 void StartCursorBob(u8 spriteId, u32 *animId);
 void UpdateCursorBob(struct Sprite *sprite, u32 animId);
+u8 CreateMonShadowSprite(u8 frontSpriteId, bool32 blend);
+void DestroyMonShadowSprite(u8 spriteId);
 
 #endif // GUARD_SWSH_UTILS_H

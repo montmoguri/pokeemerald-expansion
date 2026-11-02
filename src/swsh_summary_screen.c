@@ -437,8 +437,8 @@ static void SetMoveTypeIcons(void);
 static void SetContestMoveTypeIcons(void);
 static void SetNewMoveTypeIcon(void);
 static void SwapMovesTypeSprites(u8, u8);
-static u8 LoadMonGfxAndSprite(struct Pokemon *, s16 *, bool32);
-static u8 CreateMonSprite(struct Pokemon *, bool32);
+static u8 LoadMonGfxAndSprite(struct Pokemon *, s16 *);
+static u8 CreateMonSprite(struct Pokemon *);
 static void SpriteCB_Pokemon(struct Sprite *);
 static void StopPokemonAnimations(void);
 static void CreateMonMarkingsSprite(struct Pokemon *);
@@ -960,7 +960,6 @@ static void (*const sTextPrinterTasks[])(u8 taskId) =
 #define TAG_FRIENDSHIP_ICON     30008
 #define TAG_GIGANTAMAX_ICON     30009
 #define TAG_TERA_TYPE           30010
-#define TAG_MON_SHADOW          30011
 #define TAG_INFO_PROMPT         30014
 #define TAG_GENDER_ICON         30015
 #define TAG_HELD_ITEM_ICON      30017
@@ -1850,11 +1849,6 @@ static const struct SpriteTemplate sSpriteTemplate_MaxCondSparkle =
 };
 #endif
 
-static const struct SpritePalette sSpritePal_MonShadow =
-{
-    gMonShadowSwSh_Pal, TAG_MON_SHADOW
-};
-
 // code
 void ShowPokemonSummaryScreen_SwSh(u8 mode, void *mons, u8 monIndex, u8 maxMonIndex, void (*callback)(void))
 {
@@ -1920,7 +1914,7 @@ void ShowPokemonSummaryScreen_SwSh(u8 mode, void *mons, u8 monIndex, u8 maxMonIn
         sMonSummaryScreen->currPageIndex = sMonSummaryScreen->minPageIndex;
 
     SummaryScreen_SetAnimDelayTaskId_SwSh(TASK_NONE);
-    StopShadowAnimDelayTask();
+    StopPokemonAnimationDelayTask();
 
     if (gMonSpritesGfxPtr == NULL)
         CreateMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A, MON_SPR_GFX_MODE_NORMAL);
@@ -1971,7 +1965,6 @@ static void VBlank(void)
 #define sSpecies data[0]
 #define sDontFlip data[1]
 #define sDelayAnim data[2]
-#define sIsShadow data[3]
 
 static void RunMonAnimTimer(void)
 {
@@ -1986,23 +1979,10 @@ static void RunMonAnimTimer(void)
         && sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] != SPRITE_NONE) // time to re-run the anim
     {
         for (i = 1; i < 8; i++)
-        {
             gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].data[i] = 0; // sprite data isn't always cleared after the anim finishes
-            if (SWSH_SUMMARY_MON_SHADOWS)
-                gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].data[i] = 0;
-        }
 
         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].sSpecies = sMonSummaryScreen->summary.species2;
-        if (SWSH_SUMMARY_MON_SHADOWS)
-            gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sSpecies = sMonSummaryScreen->summary.species2;
-
-        gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].sIsShadow = FALSE;
-        if (SWSH_SUMMARY_MON_SHADOWS)
-            gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sIsShadow = TRUE;
-
         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].callback = SpriteCB_Pokemon;
-        if (SWSH_SUMMARY_MON_SHADOWS)
-            gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].callback = SpriteCB_Pokemon;
 
         sMonSummaryScreen->monAnimTimer = 0;
     }
@@ -2098,12 +2078,14 @@ static bool8 LoadGraphics(void)
         gMain.state++;
         break;
     case 16:
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &sMonSummaryScreen->switchCounter, FALSE);
-        if (SWSH_SUMMARY_MON_SHADOWS)
-            sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &sMonSummaryScreen->switchCounter, TRUE);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &sMonSummaryScreen->switchCounter);
 
         if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] != SPRITE_NONE)
         {
+            if (SWSH_SUMMARY_MON_SHADOWS)
+            {
+                sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW] = CreateMonShadowSprite(sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON], !SWSH_SUMMARY_STATUS_ICON_FADE);
+            }
             sMonSummaryScreen->monAnimTimer = 0;
             sMonSummaryScreen->monAnimPlayed = FALSE;
             sMonSummaryScreen->switchCounter = 0;
@@ -2840,7 +2822,9 @@ static void Task_ChangeSummaryMon(u8 taskId)
         SummaryScreen_DestroyAnimDelayTask();
         DestroySpriteAndFreeResources(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]]);
         if (SWSH_SUMMARY_MON_SHADOWS)
-            DestroySpriteAndFreeResources(&gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]]);
+        {
+            DestroyMonShadowSprite(sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]);
+        }
         DestroyHeldItemIconSprite();
         break;
     case 2:
@@ -2873,21 +2857,16 @@ static void Task_ChangeSummaryMon(u8 taskId)
         UpdateMonMarkingsSprite(&sMonSummaryScreen->currentMon);
         break;
     case 6:
-        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &data[1], FALSE);
-
-        if (SWSH_SUMMARY_MON_SHADOWS)
-            sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &data[1], TRUE);
+        sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] = LoadMonGfxAndSprite(&sMonSummaryScreen->currentMon, &data[1]);
 
         if (sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON] == SPRITE_NONE)
             return;
 
         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].sDelayAnim = 1;
-        gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].sIsShadow = FALSE;
 
         if (SWSH_SUMMARY_MON_SHADOWS)
         {
-            gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sDelayAnim = 1;
-            gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sIsShadow = TRUE;
+            sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW] = CreateMonShadowSprite(sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON], !SWSH_SUMMARY_STATUS_ICON_FADE);
         }
 
         TryDrawExperienceProgressBar();
@@ -2945,8 +2924,6 @@ static void Task_ChangeSummaryMon(u8 taskId)
         break;
     case 13:
         gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].sDelayAnim = 0;
-        if (SWSH_SUMMARY_MON_SHADOWS)
-            gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].sDelayAnim = 0;
         break;
     default:
         if (!MenuHelpers_ShouldWaitForLinkRecv())
@@ -5373,7 +5350,7 @@ static void PrintConditionsPageText(void)
 }
 
 // shadow palette patched on conditions page entry: value 5→6 so (6×EVA=11)>>4 == (5×EVA=14)>>4 == 4
-static const u16 sShadowPalConditions[16] = {[0 ... 15] = RGB(6, 6, 6)};
+#define MON_SHADOW_CONDITIONS_COLOR RGB(6, 6, 6)
 
 static void Task_PrintConditionsPage(u8 taskId)
 {
@@ -5406,7 +5383,7 @@ static void Task_PrintConditionsPage(u8 taskId)
         if (SWSH_SUMMARY_MON_SHADOWS && !SWSH_SUMMARY_STATUS_ICON_FADE)
         {
             u8 shadowId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW];
-            LoadPalette(sShadowPalConditions, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
+            FillPalette(MON_SHADOW_CONDITIONS_COLOR, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
         }
         SetBgTilemapBuffer(1, sMonSummaryScreen->bg1TilemapBuffers[PSS_EFFECT_CONDITIONS]);
         ScheduleBgCopyTilemapToVram(1);
@@ -5456,7 +5433,7 @@ static void CloseConditionsPage(void)
     if (SWSH_SUMMARY_MON_SHADOWS && !SWSH_SUMMARY_STATUS_ICON_FADE)
     {
         u8 shadowId = sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW];
-        LoadPalette(gMonShadowSwSh_Pal, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
+        FillPalette(MON_SHADOW_BLEND_COLOR, OBJ_PLTT_ID(gSprites[shadowId].oam.paletteNum), PLTT_SIZE_4BPP);
     }
 #if SWSH_SUMMARY_STATUS_ICON_FADE
     SetStatusIconFadeSuspended(FALSE);
@@ -6020,14 +5997,14 @@ static void SwapMovesTypeSprites(u8 moveIndex1, u8 moveIndex2)
     sprite2->animEnded = FALSE;
 }
 
-static u8 LoadMonGfxAndSprite(struct Pokemon *mon, s16 *state, bool32 isShadow)
+static u8 LoadMonGfxAndSprite(struct Pokemon *mon, s16 *state)
 {
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
 
     switch (*state)
     {
     default:
-        return CreateMonSprite(mon, isShadow);
+        return CreateMonSprite(mon);
     case 0:
         if (gMain.inBattle)
         {
@@ -6078,32 +6055,16 @@ static void PlayMonCry(void)
     }
 }
 
-static u8 CreateMonSprite(struct Pokemon *unused, bool32 isShadow)
+static u8 CreateMonSprite(struct Pokemon *unused)
 {
     struct PokeSummary *summary = &sMonSummaryScreen->summary;
-    u8 shadowPalette = 0;
     u8 spriteId = CreateSprite(&gMultiuseSpriteTemplate, 202, 76, 5);
 
     FreeSpriteOamMatrix(&gSprites[spriteId]);
     gSprites[spriteId].sSpecies = summary->species2;
     gSprites[spriteId].sDelayAnim = 0;
-    gSprites[spriteId].sIsShadow = isShadow;
     gSprites[spriteId].callback = SpriteCB_Pokemon;
     gSprites[spriteId].oam.priority = 2;
-
-    if (isShadow)
-    {
-        FreeSpritePaletteByTag(TAG_MON_SHADOW); // reload the palette entirely because some sprite anims modify it
-        shadowPalette = LoadSpritePalette(&sSpritePal_MonShadow);
-        gSprites[spriteId].oam.paletteNum = shadowPalette;
-        if (SWSH_SUMMARY_STATUS_ICON_FADE)
-            FillPalette(SWSH_SUMMARY_MON_SHADOW_COLOR, OBJ_PLTT_ID(shadowPalette), PLTT_SIZE_4BPP);
-        else
-            gSprites[spriteId].oam.objMode = ST_OAM_OBJ_BLEND;
-        gSprites[spriteId].subpriority = 6;
-        gSprites[spriteId].x += 4;
-        gSprites[spriteId].y += 2;
-    }
 
     return spriteId;
 }
@@ -6119,7 +6080,7 @@ static void SpriteCB_Pokemon(struct Sprite *sprite)
         if (!sMonSummaryScreen->monAnimPlayed) // only play cry on the first time mon is animated
             PlayMonCry();
 
-        PokemonSummaryDoMonAnimation(sprite, sprite->sSpecies, summary->isEgg, sprite->sIsShadow);
+        PokemonSummaryDoMonAnimation(sprite, sprite->sSpecies, summary->isEgg);
         sMonSummaryScreen->monAnimPlayed = TRUE;
     }
 }
@@ -6127,7 +6088,6 @@ static void SpriteCB_Pokemon(struct Sprite *sprite)
 #undef sSpecies
 #undef sDontFlip
 #undef sDelayAnim
-#undef sIsShadow
 
 // Track and then destroy Task_PokemonSummaryAnimateAfterDelay
 // Normally destroys itself but it can be interrupted before the animation starts
@@ -6143,7 +6103,6 @@ static void SummaryScreen_DestroyAnimDelayTask(void)
         DestroyTask(sAnimDelayTaskId);
         sAnimDelayTaskId = TASK_NONE;
     }
-    StopShadowAnimDelayTask();
 }
 
 static void StopPokemonAnimations(void)  // A subtle effect, this function stops Pokémon animations when leaving the PSS
@@ -6153,11 +6112,6 @@ static void StopPokemonAnimations(void)  // A subtle effect, this function stops
 
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].animPaused = TRUE;
     gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].callback = SpriteCallbackDummy;
-    if (SWSH_SUMMARY_MON_SHADOWS)
-    {
-        gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].animPaused = TRUE;
-        gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_SHADOW]].callback = SpriteCallbackDummy;
-    }
     StopPokemonAnimationDelayTask();
 
     paletteIndex = OBJ_PLTT_ID(gSprites[sMonSummaryScreen->spriteIds[SPRITE_ARR_ID_MON]].oam.paletteNum);

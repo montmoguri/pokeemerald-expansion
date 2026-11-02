@@ -19,7 +19,7 @@
 #define SWSH_SUMMARY_SCROLLING_BG               (SWSH_SUMMARY_SCREEN && TRUE)   // enables scrolling animated background
 #define SWSH_SUMMARY_MON_IDLE_ANIMS             (SWSH_SUMMARY_SCREEN && TRUE)   // loops the mon animations regularly as an "idle" anim
 #define SWSH_SUMMARY_MON_SHADOWS                (SWSH_SUMMARY_SCREEN && TRUE)   // displays a shadow for the mon sprite
-                                                                                // if SWSH_SUMMARY_STATUS_ICON_FADE is active the shadow is drawn flat with SWSH_SUMMARY_MON_SHADOW_COLOR
+                                                                                // if SWSH_SUMMARY_STATUS_ICON_FADE is active the shadow is drawn flat with MON_SHADOW_COLOR
 #define SWSH_SUMMARY_BG_BLEND                   (SWSH_SUMMARY_SCREEN && FALSE)  // enables alpha blending for the main UI (semi-transparency)
                                                                                 // superseded by SWSH_SUMMARY_STATUS_ICON_FADE
 #define SWSH_SUMMARY_STATUS_ICON_FADE           (SWSH_SUMMARY_SCREEN && TRUE)   // fades the status condition icon in and out so the level underneath shows through
@@ -33,7 +33,6 @@
 #define SWSH_MAX_MOVE_DESCRIPTION_LENGTH        100                             // (in pixels) modify if SWSH_SUMMARY_AUTO_FORMAT_MOVE_DESC is true
 #define SWSH_SUMMARY_MON_IDLE_ANIMS_FRAMES      300                             // number of frames between each idle anim IF SWSH_SUMMARY_MON_IDLE_ANIMS is true.
                                                                                 // for reference, Emerald runs at 60FPS by default
-#define SWSH_SUMMARY_MON_SHADOW_COLOR           RGB(16, 16, 16)                 // flat shadow color, used when SWSH_SUMMARY_STATUS_ICON_FADE is true
 
 void ShowPokemonSummaryScreen_SwSh(u8 mode, void *mons, u8 monIndex, u8 maxMonIndex, void (*callback)(void));
 void ShowSelectMovePokemonSummaryScreen_SwSh(struct Pokemon *mons, u8 monIndex, void (*callback)(void), u16 newMove);
