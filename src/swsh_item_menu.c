@@ -1020,7 +1020,7 @@ static const u8 sFontColorTable[][3] = {
 #define BAG_CHAR_BASE_TILES         1024
 
 #define BAG_TILES_STD_BORDER        9
-#define BAG_TILES_MSGBOX            14
+#define BAG_TILES_MSGBOX            25
 
 #define BAG_BASE_STD_BORDER         1
 #define BAG_BASE_MSGBOX             (BAG_BASE_STD_BORDER + BAG_TILES_STD_BORDER)
