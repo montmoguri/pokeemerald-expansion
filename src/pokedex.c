@@ -33,6 +33,7 @@
 #include "constants/rgb.h"
 #include "constants/songs.h"
 #include "config/pokedex_plus_hgss.h"
+#include "swsh_pokedex.h"
 
 EWRAM_DATA struct PokedexView *sPokedexView = NULL;
 static EWRAM_DATA u16 sLastSelectedPokemon = 0;
@@ -1442,6 +1443,12 @@ void ResetPokedexView(struct PokedexView *pokedexView)
 
 void CB2_OpenPokedex(void)
 {
+    if (SWSH_POKEDEX)
+    {
+        CB2_OpenPokedex_SwSh();
+        return;
+    }
+
     switch (gMain.state)
     {
     case 0:
