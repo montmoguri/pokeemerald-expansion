@@ -1,5 +1,6 @@
 #include "global.h"
 #include "bg.h"
+#include "comfy_anim.h"
 #include "decompress.h"
 #include "gpu_regs.h"
 #include "international_string_util.h"
@@ -14,6 +15,8 @@
 #include "scanline_effect.h"
 #include "sprite.h"
 #include "string_util.h"
+#include "swsh_graphics.h"
+#include "swsh_utils.h"
 #include "task.h"
 #include "text.h"
 #include "window.h"
@@ -78,6 +81,38 @@ enum
 #define LIST_BALL_X             116
 #define LIST_NUM_DIGITS         4
 
+#define TAG_DEX_SPRITE_PAL      55400
+#define TAG_DEX_CURSOR          55401
+#define TAG_DEX_HOVER_BAR       55402
+#define TAG_DEX_SCROLL_THUMB    55403
+
+#define LIST_TOP_Y              (sWindowTemplates[WIN_DEX_LIST].tilemapTop * TILE_HEIGHT)
+#define LIST_ROW_CENTER_Y(row)  (LIST_TOP_Y + LIST_ROW_HEIGHT / 2 + LIST_ROW_HEIGHT * (row))
+#define LIST_SPRITE_PRIORITY    2
+#define SUBPRIORITY_CURSOR      0
+#define SUBPRIORITY_HOVER_BAR   (SUBPRIORITY_CURSOR + 1)
+#define SUBPRIORITY_THUMB       (SUBPRIORITY_HOVER_BAR + 1)
+
+#define CURSOR_X                97
+#define CURSOR_SIZE             16
+#define HOVER_BAR_X             167
+#define HOVER_BAR_PIECES        4
+#define HOVER_BAR_PIECE_WIDTH   32
+#define HOVER_BAR_PIECE_HEIGHT  16
+#define HOVER_BAR_PIECE_TILES   ((HOVER_BAR_PIECE_WIDTH * HOVER_BAR_PIECE_HEIGHT) / (TILE_WIDTH * TILE_HEIGHT))
+#define HOVER_BAR_PIECE_X(i)    ((i) * HOVER_BAR_PIECE_WIDTH - HOVER_BAR_PIECE_WIDTH * HOVER_BAR_PIECES / 2)
+
+#define SCROLL_THUMB_X          236
+#define SCROLL_THUMB_WIDTH      8
+#define SCROLL_THUMB_HEIGHT     32
+#define SCROLL_THUMB_SEGMENTS   4
+#define SCROLL_THUMB_MIN_LEN    8
+#define SCROLL_TRACK_LEN        (WIN_LIST_HEIGHT * TILE_HEIGHT)
+
+#define SLIDE_FRAMES            8
+#define SLIDE_FRAMES_HELD       1
+#define SLIDE_FRAMES_INTERRUPT  2
+
 enum DexPage
 {
     DEX_PAGE_LIST,
@@ -130,7 +165,17 @@ struct SwShPokedex
     u16 listCount;
     u16 listCursor;
     u16 listScroll;
+    u8 cursorSpriteId;
+    u8 hoverBarSpriteId;
+    u8 scrollThumbSpriteIds[SCROLL_THUMB_SEGMENTS];
+    u8 cursorAnimId;
+    u8 scrollThumbAnimId;
+    u32 cursorBobAnimId;
+    bool8 spritesShown;
 };
+
+static void SpriteCB_SlideCursorY(struct Sprite *);
+static void SpriteCB_ScrollThumb(struct Sprite *);
 
 static EWRAM_DATA struct SwShPokedex *sPokedex = NULL;
 
@@ -141,6 +186,10 @@ static const u32 sSwShPokedex_BG3b_Tilemap[]        = INCGFX_U32("graphics/poked
 static const u32 sSwShPokedex_BG2List_Tilemap[]     = INCGFX_U32("graphics/pokedex/swsh/bg2_list.bin", ".smolTM");
 static const u32 sSwShPokedex_BG2Entry_Tilemap[]    = INCGFX_U32("graphics/pokedex/swsh/bg2_entry.bin", ".smolTM");
 static const u8 sCaughtBall_Gfx[]                   = INCGFX_U8("graphics/pokedex/swsh/caught_ball.png", ".4bpp");
+
+static const u32 sHoverBar_Gfx[]                    = INCGFX_U32("graphics/pokedex/swsh/hover_bar.png", ".4bpp.smol");
+static const u16 sHoverBar_Pal[]                    = INCGFX_U16("graphics/pokedex/swsh/hover_bar.png", ".gbapal");
+static const u32 sScrollThumb_Gfx[]                 = INCGFX_U32("graphics/pokedex/swsh/scroll_thumb.png", ".4bpp.smol");
 
 static const u8 sTextColors[][3] =
 {
@@ -235,6 +284,102 @@ static const struct WindowTemplate sWindowTemplates[] =
     DUMMY_WIN_TEMPLATE,
 };
 
+static const struct SpritePalette sSpritePalette_Dex =
+{
+    .data = sHoverBar_Pal,
+    .tag = TAG_DEX_SPRITE_PAL,
+};
+
+static const struct OamData sOamData_Cursor =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(16x16),
+    .size = SPRITE_SIZE(16x16),
+    .priority = LIST_SPRITE_PRIORITY,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_Cursor =
+{
+    .data = gCursorSwSh_Gfx,
+    .size = (CURSOR_SIZE * CURSOR_SIZE) / 2,
+    .tag = TAG_DEX_CURSOR
+};
+
+static const struct SpriteTemplate sSpriteTemplate_Cursor =
+{
+    .tileTag = TAG_DEX_CURSOR,
+    .paletteTag = TAG_SWSH_UI_PAL,
+    .oam = &sOamData_Cursor,
+    .callback = SpriteCB_SlideCursorY,
+};
+
+static const struct OamData sOamData_HoverBar =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(32x16),
+    .size = SPRITE_SIZE(32x16),
+    .priority = LIST_SPRITE_PRIORITY,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_HoverBar =
+{
+    .data = sHoverBar_Gfx,
+    .size = (HOVER_BAR_PIECE_WIDTH * HOVER_BAR_PIECE_HEIGHT * HOVER_BAR_PIECES) / 2,
+    .tag = TAG_DEX_HOVER_BAR
+};
+
+static const struct SpriteTemplate sSpriteTemplate_HoverBar =
+{
+    .tileTag = TAG_DEX_HOVER_BAR,
+    .paletteTag = TAG_DEX_SPRITE_PAL,
+    .oam = &sOamData_HoverBar,
+};
+
+static const struct Subsprite sSubsprites_HoverBar[] =
+{
+    { .x = HOVER_BAR_PIECE_X(0), .y = -HOVER_BAR_PIECE_HEIGHT / 2, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 0 * HOVER_BAR_PIECE_TILES, .priority = LIST_SPRITE_PRIORITY },
+    { .x = HOVER_BAR_PIECE_X(1), .y = -HOVER_BAR_PIECE_HEIGHT / 2, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 1 * HOVER_BAR_PIECE_TILES, .priority = LIST_SPRITE_PRIORITY },
+    { .x = HOVER_BAR_PIECE_X(2), .y = -HOVER_BAR_PIECE_HEIGHT / 2, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 2 * HOVER_BAR_PIECE_TILES, .priority = LIST_SPRITE_PRIORITY },
+    { .x = HOVER_BAR_PIECE_X(3), .y = -HOVER_BAR_PIECE_HEIGHT / 2, .shape = SPRITE_SHAPE(32x16), .size = SPRITE_SIZE(32x16), .tileOffset = 3 * HOVER_BAR_PIECE_TILES, .priority = LIST_SPRITE_PRIORITY },
+};
+
+static const struct SubspriteTable sSubspriteTable_HoverBar[] =
+{
+    {
+        .subspriteCount = ARRAY_COUNT(sSubsprites_HoverBar),
+        .subsprites = sSubsprites_HoverBar
+    }
+};
+
+static const struct OamData sOamData_ScrollThumb =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_NORMAL,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(8x32),
+    .size = SPRITE_SIZE(8x32),
+    .priority = LIST_SPRITE_PRIORITY,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_ScrollThumb =
+{
+    .data = sScrollThumb_Gfx,
+    .size = (SCROLL_THUMB_WIDTH * SCROLL_THUMB_HEIGHT) / 2,
+    .tag = TAG_DEX_SCROLL_THUMB
+};
+
+static const struct SpriteTemplate sSpriteTemplate_ScrollThumb =
+{
+    .tileTag = TAG_DEX_SCROLL_THUMB,
+    .paletteTag = TAG_DEX_SPRITE_PAL,
+    .oam = &sOamData_ScrollThumb,
+    .callback = SpriteCB_ScrollThumb,
+};
+
 static void VBlankCB_SwShPokedex(void)
 {
     LoadOam();
@@ -246,6 +391,7 @@ static void CB2_SwShPokedex(void)
 {
     RunTasks();
     DoScheduledBgTilemapCopiesToVram();
+    AdvanceComfyAnimations();
     AnimateSprites();
     BuildOamBuffer();
     UpdatePaletteFade();
@@ -292,6 +438,11 @@ static void BuildDexList(void)
     }
 }
 
+static bool32 IsListIndexSeen(u32 index)
+{
+    return GetSetPokedexFlag(sPokedex->listNatNum[index], FLAG_GET_SEEN);
+}
+
 static void PrintRow(u32 row)
 {
     u32 index = sPokedex->listScroll + row;
@@ -305,7 +456,7 @@ static void PrintRow(u32 row)
 
     u32 natNum = sPokedex->listNatNum[index];
     bool32 hover = (index == sPokedex->listCursor);
-    bool32 seen = GetSetPokedexFlag(natNum, FLAG_GET_SEEN);
+    bool32 seen = IsListIndexSeen(index);
     const u8 *prefix = COMPOUND_STRING("{NO}.{CLEAR 2}");
     enum DexTextColor indexColor = COLORID_ROW_UNSEEN;
     enum DexTextColor nameColor = COLORID_ROW_UNSEEN;
@@ -345,6 +496,190 @@ static void PrintAll(void)
     for (u32 row = 0; row < LIST_ROWS_SHOWN; row++)
     {
         PrintRow(row);
+    }
+}
+
+static u32 ScrollThumb_Length(u32 total)
+{
+    if (total <= LIST_ROWS_SHOWN)
+    {
+        return 0;
+    }
+    return max(SCROLL_TRACK_LEN * LIST_ROWS_SHOWN / total, SCROLL_THUMB_MIN_LEN);
+}
+
+static u32 ScrollThumb_Offset(u32 total, u32 index)
+{
+    u32 len = ScrollThumb_Length(total);
+
+    if (len == 0)
+    {
+        return 0;
+    }
+    return index * (SCROLL_TRACK_LEN - len) / (total - 1);
+}
+
+static u32 ScrollThumb_SegmentSize(u32 len)
+{
+    if (len >= SCROLL_THUMB_HEIGHT)
+    {
+        return SCROLL_THUMB_HEIGHT;
+    }
+    if (len >= SCROLL_THUMB_HEIGHT / 2)
+    {
+        return SCROLL_THUMB_HEIGHT / 2;
+    }
+    return SCROLL_THUMB_MIN_LEN;
+}
+
+static u32 ScrollThumb_SegmentCount(u32 len)
+{
+    u32 size = ScrollThumb_SegmentSize(len);
+
+    return (len + size - 1) / size;
+}
+
+static u32 ScrollThumb_SegmentOffset(u32 len, u32 index)
+{
+    u32 size = ScrollThumb_SegmentSize(len);
+
+    return (index == ScrollThumb_SegmentCount(len) - 1) ? len - size : index * size;
+}
+
+static void ScrollThumb_SetSegmentOam(struct Sprite *sprite, u32 size)
+{
+    switch (size)
+    {
+    case SCROLL_THUMB_HEIGHT:
+        sprite->oam.shape = SPRITE_SHAPE(8x32);
+        sprite->oam.size = SPRITE_SIZE(8x32);
+        break;
+    case SCROLL_THUMB_HEIGHT / 2:
+        sprite->oam.shape = SPRITE_SHAPE(8x16);
+        sprite->oam.size = SPRITE_SIZE(8x16);
+        break;
+    default:
+        sprite->oam.shape = SPRITE_SHAPE(8x8);
+        sprite->oam.size = SPRITE_SIZE(8x8);
+        break;
+    }
+    CalcCenterToCornerVec(sprite, sprite->oam.shape, sprite->oam.size, sprite->oam.affineMode);
+}
+
+static void SpriteCB_SlideCursorY(struct Sprite *sprite)
+{
+    UpdateCursorBob(sprite, sPokedex->cursorBobAnimId);
+
+    sprite->y = ReadComfyAnimValueSmooth(&gComfyAnims[sPokedex->cursorAnimId]);
+    gSprites[sPokedex->hoverBarSpriteId].y = sprite->y;
+    gSprites[sPokedex->hoverBarSpriteId].invisible = !(sPokedex->spritesShown && IsListIndexSeen(sPokedex->listCursor));
+}
+
+static void SpriteCB_ScrollThumb(struct Sprite *sprite)
+{
+    u32 len = ScrollThumb_Length(sPokedex->listCount);
+    u32 index = sprite->data[0];
+
+    if (!sPokedex->spritesShown || len == 0 || index >= ScrollThumb_SegmentCount(len))
+    {
+        sprite->invisible = TRUE;
+        return;
+    }
+
+    u32 size = ScrollThumb_SegmentSize(len);
+    ScrollThumb_SetSegmentOam(sprite, size);
+    sprite->y = LIST_TOP_Y + size / 2 + ScrollThumb_SegmentOffset(len, index);
+    sprite->y2 = ReadComfyAnimValueSmooth(&gComfyAnims[sPokedex->scrollThumbAnimId]);
+    sprite->invisible = FALSE;
+}
+
+static void LoadListSpriteGfx(void)
+{
+    LoadSpritePalette(&gSpritePalette_SwShUI);
+    LoadSpritePalette(&sSpritePalette_Dex);
+    LoadCompressedSpriteSheet(&sSpriteSheet_Cursor);
+    LoadCompressedSpriteSheet(&sSpriteSheet_HoverBar);
+    LoadCompressedSpriteSheet(&sSpriteSheet_ScrollThumb);
+}
+
+static void CreateListSprites(void)
+{
+    u32 cursorY = LIST_ROW_CENTER_Y(sPokedex->listCursor - sPokedex->listScroll);
+    u32 thumbOffset = ScrollThumb_Offset(sPokedex->listCount, sPokedex->listCursor);
+
+    sPokedex->cursorAnimId = CreateComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+        .from = Q_24_8(cursorY),
+        .to = Q_24_8(cursorY),
+        .durationFrames = 1,
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    });
+    sPokedex->scrollThumbAnimId = CreateComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+        .from = Q_24_8(thumbOffset),
+        .to = Q_24_8(thumbOffset),
+        .durationFrames = 1,
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    });
+
+    sPokedex->hoverBarSpriteId = CreateSprite(&sSpriteTemplate_HoverBar, HOVER_BAR_X, cursorY, SUBPRIORITY_HOVER_BAR);
+    SetSubspriteTables(&gSprites[sPokedex->hoverBarSpriteId], sSubspriteTable_HoverBar);
+
+    sPokedex->cursorSpriteId = CreateSprite(&sSpriteTemplate_Cursor, CURSOR_X, cursorY, SUBPRIORITY_CURSOR);
+    StartCursorBob(sPokedex->cursorSpriteId, &sPokedex->cursorBobAnimId);
+
+    for (u32 i = 0; i < SCROLL_THUMB_SEGMENTS; i++)
+    {
+        u8 spriteId = CreateSprite(&sSpriteTemplate_ScrollThumb, SCROLL_THUMB_X, 0, SUBPRIORITY_THUMB);
+
+        sPokedex->scrollThumbSpriteIds[i] = spriteId;
+        gSprites[spriteId].data[0] = i;
+        gSprites[spriteId].invisible = TRUE;
+    }
+}
+
+static void DestroyListSprites(void)
+{
+    DestroySprite(&gSprites[sPokedex->cursorSpriteId]);
+    DestroySprite(&gSprites[sPokedex->hoverBarSpriteId]);
+    for (u32 i = 0; i < SCROLL_THUMB_SEGMENTS; i++)
+    {
+        DestroySprite(&gSprites[sPokedex->scrollThumbSpriteIds[i]]);
+    }
+    FreeSpriteTilesByTag(TAG_DEX_CURSOR);
+    FreeSpriteTilesByTag(TAG_DEX_HOVER_BAR);
+    FreeSpriteTilesByTag(TAG_DEX_SCROLL_THUMB);
+    FreeSpritePaletteByTag(TAG_SWSH_UI_PAL);
+    FreeSpritePaletteByTag(TAG_DEX_SPRITE_PAL);
+    ReleaseComfyAnim(sPokedex->cursorAnimId);
+    ReleaseComfyAnim(sPokedex->cursorBobAnimId);
+    ReleaseComfyAnim(sPokedex->scrollThumbAnimId);
+}
+
+static void SlideListSprites(void)
+{
+    struct ComfyAnim *cursorAnim = &gComfyAnims[sPokedex->cursorAnimId];
+    struct ComfyAnim *thumbAnim = &gComfyAnims[sPokedex->scrollThumbAnimId];
+    u32 durationFrames = SLIDE_FRAMES;
+
+    if (!cursorAnim->completed)
+    {
+        durationFrames = (gMain.heldKeys & (DPAD_UP | DPAD_DOWN)) ? SLIDE_FRAMES_HELD : SLIDE_FRAMES_INTERRUPT;
+    }
+
+    InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+        .from = cursorAnim->position,
+        .to = Q_24_8(LIST_ROW_CENTER_Y(sPokedex->listCursor - sPokedex->listScroll)),
+        .durationFrames = durationFrames,
+        .easingFunc = ComfyAnimEasing_EaseOutCubic,
+    }, cursorAnim);
+
+    if (sPokedex->listCount > LIST_ROWS_SHOWN)
+    {
+        InitComfyAnim_Easing(&(struct ComfyAnimEasingConfig){
+            .from = thumbAnim->position,
+            .to = Q_24_8(ScrollThumb_Offset(sPokedex->listCount, sPokedex->listCursor)),
+            .durationFrames = durationFrames,
+            .easingFunc = ComfyAnimEasing_EaseOutCubic,
+        }, thumbAnim);
     }
 }
 
@@ -410,6 +745,7 @@ static void MoveListCursor(s32 delta, bool32 allowWrap)
     }
     PrintRow(sPokedex->listCursor - sPokedex->listScroll);
     CopyWindowToVram(WIN_DEX_LIST, COPYWIN_GFX);
+    SlideListSprites();
 }
 
 static void PrintTopBar(void)
@@ -558,7 +894,9 @@ static void UpdateBg3Slide(void)
 
 static void UpdateBg1Visibility(void)
 {
-    if (sPokedex->page == DEX_PAGE_LIST && sPokedex->bg2Page == DEX_PAGE_LIST && sPokedex->bg2Alpha == BLEND_MAX)
+    bool32 show = (sPokedex->page == DEX_PAGE_LIST && sPokedex->bg2Page == DEX_PAGE_LIST && sPokedex->bg2Alpha == BLEND_MAX);
+
+    if (show)
     {
         ShowBg(1);
     }
@@ -566,6 +904,9 @@ static void UpdateBg1Visibility(void)
     {
         HideBg(1);
     }
+
+    sPokedex->spritesShown = show;
+    gSprites[sPokedex->cursorSpriteId].invisible = !show;
 }
 
 static void Task_ExitSwShPokedex(u8 taskId)
@@ -573,6 +914,7 @@ static void Task_ExitSwShPokedex(u8 taskId)
     if (!gPaletteFade.active)
     {
         SetGpuReg(REG_OFFSET_BLDCNT, 0);
+        DestroyListSprites();
         FreeAllWindowBuffers();
         UnsetBgTilemapBuffer(1);
         UnsetBgTilemapBuffer(2);
@@ -654,6 +996,9 @@ void CB2_OpenPokedex_SwSh(void)
         break;
     case 2:
         sPokedex = AllocZeroed(sizeof(*sPokedex));
+        sPokedex->cursorAnimId = INVALID_COMFY_ANIM;
+        sPokedex->cursorBobAnimId = INVALID_COMFY_ANIM;
+        sPokedex->scrollThumbAnimId = INVALID_COMFY_ANIM;
         ResetBgsAndClearDma3BusyFlags(0);
         InitBgsFromTemplates(0, sBgTemplates, ARRAY_COUNT(sBgTemplates));
         SetBgTilemapBuffer(1, sPokedex->bg1TilemapBuffer);
@@ -686,6 +1031,11 @@ void CB2_OpenPokedex_SwSh(void)
         }
         break;
     case 4:
+        LoadListSpriteGfx();
+        CreateListSprites();
+        gMain.state++;
+        break;
+    case 5:
         LoadPalette(sSwShPokedex_Pal, BG_PLTT_ID(0), DEX_PAL_BANK_COUNT * PLTT_SIZE_4BPP);
         SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP);
         SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD);
