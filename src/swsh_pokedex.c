@@ -27,7 +27,8 @@
 #define BG3_SLIDE_EASE_DIV      4
 
 #define BLEND_MAX               16
-#define BLEND_STEP              2
+#define BLEND_STEP              3
+#define LIST_FADE_STEP          4
 
 #define DEX_GFX_CHAR_BASE       2
 #define HABITAT_MAP_CHAR_BASE   1
@@ -156,6 +157,8 @@ struct SwShPokedex
     u16 bg3TilemapBuffer[2][BG_SCREEN_SIZE / 2];
     s16 bg3X;
     u8 page;
+    u8 bg1Alpha;
+    u8 spriteAlpha;
     u8 bg2Page;
     u8 bg2Alpha;
     u8 bg3White;
@@ -171,7 +174,6 @@ struct SwShPokedex
     u8 cursorAnimId;
     u8 scrollThumbAnimId;
     u32 cursorBobAnimId;
-    bool8 spritesShown;
 };
 
 static void SpriteCB_SlideCursorY(struct Sprite *);
@@ -572,7 +574,7 @@ static void SpriteCB_SlideCursorY(struct Sprite *sprite)
 
     sprite->y = ReadComfyAnimValueSmooth(&gComfyAnims[sPokedex->cursorAnimId]);
     gSprites[sPokedex->hoverBarSpriteId].y = sprite->y;
-    gSprites[sPokedex->hoverBarSpriteId].invisible = !(sPokedex->spritesShown && IsListIndexSeen(sPokedex->listCursor));
+    gSprites[sPokedex->hoverBarSpriteId].invisible = !(sPokedex->spriteAlpha > 0 && IsListIndexSeen(sPokedex->listCursor));
 }
 
 static void SpriteCB_ScrollThumb(struct Sprite *sprite)
@@ -580,7 +582,7 @@ static void SpriteCB_ScrollThumb(struct Sprite *sprite)
     u32 len = ScrollThumb_Length(sPokedex->listCount);
     u32 index = sprite->data[0];
 
-    if (!sPokedex->spritesShown || len == 0 || index >= ScrollThumb_SegmentCount(len))
+    if (sPokedex->spriteAlpha == 0 || len == 0 || index >= ScrollThumb_SegmentCount(len))
     {
         sprite->invisible = TRUE;
         return;
@@ -859,16 +861,78 @@ static void UpdateBg3Whiteout(bool32 wantHabitat)
     SetGpuReg(REG_OFFSET_BLDY, sPokedex->bg3White);
 }
 
+static void UpdateBg1Fade(bool32 show)
+{
+    if (show && sPokedex->bg1Alpha < BLEND_MAX)
+    {
+        if (sPokedex->bg1Alpha == 0)
+        {
+            ShowBg(1);
+        }
+        sPokedex->bg1Alpha += min(LIST_FADE_STEP, BLEND_MAX - sPokedex->bg1Alpha);
+    }
+    else if (!show)
+    {
+        sPokedex->bg1Alpha -= min(LIST_FADE_STEP, sPokedex->bg1Alpha);
+        if (sPokedex->bg1Alpha == 0)
+        {
+            HideBg(1);
+        }
+    }
+
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_OBJ | BLDCNT_TGT2_BD);
+    SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(sPokedex->bg1Alpha, BLEND_MAX - sPokedex->bg1Alpha));
+}
+
+static void UpdateSpriteFade(bool32 show)
+{
+    if (show)
+    {
+        sPokedex->spriteAlpha += min(LIST_FADE_STEP, BLEND_MAX - sPokedex->spriteAlpha);
+    }
+    else
+    {
+        sPokedex->spriteAlpha -= min(LIST_FADE_STEP, sPokedex->spriteAlpha);
+    }
+
+    gSprites[sPokedex->cursorSpriteId].invisible = (sPokedex->spriteAlpha == 0);
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_OBJ | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD);
+    SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(sPokedex->spriteAlpha, BLEND_MAX - sPokedex->spriteAlpha));
+}
+
 static void UpdatePageTransition(void)
 {
     bool32 wantHabitat = (sPokedex->page == DEX_PAGE_HABITAT);
 
-    if (sPokedex->bg3Habitat != wantHabitat || sPokedex->bg3White > 0)
+    if (sPokedex->page != DEX_PAGE_LIST && sPokedex->bg1Alpha > 0)
+    {
+        UpdateBg1Fade(FALSE);
+    }
+    else if (sPokedex->page != DEX_PAGE_LIST && sPokedex->spriteAlpha > 0)
+    {
+        UpdateSpriteFade(FALSE);
+    }
+    else if (sPokedex->page == DEX_PAGE_LIST && sPokedex->bg2Page == DEX_PAGE_LIST && sPokedex->bg2Alpha == BLEND_MAX)
+    {
+        if (sPokedex->spriteAlpha < BLEND_MAX)
+        {
+            UpdateSpriteFade(TRUE);
+        }
+        else
+        {
+            UpdateBg1Fade(TRUE);
+        }
+    }
+    else if (sPokedex->bg3Habitat != wantHabitat || sPokedex->bg3White > 0)
     {
         if (sPokedex->bg2Page != DEX_PAGE_HABITAT || sPokedex->bg2Alpha < BLEND_MAX)
+        {
             UpdateBg2Fade(DEX_PAGE_HABITAT);
+        }
         else
+        {
             UpdateBg3Whiteout(wantHabitat);
+        }
     }
     else
     {
@@ -892,23 +956,6 @@ static void UpdateBg3Slide(void)
     ChangeBgX(3, sPokedex->bg3X << 8, BG_COORD_SET);
 }
 
-static void UpdateBg1Visibility(void)
-{
-    bool32 show = (sPokedex->page == DEX_PAGE_LIST && sPokedex->bg2Page == DEX_PAGE_LIST && sPokedex->bg2Alpha == BLEND_MAX);
-
-    if (show)
-    {
-        ShowBg(1);
-    }
-    else
-    {
-        HideBg(1);
-    }
-
-    sPokedex->spritesShown = show;
-    gSprites[sPokedex->cursorSpriteId].invisible = !show;
-}
-
 static void Task_ExitSwShPokedex(u8 taskId)
 {
     if (!gPaletteFade.active)
@@ -929,7 +976,6 @@ static void Task_SwShPokedexInput(u8 taskId)
 {
     UpdateBg3Slide();
     UpdatePageTransition();
-    UpdateBg1Visibility();
 
     if (gPaletteFade.active)
         return;
@@ -1018,6 +1064,8 @@ void CB2_OpenPokedex_SwSh(void)
             CopyBgTilemapBufferToVram(3);
             LoadBg2Page(DEX_PAGE_LIST);
             sPokedex->bg2Alpha = BLEND_MAX;
+            sPokedex->bg1Alpha = BLEND_MAX;
+            sPokedex->spriteAlpha = BLEND_MAX;
             BuildDexList();
             PrintAll();
             CopyWindowToVram(WIN_DEX_LIST, COPYWIN_GFX);
@@ -1038,7 +1086,7 @@ void CB2_OpenPokedex_SwSh(void)
     case 5:
         LoadPalette(sSwShPokedex_Pal, BG_PLTT_ID(0), DEX_PAL_BANK_COUNT * PLTT_SIZE_4BPP);
         SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP);
-        SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG2 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD);
+        SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_OBJ | BLDCNT_TGT2_BD);
         SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(BLEND_MAX, 0));
         ShowBg(1);
         ShowBg(2);
