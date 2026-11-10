@@ -43,23 +43,36 @@
 #define DEX_TEXT_Y              4
 #define DEX_COUNT_DIGITS        4
 
-#define WIN_LIST_WIDTH          16
-#define WIN_LIST_HEIGHT         14
-#define WIN_SORT_TYPE_WIDTH     12
-#define WIN_SORT_TYPE_HEIGHT    3
-#define WIN_CAUGHT_SEEN_WIDTH   9
-#define WIN_CAUGHT_SEEN_HEIGHT  3
-#define WIN_REGION_WIDTH        5
-#define WIN_REGION_HEIGHT       3
+#define WIN_LIST_WIDTH                  16
+#define WIN_LIST_HEIGHT                 14
+#define WIN_LIST_SORT_TYPE_WIDTH        12
+#define WIN_LIST_SORT_TYPE_HEIGHT       3
+#define WIN_LIST_CAUGHT_SEEN_NUM_WIDTH  9
+#define WIN_LIST_CAUGHT_SEEN_NUM_HEIGHT 3
+#define WIN_LIST_REGION_WIDTH           5
+#define WIN_LIST_REGION_HEIGHT          3
+
+#define WIN_ENTRY_HEADER_WIDTH          19
+#define WIN_ENTRY_HEADER_HEIGHT         3
+#define WIN_ENTRY_CATEGORY_WIDTH        15
+#define WIN_ENTRY_CATEGORY_HEIGHT       2
+#define WIN_ENTRY_DESCRIPTION_WIDTH     26
+#define WIN_ENTRY_DESCRIPTION_HEIGHT    9
+#define WIN_ENTRY_STATS_WIDTH           17
+#define WIN_ENTRY_STATS_HEIGHT          4
 
 #define WIN_BASE_BLOCK_AFTER(prev)  (WIN_##prev##_BASE_BLOCK + WIN_##prev##_WIDTH * WIN_##prev##_HEIGHT)
 
 enum
 {
-    WIN_LIST_BASE_BLOCK         = 1,
-    WIN_SORT_TYPE_BASE_BLOCK    = WIN_BASE_BLOCK_AFTER(LIST),
-    WIN_CAUGHT_SEEN_BASE_BLOCK  = WIN_BASE_BLOCK_AFTER(SORT_TYPE),
-    WIN_REGION_BASE_BLOCK       = WIN_BASE_BLOCK_AFTER(CAUGHT_SEEN),
+    WIN_LIST_BASE_BLOCK                 = 1,
+    WIN_LIST_SORT_TYPE_BASE_BLOCK       = WIN_BASE_BLOCK_AFTER(LIST),
+    WIN_LIST_CAUGHT_SEEN_NUM_BASE_BLOCK = WIN_BASE_BLOCK_AFTER(LIST_SORT_TYPE),
+    WIN_LIST_REGION_BASE_BLOCK          = WIN_BASE_BLOCK_AFTER(LIST_CAUGHT_SEEN_NUM),
+    WIN_ENTRY_HEADER_BASE_BLOCK         = WIN_LIST_BASE_BLOCK,
+    WIN_ENTRY_CATEGORY_BASE_BLOCK       = WIN_BASE_BLOCK_AFTER(ENTRY_HEADER),
+    WIN_ENTRY_DESCRIPTION_BASE_BLOCK    = WIN_BASE_BLOCK_AFTER(ENTRY_CATEGORY),
+    WIN_ENTRY_STATS_BASE_BLOCK          = WIN_BASE_BLOCK_AFTER(ENTRY_DESCRIPTION),
 };
 
 #define BALL_WIDTH              8
@@ -75,12 +88,19 @@ enum
 #define LIST_ROW_HEIGHT         16
 #define LIST_SHIFT_UP           0
 #define LIST_SHIFT_DOWN         1
-#define LIST_SMALL_FONT_Y       1
+#define DEX_SMALL_FONT_Y        1
 #define LIST_INDEX_X            4
 #define LIST_NAME_X             54
 #define LIST_NAME_FIT_WIDTH     60
 #define LIST_BALL_X             116
-#define LIST_NUM_DIGITS         4
+#define DEX_NUM_DIGITS          4
+
+#define ENTRY_TEXT_Y            6
+#define ENTRY_INDEX_X           4
+#define ENTRY_NAME_X            56
+#define ENTRY_NAME_FIT_WIDTH    64
+#define ENTRY_BALL_X            140
+#define ENTRY_BALL_Y            6
 
 #define TAG_DEX_SPRITE_PAL      55400
 #define TAG_DEX_CURSOR          55401
@@ -127,7 +147,11 @@ enum DexWindow
     WIN_LIST_SORT_TYPE,
     WIN_LIST_CAUGHT_SEEN_NUM,
     WIN_LIST_REGION,
-    WIN_LIST_COUNT,
+    WIN_ENTRY_HEADER,
+    WIN_ENTRY_CATEGORY,
+    WIN_ENTRY_DESCRIPTION,
+    WIN_ENTRY_STATS,
+    WIN_COUNT,
 };
 
 enum DexBall
@@ -160,6 +184,7 @@ struct SwShPokedex
     s16 bg3X;
     u8 page;
     u8 bg1Alpha;
+    u8 bg1Page;
     u8 spriteAlpha;
     u8 bg2Page;
     u8 bg2Alpha;
@@ -260,32 +285,84 @@ static const struct WindowTemplate sWindowTemplates[] =
         .bg = 1,
         .tilemapLeft = 17,
         .tilemapTop = 0,
-        .width = WIN_SORT_TYPE_WIDTH,
-        .height = WIN_SORT_TYPE_HEIGHT,
+        .width = WIN_LIST_SORT_TYPE_WIDTH,
+        .height = WIN_LIST_SORT_TYPE_HEIGHT,
         .paletteNum = DEX_TEXT_PAL_NUM,
-        .baseBlock = WIN_SORT_TYPE_BASE_BLOCK,
+        .baseBlock = WIN_LIST_SORT_TYPE_BASE_BLOCK,
     },
     [WIN_LIST_CAUGHT_SEEN_NUM] =
     {
         .bg = 1,
         .tilemapLeft = 7,
         .tilemapTop = 0,
-        .width = WIN_CAUGHT_SEEN_WIDTH,
-        .height = WIN_CAUGHT_SEEN_HEIGHT,
+        .width = WIN_LIST_CAUGHT_SEEN_NUM_WIDTH,
+        .height = WIN_LIST_CAUGHT_SEEN_NUM_HEIGHT,
         .paletteNum = DEX_TEXT_PAL_NUM,
-        .baseBlock = WIN_CAUGHT_SEEN_BASE_BLOCK,
+        .baseBlock = WIN_LIST_CAUGHT_SEEN_NUM_BASE_BLOCK,
     },
     [WIN_LIST_REGION] =
     {
         .bg = 1,
         .tilemapLeft = 1,
         .tilemapTop = 0,
-        .width = WIN_REGION_WIDTH,
-        .height = WIN_REGION_HEIGHT,
+        .width = WIN_LIST_REGION_WIDTH,
+        .height = WIN_LIST_REGION_HEIGHT,
         .paletteNum = DEX_TEXT_PAL_NUM,
-        .baseBlock = WIN_REGION_BASE_BLOCK,
+        .baseBlock = WIN_LIST_REGION_BASE_BLOCK,
+    },
+    [WIN_ENTRY_HEADER] =
+    {
+        .bg = 1,
+        .tilemapLeft = 10,
+        .tilemapTop = 0,
+        .width = WIN_ENTRY_HEADER_WIDTH,
+        .height = WIN_ENTRY_HEADER_HEIGHT,
+        .paletteNum = DEX_TEXT_PAL_NUM,
+        .baseBlock = WIN_ENTRY_HEADER_BASE_BLOCK,
+    },
+    [WIN_ENTRY_CATEGORY] =
+    {
+        .bg = 1,
+        .tilemapLeft = 13,
+        .tilemapTop = 3,
+        .width = WIN_ENTRY_CATEGORY_WIDTH,
+        .height = WIN_ENTRY_CATEGORY_HEIGHT,
+        .paletteNum = DEX_TEXT_PAL_NUM,
+        .baseBlock = WIN_ENTRY_CATEGORY_BASE_BLOCK,
+    },
+    [WIN_ENTRY_DESCRIPTION] =
+    {
+        .bg = 1,
+        .tilemapLeft = 2,
+        .tilemapTop = 9,
+        .width = WIN_ENTRY_DESCRIPTION_WIDTH,
+        .height = WIN_ENTRY_DESCRIPTION_HEIGHT,
+        .paletteNum = DEX_TEXT_PAL_NUM,
+        .baseBlock = WIN_ENTRY_DESCRIPTION_BASE_BLOCK,
+    },
+    [WIN_ENTRY_STATS] =
+    {
+        .bg = 1,
+        .tilemapLeft = 12,
+        .tilemapTop = 5,
+        .width = WIN_ENTRY_STATS_WIDTH,
+        .height = WIN_ENTRY_STATS_HEIGHT,
+        .paletteNum = DEX_TEXT_PAL_NUM,
+        .baseBlock = WIN_ENTRY_STATS_BASE_BLOCK,
     },
     DUMMY_WIN_TEMPLATE,
+};
+
+struct DexPageWindows
+{
+    u8 first;
+    u8 end;
+};
+
+static const struct DexPageWindows sPageWindows[] =
+{
+    [DEX_PAGE_LIST]     = {WIN_LIST, WIN_ENTRY_HEADER},
+    [DEX_PAGE_ENTRY]    = {WIN_ENTRY_HEADER, WIN_COUNT},
 };
 
 static const struct SpritePalette sSpritePalette_Dex =
@@ -447,6 +524,15 @@ static bool32 IsListIndexSeen(u32 index)
     return GetSetPokedexFlag(sPokedex->listNatNum[index], FLAG_GET_SEEN);
 }
 
+static void PrintDexNumber(u32 windowId, u32 x, u32 y, enum DexTextColor color, u32 natNum)
+{
+    const u8 *prefix = COMPOUND_STRING("{NO}.{CLEAR 2}");
+
+    PrintDexText(windowId, FONT_NARROW, x, y, color, prefix);
+    ConvertIntToDecimalStringN(gStringVar1, natNum, STR_CONV_MODE_LEADING_ZEROS, DEX_NUM_DIGITS);
+    PrintDexText(windowId, FONT_SMALL, x + GetStringWidth(FONT_NARROW, prefix, 0), y + DEX_SMALL_FONT_Y, color, gStringVar1);
+}
+
 static void PrintRow(u32 row)
 {
     u32 index = sPokedex->listScroll + row;
@@ -461,7 +547,6 @@ static void PrintRow(u32 row)
     u32 natNum = sPokedex->listNatNum[index];
     bool32 hover = (index == sPokedex->listCursor);
     bool32 seen = IsListIndexSeen(index);
-    const u8 *prefix = COMPOUND_STRING("{NO}.{CLEAR 2}");
     enum DexTextColor indexColor = COLORID_LIST_UNSEEN;
     enum DexTextColor nameColor = COLORID_LIST_UNSEEN;
 
@@ -471,13 +556,11 @@ static void PrintRow(u32 row)
         nameColor = hover ? COLORID_LIST_HOVER_NAME : COLORID_LIST_NORMAL;
     }
 
-    PrintDexText(WIN_LIST, FONT_NARROW, LIST_INDEX_X, y, indexColor, prefix);
-    ConvertIntToDecimalStringN(gStringVar1, natNum, STR_CONV_MODE_LEADING_ZEROS, LIST_NUM_DIGITS);
-    PrintDexText(WIN_LIST, FONT_SMALL, LIST_INDEX_X + GetStringWidth(FONT_NARROW, prefix, 0), y + LIST_SMALL_FONT_Y, indexColor, gStringVar1);
+    PrintDexNumber(WIN_LIST, LIST_INDEX_X, y, indexColor, natNum);
 
     if (!seen)
     {
-        PrintDexText(WIN_LIST, FONT_SMALL, LIST_NAME_X, y + LIST_SMALL_FONT_Y, nameColor, COMPOUND_STRING("?????"));
+        PrintDexText(WIN_LIST, FONT_SMALL, LIST_NAME_X, y + DEX_SMALL_FONT_Y, nameColor, COMPOUND_STRING("?????"));
         return;
     }
 
@@ -759,12 +842,12 @@ static void PrintTopBar(void)
     u32 caught = national ? GetNationalPokedexCount(FLAG_GET_CAUGHT) : GetHoennPokedexCount(FLAG_GET_CAUGHT);
     u32 seen = national ? GetNationalPokedexCount(FLAG_GET_SEEN) : GetHoennPokedexCount(FLAG_GET_SEEN);
 
-    for (u32 i = WIN_LIST_SORT_TYPE; i < WIN_LIST_COUNT; i++)
+    for (u32 i = WIN_LIST_SORT_TYPE; i < sPageWindows[DEX_PAGE_LIST].end; i++)
     {
         FillWindowPixelBuffer(i, PIXEL_FILL(0));
     }
 
-    PrintDexText(WIN_LIST_SORT_TYPE, FONT_NARROW, GetStringCenterAlignXOffset(FONT_NARROW, sortStr, WIN_SORT_TYPE_WIDTH * TILE_WIDTH),
+    PrintDexText(WIN_LIST_SORT_TYPE, FONT_NARROW, GetStringCenterAlignXOffset(FONT_NARROW, sortStr, WIN_LIST_SORT_TYPE_WIDTH * TILE_WIDTH),
                  DEX_TEXT_Y, COLORID_LIST_SORT_TYPE, sortStr);
 
     BlitCaughtBall(WIN_LIST_CAUGHT_SEEN_NUM, BALL_CAUGHT_COLOR, CAUGHT_BALL_X, DEX_TEXT_Y);
@@ -775,10 +858,25 @@ static void PrintTopBar(void)
     PrintDexText(WIN_LIST_REGION, FONT_NARROW, 0, DEX_TEXT_Y, COLORID_LIST_REGION,
                  national ? COMPOUND_STRING("NATIONAL") : GetExpandedPlaceholder(PLACEHOLDER_ID_REGION));
 
-    for (u32 i = WIN_LIST_SORT_TYPE; i < WIN_LIST_COUNT; i++)
+    for (u32 i = WIN_LIST_SORT_TYPE; i < sPageWindows[DEX_PAGE_LIST].end; i++)
     {
         CopyWindowToVram(i, COPYWIN_GFX);
     }
+}
+
+static void PrintEntryPage(void)
+{
+    u32 natNum = sPokedex->listNatNum[sPokedex->listCursor];
+    const u8 *name = GetSpeciesName(NationalPokedexNumToSpecies(natNum));
+
+    for (u32 i = sPageWindows[DEX_PAGE_ENTRY].first; i < sPageWindows[DEX_PAGE_ENTRY].end; i++)
+    {
+        FillWindowPixelBuffer(i, PIXEL_FILL(0));
+    }
+
+    PrintDexNumber(WIN_ENTRY_HEADER, ENTRY_INDEX_X, ENTRY_TEXT_Y, COLORID_ENTRY_INDEX, natNum);
+    PrintDexText(WIN_ENTRY_HEADER, GetFontIdToFit(name, FONT_NARROW, 0, ENTRY_NAME_FIT_WIDTH), ENTRY_NAME_X, ENTRY_TEXT_Y, COLORID_ENTRY_NAME, name);
+    BlitCaughtBall(WIN_ENTRY_HEADER, GetSetPokedexFlag(natNum, FLAG_GET_CAUGHT) ? BALL_CAUGHT_HOVER : BALL_SEEN_HOVER, ENTRY_BALL_X, ENTRY_BALL_Y);
 }
 
 static void LoadBg2Page(enum DexPage page)
@@ -902,23 +1000,50 @@ static void UpdateSpriteFade(bool32 show)
     SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(sPokedex->spriteAlpha, BLEND_MAX - sPokedex->spriteAlpha));
 }
 
+static void SetBg1PageWindows(enum DexPage page)
+{
+    for (u32 i = sPageWindows[sPokedex->bg1Page].first; i < sPageWindows[sPokedex->bg1Page].end; i++)
+    {
+        ClearWindowTilemap(i);
+    }
+
+    if (page == DEX_PAGE_ENTRY)
+    {
+        PrintEntryPage();
+    }
+
+    for (u32 i = sPageWindows[page].first; i < sPageWindows[page].end; i++)
+    {
+        PutWindowTilemap(i);
+        CopyWindowToVram(i, COPYWIN_GFX);
+    }
+
+    CopyBgTilemapBufferToVram(1);
+    sPokedex->bg1Page = page;
+}
+
 static void UpdatePageTransition(void)
 {
-    bool32 wantHabitat = (sPokedex->page == DEX_PAGE_HABITAT);
+    enum DexPage page = sPokedex->page;
+    bool32 wantHabitat = (page == DEX_PAGE_HABITAT);
 
-    if (sPokedex->page != DEX_PAGE_LIST && sPokedex->bg1Alpha > 0)
+    if (sPokedex->bg1Alpha > 0 && sPokedex->bg1Page != page)
     {
         UpdateBg1Fade(FALSE);
     }
-    else if (sPokedex->page != DEX_PAGE_LIST && sPokedex->spriteAlpha > 0)
+    else if (page != DEX_PAGE_LIST && sPokedex->spriteAlpha > 0)
     {
         UpdateSpriteFade(FALSE);
     }
-    else if (sPokedex->page == DEX_PAGE_LIST && sPokedex->bg2Page == DEX_PAGE_LIST && sPokedex->bg2Alpha == BLEND_MAX)
+    else if (page != DEX_PAGE_HABITAT && sPokedex->bg2Page == page && sPokedex->bg2Alpha == BLEND_MAX)
     {
-        if (sPokedex->spriteAlpha < BLEND_MAX)
+        if (page == DEX_PAGE_LIST && sPokedex->spriteAlpha < BLEND_MAX)
         {
             UpdateSpriteFade(TRUE);
+        }
+        else if (sPokedex->bg1Page != page)
+        {
+            SetBg1PageWindows(page);
         }
         else
         {
@@ -938,7 +1063,7 @@ static void UpdatePageTransition(void)
     }
     else
     {
-        UpdateBg2Fade(sPokedex->page);
+        UpdateBg2Fade(page);
     }
 }
 
@@ -987,7 +1112,10 @@ static void Task_SwShPokedexInput(u8 taskId)
     case DEX_PAGE_LIST:
         if (JOY_NEW(A_BUTTON))
         {
-            sPokedex->page = DEX_PAGE_ENTRY;
+            if (IsListIndexSeen(sPokedex->listCursor))
+            {
+                sPokedex->page = DEX_PAGE_ENTRY;
+            }
         }
         else if (JOY_NEW(B_BUTTON))
         {
@@ -1072,7 +1200,7 @@ void CB2_OpenPokedex_SwSh(void)
             PrintAll();
             CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
             PrintTopBar();
-            for (u32 i = 0; i < WIN_LIST_COUNT; i++)
+            for (u32 i = sPageWindows[DEX_PAGE_LIST].first; i < sPageWindows[DEX_PAGE_LIST].end; i++)
             {
                 PutWindowTilemap(i);
             }
