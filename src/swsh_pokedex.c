@@ -130,6 +130,7 @@ enum
 #define SUBPRIORITY_CURSOR      0
 #define SUBPRIORITY_HOVER_BAR   (SUBPRIORITY_CURSOR + 1)
 #define SUBPRIORITY_THUMB       (SUBPRIORITY_HOVER_BAR + 1)
+#define SUBPRIORITY_MON         (SUBPRIORITY_THUMB + 1)
 
 #define CURSOR_X                97
 #define CURSOR_SIZE             16
@@ -139,6 +140,13 @@ enum
 #define HOVER_BAR_PIECE_HEIGHT  16
 #define HOVER_BAR_PIECE_TILES   ((HOVER_BAR_PIECE_WIDTH * HOVER_BAR_PIECE_HEIGHT) / (TILE_WIDTH * TILE_HEIGHT))
 #define HOVER_BAR_PIECE_X(i)    ((i) * HOVER_BAR_PIECE_WIDTH - HOVER_BAR_PIECE_WIDTH * HOVER_BAR_PIECES / 2)
+
+#define MON_X                   48
+#define MON_LIST_Y              72
+#define MON_ENTRY_Y             40
+#define MON_HABITAT_SLIDE_X     40
+#define MON_DEFAULT_PERSONALITY 0xFF
+#define MON_SHIELD_RIGHT        (CURSOR_X - CURSOR_SIZE / 2)
 
 #define SCROLL_THUMB_X          236
 #define SCROLL_THUMB_WIDTH      8
@@ -206,6 +214,7 @@ struct SwShPokedex
     u8 bg1Page;
     bool8 entryStale;
     u8 spriteAlpha;
+    u8 monAlpha;
     u8 bg2Page;
     u8 bg2Alpha;
     u8 bg3White;
@@ -218,6 +227,8 @@ struct SwShPokedex
     u8 cursorSpriteId;
     u8 hoverBarSpriteId;
     u8 scrollThumbSpriteIds[SCROLL_THUMB_SEGMENTS];
+    u8 monSpriteId;
+    u8 monShadowSpriteId;
     u8 cursorAnimId;
     u8 scrollThumbAnimId;
     u32 cursorBobAnimId;
@@ -763,6 +774,72 @@ static void DestroyListSprites(void)
     ReleaseComfyAnim(sPokedex->scrollThumbAnimId);
 }
 
+static u32 GetDexMonPersonality(enum Species species)
+{
+    if (species == SPECIES_UNOWN)
+    {
+        return gSaveBlock2Ptr->pokedex.unownPersonality;
+    }
+    if (species == SPECIES_SPINDA)
+    {
+        return gSaveBlock2Ptr->pokedex.spindaPersonality;
+    }
+    return MON_DEFAULT_PERSONALITY;
+}
+
+static s32 GetMonSpriteX(void)
+{
+    return MON_X + MON_HABITAT_SLIDE_X * (BLEND_MAX - sPokedex->monAlpha) / BLEND_MAX;
+}
+
+static s32 GetMonSpriteY(void)
+{
+    if (sPokedex->page == DEX_PAGE_HABITAT)
+    {
+        return MON_ENTRY_Y;
+    }
+    return MON_LIST_Y - (MON_LIST_Y - MON_ENTRY_Y) * sPokedex->bg3X / BG3_SLIDE_DISTANCE;
+}
+
+static void DestroyMonSprite(void)
+{
+    if (sPokedex->monSpriteId == SPRITE_NONE)
+    {
+        return;
+    }
+
+    DestroySpriteAndFreeResources(&gSprites[sPokedex->monSpriteId]);
+    if (SWSH_POKEDEX_MON_SHADOW)
+    {
+        DestroyMonShadowSprite(sPokedex->monShadowSpriteId);
+    }
+    sPokedex->monSpriteId = SPRITE_NONE;
+}
+
+static void UpdateMonSprite(void)
+{
+    DestroyMonSprite();
+    if (!IsListIndexSeen(sPokedex->listCursor))
+    {
+        return;
+    }
+
+    enum Species species = NationalPokedexNumToSpecies(sPokedex->listNatNum[sPokedex->listCursor]);
+    u32 personality = GetDexMonPersonality(species);
+    HandleLoadSpecialPokePic(TRUE, MonSpritesGfxManager_GetSpritePtr(MON_SPR_GFX_MANAGER_A, B_POSITION_OPPONENT_LEFT), species, personality);
+    LoadSpritePaletteWithTag(GetMonSpritePalFromSpeciesAndPersonality(species, FALSE, personality), species);
+    SetMultiuseSpriteTemplateToPokemon(species, B_POSITION_OPPONENT_LEFT);
+    sPokedex->monSpriteId = CreateSprite(&gMultiuseSpriteTemplate, GetMonSpriteX(), GetMonSpriteY(), SUBPRIORITY_MON);
+    FreeSpriteOamMatrix(&gSprites[sPokedex->monSpriteId]);
+    gSprites[sPokedex->monSpriteId].callback = SpriteCallbackDummy;
+    gSprites[sPokedex->monSpriteId].oam.priority = LIST_SPRITE_PRIORITY;
+    gSprites[sPokedex->monSpriteId].invisible = (sPokedex->monAlpha == 0);
+    if (SWSH_POKEDEX_MON_SHADOW)
+    {
+        sPokedex->monShadowSpriteId = CreateMonShadowSprite(sPokedex->monSpriteId, FALSE);
+    }
+}
+
 static void SlideListSprites(void)
 {
     struct ComfyAnim *cursorAnim = &gComfyAnims[sPokedex->cursorAnimId];
@@ -855,6 +932,7 @@ static void MoveListCursor(s32 delta, bool32 allowWrap)
     PrintRow(sPokedex->listCursor - sPokedex->listScroll);
     CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
     SlideListSprites();
+    UpdateMonSprite();
 }
 
 static void MoveEntryCursor(s32 delta)
@@ -865,6 +943,7 @@ static void MoveEntryCursor(s32 delta)
         {
             SeekListTo(index);
             SlideListSprites();
+            UpdateMonSprite();
             sPokedex->entryStale = TRUE;
             return;
         }
@@ -1028,6 +1107,7 @@ static void LoadBg3Gfx(bool32 habitat)
 
 static void UpdateBg2Fade(enum DexPage page)
 {
+    ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
     if (sPokedex->bg2Page != page)
     {
         if (sPokedex->bg2Page != DEX_PAGE_HABITAT && sPokedex->bg2Alpha > 0)
@@ -1076,6 +1156,7 @@ static void UpdateBg3Whiteout(bool32 wantHabitat)
 
 static void UpdateBg1Fade(bool32 show)
 {
+    ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
     if (show && sPokedex->bg1Alpha < BLEND_MAX)
     {
         if (sPokedex->bg1Alpha == 0)
@@ -1099,6 +1180,7 @@ static void UpdateBg1Fade(bool32 show)
 
 static void UpdateSpriteFade(bool32 show)
 {
+    SetGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
     if (show)
     {
         sPokedex->spriteAlpha += min(LIST_FADE_STEP, BLEND_MAX - sPokedex->spriteAlpha);
@@ -1111,6 +1193,27 @@ static void UpdateSpriteFade(bool32 show)
     gSprites[sPokedex->cursorSpriteId].invisible = (sPokedex->spriteAlpha == 0);
     SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_OBJ | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD);
     SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(sPokedex->spriteAlpha, BLEND_MAX - sPokedex->spriteAlpha));
+}
+
+static void UpdateMonFade(bool32 show)
+{
+    ClearGpuRegBits(REG_OFFSET_DISPCNT, DISPCNT_WIN0_ON);
+    if (show)
+    {
+        sPokedex->monAlpha += min(LIST_FADE_STEP, BLEND_MAX - sPokedex->monAlpha);
+    }
+    else
+    {
+        sPokedex->monAlpha -= min(LIST_FADE_STEP, sPokedex->monAlpha);
+    }
+
+    if (sPokedex->monSpriteId != SPRITE_NONE)
+    {
+        gSprites[sPokedex->monSpriteId].x = GetMonSpriteX();
+        gSprites[sPokedex->monSpriteId].invisible = (sPokedex->monAlpha == 0);
+    }
+    SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_OBJ | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_BD);
+    SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(sPokedex->monAlpha, BLEND_MAX - sPokedex->monAlpha));
 }
 
 static void SetBg1PageWindows(enum DexPage page)
@@ -1153,9 +1256,21 @@ static void UpdatePageTransition(void)
     {
         UpdateSpriteFade(FALSE);
     }
+    else if (page == DEX_PAGE_HABITAT && sPokedex->monAlpha > 0)
+    {
+        UpdateMonFade(FALSE);
+    }
+    else if (sPokedex->monAlpha > 0 && sPokedex->monAlpha < BLEND_MAX)
+    {
+        UpdateMonFade(TRUE);
+    }
     else if (page != DEX_PAGE_HABITAT && sPokedex->bg2Page == page && sPokedex->bg2Alpha == BLEND_MAX)
     {
-        if (page == DEX_PAGE_LIST && sPokedex->spriteAlpha < BLEND_MAX)
+        if (sPokedex->monAlpha < BLEND_MAX)
+        {
+            UpdateMonFade(TRUE);
+        }
+        else if (page == DEX_PAGE_LIST && sPokedex->spriteAlpha < BLEND_MAX)
         {
             UpdateSpriteFade(TRUE);
         }
@@ -1199,6 +1314,10 @@ static void UpdateBg3Slide(void)
 
     sPokedex->bg3X += step;
     ChangeBgX(3, sPokedex->bg3X << 8, BG_COORD_SET);
+    if (sPokedex->monSpriteId != SPRITE_NONE)
+    {
+        gSprites[sPokedex->monSpriteId].y = GetMonSpriteY();
+    }
 }
 
 static void Task_ExitSwShPokedex(u8 taskId)
@@ -1206,6 +1325,8 @@ static void Task_ExitSwShPokedex(u8 taskId)
     if (!gPaletteFade.active)
     {
         SetGpuReg(REG_OFFSET_BLDCNT, 0);
+        DestroyMonSprite();
+        DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
         DestroyListSprites();
         FreeAllWindowBuffers();
         UnsetBgTilemapBuffer(1);
@@ -1294,6 +1415,8 @@ void CB2_OpenPokedex_SwSh(void)
         break;
     case 2:
         sPokedex = AllocZeroed(sizeof(*sPokedex));
+        sPokedex->monSpriteId = SPRITE_NONE;
+        CreateMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A, MON_SPR_GFX_MODE_NORMAL);
         sPokedex->cursorAnimId = INVALID_COMFY_ANIM;
         sPokedex->cursorBobAnimId = INVALID_COMFY_ANIM;
         sPokedex->scrollThumbAnimId = INVALID_COMFY_ANIM;
@@ -1318,6 +1441,7 @@ void CB2_OpenPokedex_SwSh(void)
             sPokedex->bg2Alpha = BLEND_MAX;
             sPokedex->bg1Alpha = BLEND_MAX;
             sPokedex->spriteAlpha = BLEND_MAX;
+            sPokedex->monAlpha = BLEND_MAX;
             BuildDexList();
             PrintAll();
             CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
@@ -1333,6 +1457,7 @@ void CB2_OpenPokedex_SwSh(void)
     case 4:
         LoadListSpriteGfx();
         CreateListSprites();
+        UpdateMonSprite();
         gMain.state++;
         break;
     case 5:
@@ -1340,6 +1465,10 @@ void CB2_OpenPokedex_SwSh(void)
         SetGpuReg(REG_OFFSET_DISPCNT, DISPCNT_OBJ_ON | DISPCNT_OBJ_1D_MAP);
         SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_OBJ | BLDCNT_TGT2_BD);
         SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(BLEND_MAX, 0));
+        SetGpuReg(REG_OFFSET_WIN0H, WIN_RANGE(0, MON_SHIELD_RIGHT));
+        SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(0, DISPLAY_HEIGHT));
+        SetGpuReg(REG_OFFSET_WININ, WININ_WIN0_BG_ALL | WININ_WIN0_OBJ);
+        SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_ALL);
         ShowBg(1);
         ShowBg(2);
         ShowBg(3);
