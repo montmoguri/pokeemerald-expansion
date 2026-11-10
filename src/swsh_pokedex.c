@@ -96,11 +96,26 @@ enum
 #define DEX_NUM_DIGITS          4
 
 #define ENTRY_TEXT_Y            6
-#define ENTRY_INDEX_X           4
+#define ENTRY_INDEX_X           6
 #define ENTRY_NAME_X            56
 #define ENTRY_NAME_FIT_WIDTH    64
 #define ENTRY_BALL_X            140
 #define ENTRY_BALL_Y            6
+#define ENTRY_CATEGORY_Y        1
+#define ENTRY_STATS_LABEL_Y     1
+#define ENTRY_STATS_ROW_Y       19
+#define ENTRY_TYPE_X            6
+#define ENTRY_HEIGHT_LABEL_X    10
+#define ENTRY_HEIGHT_X          33
+#define ENTRY_HEIGHT_SPAN       29
+#define ENTRY_WEIGHT_LABEL_X    71
+#define ENTRY_WEIGHT_X          91
+#define ENTRY_WEIGHT_SPAN       42
+#define ENTRY_FEET_DIGITS       3
+#define ENTRY_INCHES_DIGITS     2
+#define ENTRY_POUNDS_DIGITS     4
+#define ENTRY_DESC_Y            5
+#define ENTRY_DESC_LINE_SPACING 2
 
 #define TAG_DEX_SPRITE_PAL      55400
 #define TAG_DEX_CURSOR          55401
@@ -172,6 +187,8 @@ enum DexTextColor
     COLORID_LIST_NORMAL,
     COLORID_LIST_HOVER_INDEX,
     COLORID_LIST_HOVER_NAME,
+    COLORID_ENTRY_MAIN,
+    COLORID_ENTRY_LABEL,
     COLORID_ENTRY_INDEX = COLORID_LIST_HOVER_INDEX,
     COLORID_ENTRY_NAME = COLORID_LIST_HOVER_NAME,
 };
@@ -229,6 +246,8 @@ static const u8 sTextColors[][3] =
     [COLORID_LIST_NORMAL]       = {0, 3, 4 },
     [COLORID_LIST_HOVER_INDEX]  = {0, 1, 10},
     [COLORID_LIST_HOVER_NAME]   = {0, 1, 2 },
+    [COLORID_ENTRY_MAIN]        = {0, 3, 8 },
+    [COLORID_ENTRY_LABEL]       = {0, 3, 7 },
 };
 
 static const u32 *const sBg2Tilemaps[] =
@@ -864,10 +883,76 @@ static void PrintTopBar(void)
     }
 }
 
+static void PrintEntryCategory(enum Species species, bool32 caught)
+{
+    StringCopy(gStringVar4, caught ? GetSpeciesCategory(species) : COMPOUND_STRING("?????"));
+    StringAppend(gStringVar4, COMPOUND_STRING(" Pokémon"));
+    PrintDexText(WIN_ENTRY_CATEGORY, FONT_SHORT_NARROW, GetStringCenterAlignXOffset(FONT_SHORT_NARROW, gStringVar4, WIN_ENTRY_CATEGORY_WIDTH * TILE_WIDTH),
+                 ENTRY_CATEGORY_Y, COLORID_ENTRY_LABEL, gStringVar4);
+}
+
+static void PrintEntryMeasurement(u32 x, u32 span, const u8 *str)
+{
+    PrintDexText(WIN_ENTRY_STATS, FONT_SHORT_NARROW, x + GetStringCenterAlignXOffset(FONT_SHORT_NARROW, str, span),
+                 ENTRY_STATS_ROW_Y, COLORID_ENTRY_MAIN, str);
+}
+
+static void PrintEntryStats(enum Species species, bool32 caught)
+{
+    PrintDexText(WIN_ENTRY_STATS, FONT_SHORT_NARROW, ENTRY_TYPE_X, ENTRY_STATS_LABEL_Y, COLORID_ENTRY_LABEL, COMPOUND_STRING("Type"));
+    PrintDexText(WIN_ENTRY_STATS, FONT_SHORT_NARROW, ENTRY_HEIGHT_LABEL_X, ENTRY_STATS_ROW_Y, COLORID_ENTRY_LABEL, COMPOUND_STRING("Ht."));
+    PrintDexText(WIN_ENTRY_STATS, FONT_SHORT_NARROW, ENTRY_WEIGHT_LABEL_X, ENTRY_STATS_ROW_Y, COLORID_ENTRY_LABEL, COMPOUND_STRING("Wt."));
+
+    if (caught)
+    {
+        u32 inches = GetSpeciesHeight(species) * 10000 / CM_PER_INCH_FACTOR;
+        u32 lbs = (u32)((u64)GetSpeciesWeight(species) * 10000000 / DECAGRAMS_IN_POUND);
+
+        if (inches % 10 >= 5)
+        {
+            inches += 10;
+        }
+        u32 feet = inches / INCHES_IN_FOOT_FACTOR;
+        inches = (inches - feet * INCHES_IN_FOOT_FACTOR) / 10;
+        u8 *str = ConvertIntToDecimalStringN(gStringVar4, feet, STR_CONV_MODE_LEFT_ALIGN, ENTRY_FEET_DIGITS);
+        *str++ = CHAR_SGL_QUOTE_RIGHT;
+        str = ConvertIntToDecimalStringN(str, inches, STR_CONV_MODE_LEFT_ALIGN, ENTRY_INCHES_DIGITS);
+        *str++ = CHAR_DBL_QUOTE_RIGHT;
+        *str = EOS;
+        PrintEntryMeasurement(ENTRY_HEIGHT_X, ENTRY_HEIGHT_SPAN, gStringVar4);
+
+        if (lbs % 10 >= 5)
+        {
+            lbs += 10;
+        }
+        str = ConvertIntToDecimalStringN(gStringVar4, lbs / 100, STR_CONV_MODE_LEFT_ALIGN, ENTRY_POUNDS_DIGITS);
+        *str++ = CHAR_DEC_SEPARATOR;
+        str = ConvertIntToDecimalStringN(str, lbs / 10 % 10, STR_CONV_MODE_LEFT_ALIGN, 1);
+        StringCopy(str, COMPOUND_STRING("{CLEAR 2}lb"));
+        PrintEntryMeasurement(ENTRY_WEIGHT_X, ENTRY_WEIGHT_SPAN, gStringVar4);
+    }
+    else
+    {
+        PrintEntryMeasurement(ENTRY_HEIGHT_X, ENTRY_HEIGHT_SPAN, COMPOUND_STRING("??'?”"));
+        PrintEntryMeasurement(ENTRY_WEIGHT_X, ENTRY_WEIGHT_SPAN, COMPOUND_STRING("???{CLEAR 1}lb"));
+    }
+}
+
+static void PrintEntryDescription(enum Species species)
+{
+    const u8 *desc = GetSpeciesPokedexDescription(species);
+
+    AddTextPrinterParameterized4(WIN_ENTRY_DESCRIPTION, FONT_SHORT_NARROW,
+                                 GetStringCenterAlignXOffset(FONT_SHORT_NARROW, desc, WIN_ENTRY_DESCRIPTION_WIDTH * TILE_WIDTH),
+                                 ENTRY_DESC_Y, 0, ENTRY_DESC_LINE_SPACING, sTextColors[COLORID_ENTRY_MAIN], TEXT_SKIP_DRAW, desc);
+}
+
 static void PrintEntryPage(void)
 {
     u32 natNum = sPokedex->listNatNum[sPokedex->listCursor];
-    const u8 *name = GetSpeciesName(NationalPokedexNumToSpecies(natNum));
+    enum Species species = NationalPokedexNumToSpecies(natNum);
+    const u8 *name = GetSpeciesName(species);
+    bool32 caught = GetSetPokedexFlag(natNum, FLAG_GET_CAUGHT);
 
     for (u32 i = sPageWindows[DEX_PAGE_ENTRY].first; i < sPageWindows[DEX_PAGE_ENTRY].end; i++)
     {
@@ -876,7 +961,13 @@ static void PrintEntryPage(void)
 
     PrintDexNumber(WIN_ENTRY_HEADER, ENTRY_INDEX_X, ENTRY_TEXT_Y, COLORID_ENTRY_INDEX, natNum);
     PrintDexText(WIN_ENTRY_HEADER, GetFontIdToFit(name, FONT_NARROW, 0, ENTRY_NAME_FIT_WIDTH), ENTRY_NAME_X, ENTRY_TEXT_Y, COLORID_ENTRY_NAME, name);
-    BlitCaughtBall(WIN_ENTRY_HEADER, GetSetPokedexFlag(natNum, FLAG_GET_CAUGHT) ? BALL_CAUGHT_HOVER : BALL_SEEN_HOVER, ENTRY_BALL_X, ENTRY_BALL_Y);
+    BlitCaughtBall(WIN_ENTRY_HEADER, caught ? BALL_CAUGHT_HOVER : BALL_SEEN_HOVER, ENTRY_BALL_X, ENTRY_BALL_Y);
+    PrintEntryCategory(species, caught);
+    PrintEntryStats(species, caught);
+    if (caught)
+    {
+        PrintEntryDescription(species);
+    }
 }
 
 static void LoadBg2Page(enum DexPage page)
