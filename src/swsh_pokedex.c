@@ -33,6 +33,8 @@
 #define DEX_GFX_CHAR_BASE       2
 #define HABITAT_MAP_CHAR_BASE   1
 #define DEX_TEXT_CHAR_BASE      0
+#define DEX_SLIDE_MAP_BASE      28
+#define HABITAT_MAP_MAP_BASE    26
 
 #define TILEMAP_TILE_WIDTH      32
 #define PROMPT_BAR_TILE_HEIGHT  2
@@ -202,6 +204,7 @@ struct SwShPokedex
     u8 page;
     u8 bg1Alpha;
     u8 bg1Page;
+    bool8 entryStale;
     u8 spriteAlpha;
     u8 bg2Page;
     u8 bg2Alpha;
@@ -279,7 +282,7 @@ static const struct BgTemplate sBgTemplates[] =
     {
         .bg = 3,
         .charBaseIndex = DEX_GFX_CHAR_BASE,
-        .mapBaseIndex = 28,
+        .mapBaseIndex = DEX_SLIDE_MAP_BASE,
         .screenSize = 1,
         .paletteMode = 0,
         .priority = 3,
@@ -854,6 +857,20 @@ static void MoveListCursor(s32 delta, bool32 allowWrap)
     SlideListSprites();
 }
 
+static void MoveEntryCursor(s32 delta)
+{
+    for (s32 index = (s32)sPokedex->listCursor + delta; index >= 0 && index < sPokedex->listCount; index += delta)
+    {
+        if (IsListIndexSeen(index))
+        {
+            SeekListTo(index);
+            SlideListSprites();
+            sPokedex->entryStale = TRUE;
+            return;
+        }
+    }
+}
+
 static void PrintTopBar(void)
 {
     const u8 *sortStr = COMPOUND_STRING("By Number");
@@ -990,21 +1007,23 @@ static void LoadBg2Page(enum DexPage page)
 
 static void LoadBg3Gfx(bool32 habitat)
 {
+    // separate map bases to swap BG3 in one BGCNT write, once its data is in VRAM
     sPokedex->bg3Habitat = habitat;
-    sPokedex->bg3Loading = TRUE;
     if (habitat)
     {
         SetBgAttribute(3, BG_ATTR_CHARBASEINDEX, HABITAT_MAP_CHAR_BASE);
+        SetBgAttribute(3, BG_ATTR_MAPBASEINDEX, HABITAT_MAP_MAP_BASE);
         LoadPokedexAreaMapGfx();
         CpuCopy32(gPlttBufferUnfaded, gPlttBufferFaded, BG_PLTT_SIZE);
+        sPokedex->bg3Loading = TRUE;
     }
     else
     {
         SetBgAttribute(3, BG_ATTR_CHARBASEINDEX, DEX_GFX_CHAR_BASE);
+        SetBgAttribute(3, BG_ATTR_MAPBASEINDEX, DEX_SLIDE_MAP_BASE);
         SetBgAttribute(3, BG_ATTR_PALETTEMODE, 0);
-        CopyBgTilemapBufferToVram(3);
+        ShowBg(3);
     }
-    ShowBg(3);
 }
 
 static void UpdateBg2Fade(enum DexPage page)
@@ -1041,7 +1060,10 @@ static void UpdateBg3Whiteout(bool32 wantHabitat)
     else if (sPokedex->bg3Loading)
     {
         if (!FreeTempTileDataBuffersIfPossible())
+        {
             sPokedex->bg3Loading = FALSE;
+            ShowBg(3);
+        }
     }
     else
     {
@@ -1102,6 +1124,10 @@ static void SetBg1PageWindows(enum DexPage page)
     {
         PrintEntryPage();
     }
+    else
+    {
+        PrintAll();
+    }
 
     for (u32 i = sPageWindows[page].first; i < sPageWindows[page].end; i++)
     {
@@ -1111,6 +1137,7 @@ static void SetBg1PageWindows(enum DexPage page)
 
     CopyBgTilemapBufferToVram(1);
     sPokedex->bg1Page = page;
+    sPokedex->entryStale = FALSE;
 }
 
 static void UpdatePageTransition(void)
@@ -1118,7 +1145,7 @@ static void UpdatePageTransition(void)
     enum DexPage page = sPokedex->page;
     bool32 wantHabitat = (page == DEX_PAGE_HABITAT);
 
-    if (sPokedex->bg1Alpha > 0 && sPokedex->bg1Page != page)
+    if (sPokedex->bg1Alpha > 0 && (sPokedex->bg1Page != page || sPokedex->entryStale))
     {
         UpdateBg1Fade(FALSE);
     }
@@ -1132,7 +1159,7 @@ static void UpdatePageTransition(void)
         {
             UpdateSpriteFade(TRUE);
         }
-        else if (sPokedex->bg1Page != page)
+        else if (sPokedex->bg1Page != page || sPokedex->entryStale)
         {
             SetBg1PageWindows(page);
         }
@@ -1235,6 +1262,10 @@ static void Task_SwShPokedexInput(u8 taskId)
             sPokedex->page = DEX_PAGE_LIST;
         else if (JOY_NEW(START_BUTTON))
             sPokedex->page = DEX_PAGE_HABITAT;
+        else if (JOY_REPEAT(DPAD_UP) && sPokedex->bg1Page == DEX_PAGE_ENTRY)
+            MoveEntryCursor(-1);
+        else if (JOY_REPEAT(DPAD_DOWN) && sPokedex->bg1Page == DEX_PAGE_ENTRY)
+            MoveEntryCursor(1);
         break;
     case DEX_PAGE_HABITAT:
         if (JOY_NEW(B_BUTTON))
