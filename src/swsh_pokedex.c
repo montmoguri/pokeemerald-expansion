@@ -87,7 +87,7 @@ enum
 #define TAG_DEX_HOVER_BAR       55402
 #define TAG_DEX_SCROLL_THUMB    55403
 
-#define LIST_TOP_Y              (sWindowTemplates[WIN_DEX_LIST].tilemapTop * TILE_HEIGHT)
+#define LIST_TOP_Y              (sWindowTemplates[WIN_LIST].tilemapTop * TILE_HEIGHT)
 #define LIST_ROW_CENTER_Y(row)  (LIST_TOP_Y + LIST_ROW_HEIGHT / 2 + LIST_ROW_HEIGHT * (row))
 #define LIST_SPRITE_PRIORITY    2
 #define SUBPRIORITY_CURSOR      0
@@ -123,11 +123,11 @@ enum DexPage
 
 enum DexWindow
 {
-    WIN_DEX_LIST,
-    WIN_DEX_SORT_TYPE,
-    WIN_DEX_CAUGHT_SEEN_NUM,
-    WIN_DEX_REGION,
-    WIN_DEX_COUNT,
+    WIN_LIST,
+    WIN_LIST_SORT_TYPE,
+    WIN_LIST_CAUGHT_SEEN_NUM,
+    WIN_LIST_REGION,
+    WIN_LIST_COUNT,
 };
 
 enum DexBall
@@ -141,13 +141,15 @@ enum DexBall
 
 enum DexTextColor
 {
-    COLORID_SORT,
-    COLORID_COUNT_NUM,
-    COLORID_REGION,
-    COLORID_ROW_UNSEEN,
-    COLORID_ROW_NORMAL,
-    COLORID_ROW_HOVER_INDEX,
-    COLORID_ROW_HOVER_NAME,
+    COLORID_LIST_SORT_TYPE,
+    COLORID_LIST_COUNT_NUM,
+    COLORID_LIST_REGION,
+    COLORID_LIST_UNSEEN,
+    COLORID_LIST_NORMAL,
+    COLORID_LIST_HOVER_INDEX,
+    COLORID_LIST_HOVER_NAME,
+    COLORID_ENTRY_INDEX = COLORID_LIST_HOVER_INDEX,
+    COLORID_ENTRY_NAME = COLORID_LIST_HOVER_NAME,
 };
 
 struct SwShPokedex
@@ -195,13 +197,13 @@ static const u32 sScrollThumb_Gfx[]                 = INCGFX_U32("graphics/poked
 
 static const u8 sTextColors[][3] =
 {
-    [COLORID_SORT]              = {0, 1, 2},
-    [COLORID_COUNT_NUM]         = {0, 1, 5},
-    [COLORID_REGION]            = {0, 3, 6},
-    [COLORID_ROW_UNSEEN]        = {0, 7, 4},
-    [COLORID_ROW_NORMAL]        = {0, 3, 4},
-    [COLORID_ROW_HOVER_INDEX]   = {0, 1, 8},
-    [COLORID_ROW_HOVER_NAME]    = {0, 1, 2},
+    [COLORID_LIST_SORT_TYPE]    = {0, 1, 2 },
+    [COLORID_LIST_COUNT_NUM]    = {0, 1, 5 },
+    [COLORID_LIST_REGION]       = {0, 3, 6 },
+    [COLORID_LIST_UNSEEN]       = {0, 9, 4 },
+    [COLORID_LIST_NORMAL]       = {0, 3, 4 },
+    [COLORID_LIST_HOVER_INDEX]  = {0, 1, 10},
+    [COLORID_LIST_HOVER_NAME]   = {0, 1, 2 },
 };
 
 static const u32 *const sBg2Tilemaps[] =
@@ -243,7 +245,7 @@ static const struct BgTemplate sBgTemplates[] =
 
 static const struct WindowTemplate sWindowTemplates[] =
 {
-    [WIN_DEX_LIST] =
+    [WIN_LIST] =
     {
         .bg = 1,
         .tilemapLeft = 13,
@@ -253,7 +255,7 @@ static const struct WindowTemplate sWindowTemplates[] =
         .paletteNum = DEX_TEXT_PAL_NUM,
         .baseBlock = WIN_LIST_BASE_BLOCK,
     },
-    [WIN_DEX_SORT_TYPE] =
+    [WIN_LIST_SORT_TYPE] =
     {
         .bg = 1,
         .tilemapLeft = 17,
@@ -263,7 +265,7 @@ static const struct WindowTemplate sWindowTemplates[] =
         .paletteNum = DEX_TEXT_PAL_NUM,
         .baseBlock = WIN_SORT_TYPE_BASE_BLOCK,
     },
-    [WIN_DEX_CAUGHT_SEEN_NUM] =
+    [WIN_LIST_CAUGHT_SEEN_NUM] =
     {
         .bg = 1,
         .tilemapLeft = 7,
@@ -273,7 +275,7 @@ static const struct WindowTemplate sWindowTemplates[] =
         .paletteNum = DEX_TEXT_PAL_NUM,
         .baseBlock = WIN_CAUGHT_SEEN_BASE_BLOCK,
     },
-    [WIN_DEX_REGION] =
+    [WIN_LIST_REGION] =
     {
         .bg = 1,
         .tilemapLeft = 1,
@@ -413,7 +415,7 @@ static void PrintCount(u32 windowId, u32 x, u32 count)
 {
     ConvertIntToDecimalStringN(gStringVar1, count, STR_CONV_MODE_LEFT_ALIGN, DEX_COUNT_DIGITS);
     PrintDexText(windowId, FONT_NARROW, x + GetStringCenterAlignXOffset(FONT_NARROW, gStringVar1, COUNT_NUM_SPAN),
-                 DEX_TEXT_Y, COLORID_COUNT_NUM, gStringVar1);
+                 DEX_TEXT_Y, COLORID_LIST_COUNT_NUM, gStringVar1);
 }
 
 static void BuildDexList(void)
@@ -450,7 +452,7 @@ static void PrintRow(u32 row)
     u32 index = sPokedex->listScroll + row;
     u32 y = row * LIST_ROW_HEIGHT;
 
-    FillWindowPixelRect(WIN_DEX_LIST, PIXEL_FILL(0), 0, y, WIN_LIST_WIDTH * TILE_WIDTH, LIST_ROW_HEIGHT);
+    FillWindowPixelRect(WIN_LIST, PIXEL_FILL(0), 0, y, WIN_LIST_WIDTH * TILE_WIDTH, LIST_ROW_HEIGHT);
     if (index >= sPokedex->listCount)
     {
         return;
@@ -460,41 +462,41 @@ static void PrintRow(u32 row)
     bool32 hover = (index == sPokedex->listCursor);
     bool32 seen = IsListIndexSeen(index);
     const u8 *prefix = COMPOUND_STRING("{NO}.{CLEAR 2}");
-    enum DexTextColor indexColor = COLORID_ROW_UNSEEN;
-    enum DexTextColor nameColor = COLORID_ROW_UNSEEN;
+    enum DexTextColor indexColor = COLORID_LIST_UNSEEN;
+    enum DexTextColor nameColor = COLORID_LIST_UNSEEN;
 
     if (seen)
     {
-        indexColor = hover ? COLORID_ROW_HOVER_INDEX : COLORID_ROW_NORMAL;
-        nameColor = hover ? COLORID_ROW_HOVER_NAME : COLORID_ROW_NORMAL;
+        indexColor = hover ? COLORID_LIST_HOVER_INDEX : COLORID_LIST_NORMAL;
+        nameColor = hover ? COLORID_LIST_HOVER_NAME : COLORID_LIST_NORMAL;
     }
 
-    PrintDexText(WIN_DEX_LIST, FONT_NARROW, LIST_INDEX_X, y, indexColor, prefix);
+    PrintDexText(WIN_LIST, FONT_NARROW, LIST_INDEX_X, y, indexColor, prefix);
     ConvertIntToDecimalStringN(gStringVar1, natNum, STR_CONV_MODE_LEADING_ZEROS, LIST_NUM_DIGITS);
-    PrintDexText(WIN_DEX_LIST, FONT_SMALL, LIST_INDEX_X + GetStringWidth(FONT_NARROW, prefix, 0), y + LIST_SMALL_FONT_Y, indexColor, gStringVar1);
+    PrintDexText(WIN_LIST, FONT_SMALL, LIST_INDEX_X + GetStringWidth(FONT_NARROW, prefix, 0), y + LIST_SMALL_FONT_Y, indexColor, gStringVar1);
 
     if (!seen)
     {
-        PrintDexText(WIN_DEX_LIST, FONT_SMALL, LIST_NAME_X, y + LIST_SMALL_FONT_Y, nameColor, COMPOUND_STRING("?????"));
+        PrintDexText(WIN_LIST, FONT_SMALL, LIST_NAME_X, y + LIST_SMALL_FONT_Y, nameColor, COMPOUND_STRING("?????"));
         return;
     }
 
     const u8 *name = GetSpeciesName(NationalPokedexNumToSpecies(natNum));
 
-    PrintDexText(WIN_DEX_LIST, GetFontIdToFit(name, FONT_NARROW, 0, LIST_NAME_FIT_WIDTH), LIST_NAME_X, y, nameColor, name);
+    PrintDexText(WIN_LIST, GetFontIdToFit(name, FONT_NARROW, 0, LIST_NAME_FIT_WIDTH), LIST_NAME_X, y, nameColor, name);
     if (GetSetPokedexFlag(natNum, FLAG_GET_CAUGHT))
     {
-        BlitCaughtBall(WIN_DEX_LIST, hover ? BALL_CAUGHT_HOVER : BALL_CAUGHT_NORMAL, LIST_BALL_X, y);
+        BlitCaughtBall(WIN_LIST, hover ? BALL_CAUGHT_HOVER : BALL_CAUGHT_NORMAL, LIST_BALL_X, y);
     }
     else
     {
-        BlitCaughtBall(WIN_DEX_LIST, hover ? BALL_SEEN_HOVER : BALL_SEEN_NORMAL, LIST_BALL_X, y);
+        BlitCaughtBall(WIN_LIST, hover ? BALL_SEEN_HOVER : BALL_SEEN_NORMAL, LIST_BALL_X, y);
     }
 }
 
 static void PrintAll(void)
 {
-    FillWindowPixelBuffer(WIN_DEX_LIST, PIXEL_FILL(0));
+    FillWindowPixelBuffer(WIN_LIST, PIXEL_FILL(0));
     for (u32 row = 0; row < LIST_ROWS_SHOWN; row++)
     {
         PrintRow(row);
@@ -728,12 +730,12 @@ static void MoveListCursor(s32 delta, bool32 allowWrap)
 
     if (sPokedex->listScroll == oldScroll + 1)
     {
-        ScrollWindow(WIN_DEX_LIST, LIST_SHIFT_UP, LIST_ROW_HEIGHT, PIXEL_FILL(0));
+        ScrollWindow(WIN_LIST, LIST_SHIFT_UP, LIST_ROW_HEIGHT, PIXEL_FILL(0));
         PrintRow(LIST_ROWS_SHOWN - 1);
     }
     else if (sPokedex->listScroll + 1 == oldScroll)
     {
-        ScrollWindow(WIN_DEX_LIST, LIST_SHIFT_DOWN, LIST_ROW_HEIGHT, PIXEL_FILL(0));
+        ScrollWindow(WIN_LIST, LIST_SHIFT_DOWN, LIST_ROW_HEIGHT, PIXEL_FILL(0));
         PrintRow(0);
     }
     else if (sPokedex->listScroll != oldScroll)
@@ -746,7 +748,7 @@ static void MoveListCursor(s32 delta, bool32 allowWrap)
         PrintRow(oldCursor - sPokedex->listScroll);
     }
     PrintRow(sPokedex->listCursor - sPokedex->listScroll);
-    CopyWindowToVram(WIN_DEX_LIST, COPYWIN_GFX);
+    CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
     SlideListSprites();
 }
 
@@ -757,23 +759,23 @@ static void PrintTopBar(void)
     u32 caught = national ? GetNationalPokedexCount(FLAG_GET_CAUGHT) : GetHoennPokedexCount(FLAG_GET_CAUGHT);
     u32 seen = national ? GetNationalPokedexCount(FLAG_GET_SEEN) : GetHoennPokedexCount(FLAG_GET_SEEN);
 
-    for (u32 i = WIN_DEX_SORT_TYPE; i < WIN_DEX_COUNT; i++)
+    for (u32 i = WIN_LIST_SORT_TYPE; i < WIN_LIST_COUNT; i++)
     {
         FillWindowPixelBuffer(i, PIXEL_FILL(0));
     }
 
-    PrintDexText(WIN_DEX_SORT_TYPE, FONT_NARROW, GetStringCenterAlignXOffset(FONT_NARROW, sortStr, WIN_SORT_TYPE_WIDTH * TILE_WIDTH),
-                 DEX_TEXT_Y, COLORID_SORT, sortStr);
+    PrintDexText(WIN_LIST_SORT_TYPE, FONT_NARROW, GetStringCenterAlignXOffset(FONT_NARROW, sortStr, WIN_SORT_TYPE_WIDTH * TILE_WIDTH),
+                 DEX_TEXT_Y, COLORID_LIST_SORT_TYPE, sortStr);
 
-    BlitCaughtBall(WIN_DEX_CAUGHT_SEEN_NUM, BALL_CAUGHT_COLOR, CAUGHT_BALL_X, DEX_TEXT_Y);
-    BlitCaughtBall(WIN_DEX_CAUGHT_SEEN_NUM, BALL_SEEN_HOVER, SEEN_BALL_X, DEX_TEXT_Y);
-    PrintCount(WIN_DEX_CAUGHT_SEEN_NUM, CAUGHT_NUM_X, caught);
-    PrintCount(WIN_DEX_CAUGHT_SEEN_NUM, SEEN_NUM_X, seen);
+    BlitCaughtBall(WIN_LIST_CAUGHT_SEEN_NUM, BALL_CAUGHT_COLOR, CAUGHT_BALL_X, DEX_TEXT_Y);
+    BlitCaughtBall(WIN_LIST_CAUGHT_SEEN_NUM, BALL_SEEN_HOVER, SEEN_BALL_X, DEX_TEXT_Y);
+    PrintCount(WIN_LIST_CAUGHT_SEEN_NUM, CAUGHT_NUM_X, caught);
+    PrintCount(WIN_LIST_CAUGHT_SEEN_NUM, SEEN_NUM_X, seen);
 
-    PrintDexText(WIN_DEX_REGION, FONT_NARROW, 0, DEX_TEXT_Y, COLORID_REGION,
+    PrintDexText(WIN_LIST_REGION, FONT_NARROW, 0, DEX_TEXT_Y, COLORID_LIST_REGION,
                  national ? COMPOUND_STRING("NATIONAL") : GetExpandedPlaceholder(PLACEHOLDER_ID_REGION));
 
-    for (u32 i = WIN_DEX_SORT_TYPE; i < WIN_DEX_COUNT; i++)
+    for (u32 i = WIN_LIST_SORT_TYPE; i < WIN_LIST_COUNT; i++)
     {
         CopyWindowToVram(i, COPYWIN_GFX);
     }
@@ -1068,9 +1070,9 @@ void CB2_OpenPokedex_SwSh(void)
             sPokedex->spriteAlpha = BLEND_MAX;
             BuildDexList();
             PrintAll();
-            CopyWindowToVram(WIN_DEX_LIST, COPYWIN_GFX);
+            CopyWindowToVram(WIN_LIST, COPYWIN_GFX);
             PrintTopBar();
-            for (u32 i = 0; i < WIN_DEX_COUNT; i++)
+            for (u32 i = 0; i < WIN_LIST_COUNT; i++)
             {
                 PutWindowTilemap(i);
             }
