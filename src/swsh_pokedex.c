@@ -1,4 +1,5 @@
 #include "global.h"
+#include "battle_main.h"
 #include "bg.h"
 #include "comfy_anim.h"
 #include "decompress.h"
@@ -124,6 +125,7 @@ enum
 #define TAG_DEX_CURSOR          55401
 #define TAG_DEX_HOVER_BAR       55402
 #define TAG_DEX_SCROLL_THUMB    55403
+#define TAG_DEX_TYPE_ICONS      55404
 
 #define LIST_TOP_Y              (sWindowTemplates[WIN_LIST].tilemapTop * TILE_HEIGHT)
 #define LIST_ROW_CENTER_Y(row)  (LIST_TOP_Y + LIST_ROW_HEIGHT / 2 + LIST_ROW_HEIGHT * (row))
@@ -156,6 +158,18 @@ enum
 #define SCROLL_THUMB_SEGMENTS   4
 #define SCROLL_THUMB_MIN_LEN    8
 #define SCROLL_TRACK_LEN        (WIN_LIST_HEIGHT * TILE_HEIGHT)
+
+#define TYPE_ICON_X             152
+#define TYPE_ICON_X_STEP        40
+#define TYPE_ICON_Y             49
+#define TYPE_ICON_COUNT         2
+#define TYPE_ICON_PRIORITY      1
+#define TYPE_ICON_WIDTH         32
+#define TYPE_ICON_HEIGHT        16
+#define TYPE_ICON_TILES         ((TYPE_ICON_WIDTH * TYPE_ICON_HEIGHT) / (TILE_WIDTH * TILE_HEIGHT))
+#define TYPE_ICON_PAL_SLOT      13
+#define TYPE_ICON_PAL_COUNT     3
+#define SUBPRIORITY_TYPE_ICON   SUBPRIORITY_MON
 
 #define SLIDE_FRAMES            8
 #define SLIDE_FRAMES_HELD       1
@@ -231,6 +245,8 @@ struct SwShPokedex
     u8 scrollThumbSpriteIds[SCROLL_THUMB_SEGMENTS];
     u8 monSpriteId;
     u8 monShadowSpriteId;
+    u8 typeIconSpriteIds[TYPE_ICON_COUNT];
+    u8 typeIconCount;
     u16 monAnimTimer;
     u8 cursorAnimId;
     u8 scrollThumbAnimId;
@@ -497,6 +513,31 @@ static const struct SpriteTemplate sSpriteTemplate_ScrollThumb =
     .callback = SpriteCB_ScrollThumb,
 };
 
+static const struct OamData sOamData_TypeIcon =
+{
+    .affineMode = ST_OAM_AFFINE_OFF,
+    .objMode = ST_OAM_OBJ_BLEND,
+    .bpp = ST_OAM_4BPP,
+    .shape = SPRITE_SHAPE(32x16),
+    .size = SPRITE_SIZE(32x16),
+    .priority = TYPE_ICON_PRIORITY,
+};
+
+static const struct CompressedSpriteSheet sSpriteSheet_TypeIcons =
+{
+    .data = gMoveTypesSwSh_Gfx,
+    .size = (NUMBER_OF_MON_TYPES + CONTEST_CATEGORIES_COUNT) * TYPE_ICON_TILES * TILE_SIZE_4BPP,
+    .tag = TAG_DEX_TYPE_ICONS
+};
+
+static const struct SpriteTemplate sSpriteTemplate_TypeIcon =
+{
+    .tileTag = TAG_DEX_TYPE_ICONS,
+    .paletteTag = TAG_NONE,
+    .oam = &sOamData_TypeIcon,
+    .callback = SpriteCallbackDummy,
+};
+
 static void VBlankCB_SwShPokedex(void)
 {
     LoadOam();
@@ -723,6 +764,8 @@ static void LoadListSpriteGfx(void)
     LoadCompressedSpriteSheet(&sSpriteSheet_Cursor);
     LoadCompressedSpriteSheet(&sSpriteSheet_HoverBar);
     LoadCompressedSpriteSheet(&sSpriteSheet_ScrollThumb);
+    LoadCompressedSpriteSheet(&sSpriteSheet_TypeIcons);
+    LoadPalette(gMoveTypesSwSh_Pal, OBJ_PLTT_ID(TYPE_ICON_PAL_SLOT), TYPE_ICON_PAL_COUNT * PLTT_SIZE_4BPP);
 }
 
 static void CreateListSprites(void)
@@ -759,6 +802,39 @@ static void CreateListSprites(void)
     }
 }
 
+static void CreateTypeIconSprites(void)
+{
+    for (u32 i = 0; i < TYPE_ICON_COUNT; i++)
+    {
+        u8 spriteId = CreateSprite(&sSpriteTemplate_TypeIcon, TYPE_ICON_X + i * TYPE_ICON_X_STEP, TYPE_ICON_Y, SUBPRIORITY_TYPE_ICON);
+
+        sPokedex->typeIconSpriteIds[i] = spriteId;
+        gSprites[spriteId].invisible = TRUE;
+    }
+}
+
+static void UpdateTypeIconVisibility(void)
+{
+    for (u32 i = 0; i < TYPE_ICON_COUNT; i++)
+    {
+        gSprites[sPokedex->typeIconSpriteIds[i]].invisible = !(sPokedex->bg1Page == DEX_PAGE_ENTRY && sPokedex->bg1Alpha > 0 && i < sPokedex->typeIconCount);
+    }
+}
+
+static void SetTypeIcons(enum Species species)
+{
+    enum Type types[TYPE_ICON_COUNT] = {GetSpeciesType(species, 0), GetSpeciesType(species, 1)};
+
+    sPokedex->typeIconCount = (types[1] == types[0]) ? 1 : TYPE_ICON_COUNT;
+    for (u32 i = 0; i < sPokedex->typeIconCount; i++)
+    {
+        struct Sprite *sprite = &gSprites[sPokedex->typeIconSpriteIds[i]];
+
+        sprite->oam.tileNum = GetSpriteTileStartByTag(TAG_DEX_TYPE_ICONS) + types[i] * TYPE_ICON_TILES;
+        sprite->oam.paletteNum = gTypesInfo[types[i]].palette;
+    }
+}
+
 static void DestroyListSprites(void)
 {
     DestroySprite(&gSprites[sPokedex->cursorSpriteId]);
@@ -767,9 +843,14 @@ static void DestroyListSprites(void)
     {
         DestroySprite(&gSprites[sPokedex->scrollThumbSpriteIds[i]]);
     }
+    for (u32 i = 0; i < TYPE_ICON_COUNT; i++)
+    {
+        DestroySprite(&gSprites[sPokedex->typeIconSpriteIds[i]]);
+    }
     FreeSpriteTilesByTag(TAG_DEX_CURSOR);
     FreeSpriteTilesByTag(TAG_DEX_HOVER_BAR);
     FreeSpriteTilesByTag(TAG_DEX_SCROLL_THUMB);
+    FreeSpriteTilesByTag(TAG_DEX_TYPE_ICONS);
     FreeSpritePaletteByTag(TAG_SWSH_UI_PAL);
     FreeSpritePaletteByTag(TAG_DEX_SPRITE_PAL);
     ReleaseComfyAnim(sPokedex->cursorAnimId);
@@ -1112,6 +1193,7 @@ static void PrintEntryPage(void)
     BlitCaughtBall(WIN_ENTRY_HEADER, caught ? BALL_CAUGHT_HOVER : BALL_SEEN_HOVER, ENTRY_BALL_X, ENTRY_BALL_Y);
     PrintEntryCategory(species, caught);
     PrintEntryStats(species, caught);
+    SetTypeIcons(species);
     if (caught)
     {
         PrintEntryDescription(species);
@@ -1226,6 +1308,7 @@ static void UpdateBg1Fade(bool32 show)
         }
     }
 
+    UpdateTypeIconVisibility();
     SetGpuReg(REG_OFFSET_BLDCNT, BLDCNT_TGT1_BG1 | BLDCNT_EFFECT_BLEND | BLDCNT_TGT2_BG2 | BLDCNT_TGT2_BG3 | BLDCNT_TGT2_OBJ | BLDCNT_TGT2_BD);
     SetGpuReg(REG_OFFSET_BLDALPHA, BLDALPHA_BLEND(sPokedex->bg1Alpha, BLEND_MAX - sPokedex->bg1Alpha));
 }
@@ -1515,6 +1598,7 @@ void CB2_OpenPokedex_SwSh(void)
     case 4:
         LoadListSpriteGfx();
         CreateListSprites();
+        CreateTypeIconSprites();
         UpdateMonSprite();
         gMain.state++;
         break;
