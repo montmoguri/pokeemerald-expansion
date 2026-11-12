@@ -13,6 +13,7 @@
 #include "pokedex.h"
 #include "pokedex_area_region_map.h"
 #include "scanline_effect.h"
+#include "sound.h"
 #include "sprite.h"
 #include "string_util.h"
 #include "swsh_graphics.h"
@@ -127,6 +128,7 @@ enum
 #define LIST_TOP_Y              (sWindowTemplates[WIN_LIST].tilemapTop * TILE_HEIGHT)
 #define LIST_ROW_CENTER_Y(row)  (LIST_TOP_Y + LIST_ROW_HEIGHT / 2 + LIST_ROW_HEIGHT * (row))
 #define LIST_SPRITE_PRIORITY    2
+#define MON_SPRITE_PRIORITY     1
 #define SUBPRIORITY_CURSOR      0
 #define SUBPRIORITY_HOVER_BAR   (SUBPRIORITY_CURSOR + 1)
 #define SUBPRIORITY_THUMB       (SUBPRIORITY_HOVER_BAR + 1)
@@ -229,6 +231,7 @@ struct SwShPokedex
     u8 scrollThumbSpriteIds[SCROLL_THUMB_SEGMENTS];
     u8 monSpriteId;
     u8 monShadowSpriteId;
+    u16 monAnimTimer;
     u8 cursorAnimId;
     u8 scrollThumbAnimId;
     u32 cursorBobAnimId;
@@ -808,12 +811,31 @@ static void DestroyMonSprite(void)
         return;
     }
 
+    StopPokemonAnimationDelayTask();
     DestroySpriteAndFreeResources(&gSprites[sPokedex->monSpriteId]);
     if (SWSH_POKEDEX_MON_SHADOW)
     {
         DestroyMonShadowSprite(sPokedex->monShadowSpriteId);
     }
     sPokedex->monSpriteId = SPRITE_NONE;
+}
+
+#define sSpecies    data[0]
+#define sDontFlip   data[1]
+#define sPlayCry    data[2]
+
+static void SpriteCB_DexMon(struct Sprite *sprite)
+{
+    if (!gPaletteFade.active)
+    {
+        if (sprite->sPlayCry)
+        {
+            StopCryAndClearCrySongs();
+            PlayCry_Normal(sprite->sSpecies, 0);
+        }
+        sprite->sDontFlip = TRUE;
+        PokemonSummaryDoMonAnimation(sprite, sprite->sSpecies, FALSE);
+    }
 }
 
 static void UpdateMonSprite(void)
@@ -831,14 +853,44 @@ static void UpdateMonSprite(void)
     SetMultiuseSpriteTemplateToPokemon(species, B_POSITION_OPPONENT_LEFT);
     sPokedex->monSpriteId = CreateSprite(&gMultiuseSpriteTemplate, GetMonSpriteX(), GetMonSpriteY(), SUBPRIORITY_MON);
     FreeSpriteOamMatrix(&gSprites[sPokedex->monSpriteId]);
-    gSprites[sPokedex->monSpriteId].callback = SpriteCallbackDummy;
-    gSprites[sPokedex->monSpriteId].oam.priority = LIST_SPRITE_PRIORITY;
+    gSprites[sPokedex->monSpriteId].sSpecies = species;
+    gSprites[sPokedex->monSpriteId].sPlayCry = TRUE;
+    gSprites[sPokedex->monSpriteId].callback = SpriteCB_DexMon;
+    gSprites[sPokedex->monSpriteId].oam.priority = MON_SPRITE_PRIORITY;
     gSprites[sPokedex->monSpriteId].invisible = (sPokedex->monAlpha == 0);
     if (SWSH_POKEDEX_MON_SHADOW)
     {
         sPokedex->monShadowSpriteId = CreateMonShadowSprite(sPokedex->monSpriteId, FALSE);
     }
+    sPokedex->monAnimTimer = 0;
 }
+
+static void RunMonIdleTimer(void)
+{
+    if (sPokedex->monSpriteId == SPRITE_NONE)
+    {
+        return;
+    }
+
+    struct Sprite *mon = &gSprites[sPokedex->monSpriteId];
+    if (mon->callback == SpriteCallbackDummy)
+    {
+        sPokedex->monAnimTimer++;
+    }
+
+    if (sPokedex->monAnimTimer > SWSH_POKEDEX_MON_IDLE_ANIMS_FRAMES)
+    {
+        for (u32 i = 1; i < ARRAY_COUNT(mon->data); i++)
+            mon->data[i] = 0;
+        mon->sSpecies = NationalPokedexNumToSpecies(sPokedex->listNatNum[sPokedex->listCursor]);
+        mon->callback = SpriteCB_DexMon;
+        sPokedex->monAnimTimer = 0;
+    }
+}
+
+#undef sSpecies
+#undef sDontFlip
+#undef sPlayCry
 
 static void SlideListSprites(void)
 {
@@ -1342,6 +1394,10 @@ static void Task_SwShPokedexInput(u8 taskId)
 {
     UpdateBg3Slide();
     UpdatePageTransition();
+    if (SWSH_POKEDEX_MON_IDLE_ANIMS)
+    {
+        RunMonIdleTimer();
+    }
 
     if (gPaletteFade.active)
         return;
@@ -1387,6 +1443,8 @@ static void Task_SwShPokedexInput(u8 taskId)
             MoveEntryCursor(-1);
         else if (JOY_REPEAT(DPAD_DOWN) && sPokedex->bg1Page == DEX_PAGE_ENTRY)
             MoveEntryCursor(1);
+        else if (JOY_NEW(A_BUTTON))
+            UpdateMonSprite();
         break;
     case DEX_PAGE_HABITAT:
         if (JOY_NEW(B_BUTTON))
