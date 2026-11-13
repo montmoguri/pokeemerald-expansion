@@ -32,11 +32,15 @@
 #define BLEND_STEP              3
 #define LIST_FADE_STEP          4
 
-#define DEX_GFX_CHAR_BASE       2
-#define HABITAT_MAP_CHAR_BASE   1
-#define DEX_TEXT_CHAR_BASE      0
-#define DEX_SLIDE_MAP_BASE      28
-#define HABITAT_MAP_MAP_BASE    26
+#define GFX_CHAR_BASE               2
+#define HABITAT_CHAR_BASE           1
+#define TEXT_CHAR_BASE              0
+
+#define SLIDE_TILEMAP_BASE          28
+#define HABITAT_TILEMAP_BASE        26
+#define PROMPT_TILEMAP_BASE         30
+#define PAGE_TEXT_TILEMAP_BASE      31
+#define PAGE_GFX_TILEMAP_BASE       27
 
 #define TILEMAP_TILE_WIDTH      32
 #define PROMPT_BAR_TILE_HEIGHT  2
@@ -44,7 +48,8 @@
 
 #define DEX_TEXT_PAL_NUM        1
 #define DEX_PAL_BANK_COUNT      2
-#define DEX_TEXT_Y              4
+#define LIST_TOP_BAR_TEXT_Y     4
+#define PROMPT_TEXT_Y           0
 #define DEX_COUNT_DIGITS        4
 
 #define WIN_LIST_WIDTH                  16
@@ -65,6 +70,9 @@
 #define WIN_ENTRY_STATS_WIDTH           17
 #define WIN_ENTRY_STATS_HEIGHT          4
 
+#define WIN_PROMPT_WIDTH                28
+#define WIN_PROMPT_HEIGHT               2
+
 #define WIN_BASE_BLOCK_AFTER(prev)  (WIN_##prev##_BASE_BLOCK + WIN_##prev##_WIDTH * WIN_##prev##_HEIGHT)
 
 enum
@@ -77,6 +85,7 @@ enum
     WIN_ENTRY_CATEGORY_BASE_BLOCK       = WIN_BASE_BLOCK_AFTER(ENTRY_HEADER),
     WIN_ENTRY_DESCRIPTION_BASE_BLOCK    = WIN_BASE_BLOCK_AFTER(ENTRY_CATEGORY),
     WIN_ENTRY_STATS_BASE_BLOCK          = WIN_BASE_BLOCK_AFTER(ENTRY_DESCRIPTION),
+    WIN_PROMPT_BASE_BLOCK               = max(WIN_BASE_BLOCK_AFTER(LIST_REGION), WIN_BASE_BLOCK_AFTER(ENTRY_STATS)),
 };
 
 #define BALL_WIDTH              8
@@ -192,6 +201,7 @@ enum DexWindow
     WIN_ENTRY_CATEGORY,
     WIN_ENTRY_DESCRIPTION,
     WIN_ENTRY_STATS,
+    WIN_PROMPT,
     WIN_COUNT,
 };
 
@@ -217,10 +227,12 @@ enum DexTextColor
     COLORID_ENTRY_LABEL,
     COLORID_ENTRY_INDEX = COLORID_LIST_HOVER_INDEX,
     COLORID_ENTRY_NAME = COLORID_LIST_HOVER_NAME,
+    COLORID_PROMPT = COLORID_LIST_HOVER_NAME,
 };
 
 struct SwShPokedex
 {
+    u16 bg0TilemapBuffer[BG_SCREEN_SIZE / 2];
     u16 bg1TilemapBuffer[BG_SCREEN_SIZE / 2];
     u16 bg2TilemapBuffer[BG_SCREEN_SIZE / 2];
     u16 bg3TilemapBuffer[2][BG_SCREEN_SIZE / 2];
@@ -273,14 +285,14 @@ static const u32 sScrollThumb_Gfx[]                 = INCGFX_U32("graphics/poked
 static const u8 sTextColors[][3] =
 {
     [COLORID_LIST_SORT_TYPE]    = {0, 1, 2 },
-    [COLORID_LIST_COUNT_NUM]    = {0, 1, 5 },
-    [COLORID_LIST_REGION]       = {0, 3, 6 },
+    [COLORID_LIST_COUNT_NUM]    = {0, 1, 6 },
+    [COLORID_LIST_REGION]       = {0, 5, 7 },
     [COLORID_LIST_UNSEEN]       = {0, 9, 4 },
-    [COLORID_LIST_NORMAL]       = {0, 3, 4 },
+    [COLORID_LIST_NORMAL]       = {0, 5, 4 },
     [COLORID_LIST_HOVER_INDEX]  = {0, 1, 10},
     [COLORID_LIST_HOVER_NAME]   = {0, 1, 2 },
-    [COLORID_ENTRY_MAIN]        = {0, 3, 8 },
-    [COLORID_ENTRY_LABEL]       = {0, 3, 7 },
+    [COLORID_ENTRY_MAIN]        = {0, 5, 8 },
+    [COLORID_ENTRY_LABEL]       = {0, 5, 3 },
 };
 
 static const u32 *const sBg2Tilemaps[] =
@@ -292,9 +304,18 @@ static const u32 *const sBg2Tilemaps[] =
 static const struct BgTemplate sBgTemplates[] =
 {
     {
+        .bg = 0,
+        .charBaseIndex = TEXT_CHAR_BASE,
+        .mapBaseIndex = PROMPT_TILEMAP_BASE,
+        .screenSize = 0,
+        .paletteMode = 0,
+        .priority = 0,
+        .baseTile = 0,
+    },
+    {
         .bg = 1,
-        .charBaseIndex = DEX_TEXT_CHAR_BASE,
-        .mapBaseIndex = 31,
+        .charBaseIndex = TEXT_CHAR_BASE,
+        .mapBaseIndex = PAGE_TEXT_TILEMAP_BASE,
         .screenSize = 0,
         .paletteMode = 0,
         .priority = 1,
@@ -302,8 +323,8 @@ static const struct BgTemplate sBgTemplates[] =
     },
     {
         .bg = 2,
-        .charBaseIndex = DEX_GFX_CHAR_BASE,
-        .mapBaseIndex = 27,
+        .charBaseIndex = GFX_CHAR_BASE,
+        .mapBaseIndex = PAGE_GFX_TILEMAP_BASE,
         .screenSize = 0,
         .paletteMode = 0,
         .priority = 2,
@@ -311,8 +332,8 @@ static const struct BgTemplate sBgTemplates[] =
     },
     {
         .bg = 3,
-        .charBaseIndex = DEX_GFX_CHAR_BASE,
-        .mapBaseIndex = DEX_SLIDE_MAP_BASE,
+        .charBaseIndex = GFX_CHAR_BASE,
+        .mapBaseIndex = SLIDE_TILEMAP_BASE,
         .screenSize = 1,
         .paletteMode = 0,
         .priority = 3,
@@ -402,6 +423,16 @@ static const struct WindowTemplate sWindowTemplates[] =
         .paletteNum = DEX_TEXT_PAL_NUM,
         .baseBlock = WIN_ENTRY_STATS_BASE_BLOCK,
     },
+    [WIN_PROMPT] =
+    {
+        .bg = 0,
+        .tilemapLeft = 1,
+        .tilemapTop = 18,
+        .width = WIN_PROMPT_WIDTH,
+        .height = WIN_PROMPT_HEIGHT,
+        .paletteNum = DEX_TEXT_PAL_NUM,
+        .baseBlock = WIN_PROMPT_BASE_BLOCK,
+    },
     DUMMY_WIN_TEMPLATE,
 };
 
@@ -414,7 +445,7 @@ struct DexPageWindows
 static const struct DexPageWindows sPageWindows[] =
 {
     [DEX_PAGE_LIST]     = {WIN_LIST, WIN_ENTRY_HEADER},
-    [DEX_PAGE_ENTRY]    = {WIN_ENTRY_HEADER, WIN_COUNT},
+    [DEX_PAGE_ENTRY]    = {WIN_ENTRY_HEADER, WIN_PROMPT},
 };
 
 static const struct SpritePalette sSpritePalette_Dex =
@@ -569,7 +600,7 @@ static void PrintCount(u32 windowId, u32 x, u32 count)
 {
     ConvertIntToDecimalStringN(gStringVar1, count, STR_CONV_MODE_LEFT_ALIGN, DEX_COUNT_DIGITS);
     PrintDexText(windowId, FONT_NARROW, x + GetStringCenterAlignXOffset(FONT_NARROW, gStringVar1, COUNT_NUM_SPAN),
-                 DEX_TEXT_Y, COLORID_LIST_COUNT_NUM, gStringVar1);
+                 LIST_TOP_BAR_TEXT_Y, COLORID_LIST_COUNT_NUM, gStringVar1);
 }
 
 static void BuildDexList(void)
@@ -1096,14 +1127,14 @@ static void PrintTopBar(void)
     }
 
     PrintDexText(WIN_LIST_SORT_TYPE, FONT_NARROW, GetStringCenterAlignXOffset(FONT_NARROW, sortStr, WIN_LIST_SORT_TYPE_WIDTH * TILE_WIDTH),
-                 DEX_TEXT_Y, COLORID_LIST_SORT_TYPE, sortStr);
+                 LIST_TOP_BAR_TEXT_Y, COLORID_LIST_SORT_TYPE, sortStr);
 
-    BlitCaughtBall(WIN_LIST_CAUGHT_SEEN_NUM, BALL_CAUGHT_COLOR, CAUGHT_BALL_X, DEX_TEXT_Y);
-    BlitCaughtBall(WIN_LIST_CAUGHT_SEEN_NUM, BALL_SEEN_HOVER, SEEN_BALL_X, DEX_TEXT_Y);
+    BlitCaughtBall(WIN_LIST_CAUGHT_SEEN_NUM, BALL_CAUGHT_COLOR, CAUGHT_BALL_X, LIST_TOP_BAR_TEXT_Y);
+    BlitCaughtBall(WIN_LIST_CAUGHT_SEEN_NUM, BALL_SEEN_HOVER, SEEN_BALL_X, LIST_TOP_BAR_TEXT_Y);
     PrintCount(WIN_LIST_CAUGHT_SEEN_NUM, CAUGHT_NUM_X, caught);
     PrintCount(WIN_LIST_CAUGHT_SEEN_NUM, SEEN_NUM_X, seen);
 
-    PrintDexText(WIN_LIST_REGION, FONT_NARROW, 0, DEX_TEXT_Y, COLORID_LIST_REGION,
+    PrintDexText(WIN_LIST_REGION, FONT_NARROW, 0, LIST_TOP_BAR_TEXT_Y, COLORID_LIST_REGION,
                  national ? COMPOUND_STRING("NATIONAL") : GetExpandedPlaceholder(PLACEHOLDER_ID_REGION));
 
     for (u32 i = WIN_LIST_SORT_TYPE; i < sPageWindows[DEX_PAGE_LIST].end; i++)
@@ -1224,16 +1255,16 @@ static void LoadBg3Gfx(bool32 habitat)
     sPokedex->bg3Habitat = habitat;
     if (habitat)
     {
-        SetBgAttribute(3, BG_ATTR_CHARBASEINDEX, HABITAT_MAP_CHAR_BASE);
-        SetBgAttribute(3, BG_ATTR_MAPBASEINDEX, HABITAT_MAP_MAP_BASE);
+        SetBgAttribute(3, BG_ATTR_CHARBASEINDEX, HABITAT_CHAR_BASE);
+        SetBgAttribute(3, BG_ATTR_MAPBASEINDEX, HABITAT_TILEMAP_BASE);
         LoadPokedexAreaMapGfx();
         CpuCopy32(gPlttBufferUnfaded, gPlttBufferFaded, BG_PLTT_SIZE);
         sPokedex->bg3Loading = TRUE;
     }
     else
     {
-        SetBgAttribute(3, BG_ATTR_CHARBASEINDEX, DEX_GFX_CHAR_BASE);
-        SetBgAttribute(3, BG_ATTR_MAPBASEINDEX, DEX_SLIDE_MAP_BASE);
+        SetBgAttribute(3, BG_ATTR_CHARBASEINDEX, GFX_CHAR_BASE);
+        SetBgAttribute(3, BG_ATTR_MAPBASEINDEX, SLIDE_TILEMAP_BASE);
         SetBgAttribute(3, BG_ATTR_PALETTEMODE, 0);
         ShowBg(3);
     }
@@ -1378,6 +1409,35 @@ static void SetBg1PageWindows(enum DexPage page)
     sPokedex->entryStale = FALSE;
 }
 
+static void PrintPrompt(void)
+{
+    const u8 *str = NULL;
+
+    FillWindowPixelBuffer(WIN_PROMPT, PIXEL_FILL(0));
+    if (sPokedex->page == DEX_PAGE_LIST)
+    {
+        str = COMPOUND_STRING("{A_BUTTON} Details{CLEAR 7}{SELECT_BUTTON} Sort{CLEAR 7}{R_BUTTON} Evaluate{CLEAR 8}{B_BUTTON} Back");
+    }
+    else if (sPokedex->page == DEX_PAGE_ENTRY)
+    {
+        str = COMPOUND_STRING("{A_BUTTON} Motion/Cry{CLEAR 7}{START_BUTTON} Habitat{CLEAR 8}{DPAD_LEFTRIGHT} Forms{CLEAR 8}{B_BUTTON} Back");
+    }
+
+    if (str != NULL)
+    {
+        PrintDexText(WIN_PROMPT, FONT_SHORT_NARROW, GetStringRightAlignXOffset(FONT_SHORT_NARROW, str, WIN_PROMPT_WIDTH * TILE_WIDTH),
+                     PROMPT_TEXT_Y, COLORID_PROMPT, str);
+    }
+
+    CopyWindowToVram(WIN_PROMPT, COPYWIN_GFX);
+}
+
+static void SetPage(enum DexPage page)
+{
+    sPokedex->page = page;
+    PrintPrompt();
+}
+
 static void UpdatePageTransition(void)
 {
     enum DexPage page = sPokedex->page;
@@ -1464,6 +1524,7 @@ static void Task_ExitSwShPokedex(u8 taskId)
         DestroyMonSpritesGfxManager(MON_SPR_GFX_MANAGER_A);
         DestroyListSprites();
         FreeAllWindowBuffers();
+        UnsetBgTilemapBuffer(0);
         UnsetBgTilemapBuffer(1);
         UnsetBgTilemapBuffer(2);
         UnsetBgTilemapBuffer(3);
@@ -1492,7 +1553,7 @@ static void Task_SwShPokedexInput(u8 taskId)
         {
             if (IsListIndexSeen(sPokedex->listCursor))
             {
-                sPokedex->page = DEX_PAGE_ENTRY;
+                SetPage(DEX_PAGE_ENTRY);
             }
         }
         else if (JOY_NEW(B_BUTTON))
@@ -1519,9 +1580,9 @@ static void Task_SwShPokedexInput(u8 taskId)
         break;
     case DEX_PAGE_ENTRY:
         if (JOY_NEW(B_BUTTON))
-            sPokedex->page = DEX_PAGE_LIST;
+            SetPage(DEX_PAGE_LIST);
         else if (JOY_NEW(START_BUTTON))
-            sPokedex->page = DEX_PAGE_HABITAT;
+            SetPage(DEX_PAGE_HABITAT);
         else if (JOY_REPEAT(DPAD_UP) && sPokedex->bg1Page == DEX_PAGE_ENTRY)
             MoveEntryCursor(-1);
         else if (JOY_REPEAT(DPAD_DOWN) && sPokedex->bg1Page == DEX_PAGE_ENTRY)
@@ -1531,7 +1592,7 @@ static void Task_SwShPokedexInput(u8 taskId)
         break;
     case DEX_PAGE_HABITAT:
         if (JOY_NEW(B_BUTTON))
-            sPokedex->page = DEX_PAGE_ENTRY;
+            SetPage(DEX_PAGE_ENTRY);
         break;
     }
 }
@@ -1563,6 +1624,7 @@ void CB2_OpenPokedex_SwSh(void)
         sPokedex->scrollThumbAnimId = INVALID_COMFY_ANIM;
         ResetBgsAndClearDma3BusyFlags(0);
         InitBgsFromTemplates(0, sBgTemplates, ARRAY_COUNT(sBgTemplates));
+        SetBgTilemapBuffer(0, sPokedex->bg0TilemapBuffer);
         SetBgTilemapBuffer(1, sPokedex->bg1TilemapBuffer);
         SetBgTilemapBuffer(2, sPokedex->bg2TilemapBuffer);
         SetBgTilemapBuffer(3, sPokedex->bg3TilemapBuffer);
@@ -1591,6 +1653,9 @@ void CB2_OpenPokedex_SwSh(void)
             {
                 PutWindowTilemap(i);
             }
+            PutWindowTilemap(WIN_PROMPT);
+            PrintPrompt();
+            ScheduleBgCopyTilemapToVram(0);
             ScheduleBgCopyTilemapToVram(1);
             gMain.state++;
         }
@@ -1611,6 +1676,7 @@ void CB2_OpenPokedex_SwSh(void)
         SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(0, DISPLAY_HEIGHT));
         SetGpuReg(REG_OFFSET_WININ, WININ_WIN0_BG_ALL | WININ_WIN0_OBJ);
         SetGpuReg(REG_OFFSET_WINOUT, WINOUT_WIN01_ALL);
+        ShowBg(0);
         ShowBg(1);
         ShowBg(2);
         ShowBg(3);
